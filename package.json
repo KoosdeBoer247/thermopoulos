@@ -1,0 +1,8 @@
+{
+  "name": "hestia-pyrox-klimatos-docx-export",
+  "private": true,
+  "description": "Node/docx-js dependency for report_to_docx.py's Word export. Install with: npm install",
+  "dependencies": {
+    "docx": "^9.6.1"
+  }
+}

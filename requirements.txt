@@ -1,0 +1,35 @@
+# HESTIA-PYROX Suite — dependencies
+#
+# Python: 3.10 of hoger (pythermalcomfort >= 4 vereist zelf >= 3.10).
+# Getest op Python 3.12. Gebruik geen f-string-syntaxis die alleen op 3.12+
+# werkt; test_recent_features.py controleert dit automatisch.
+#
+# PYROX core only (lightweight):
+numpy>=1.20
+
+# Data loader (Excel I/O):
+pandas>=1.3
+openpyxl>=3.0
+
+# HESTIA (individual tier) — heavier scientific stack:
+pythermalcomfort>=2.0
+pvlib>=0.9
+timezonefinder>=6.0
+pytz>=2021.1
+scipy>=1.7
+matplotlib>=3.4
+seaborn>=0.11
+tqdm>=4.62
+colorama>=0.4
+
+# Thermopoulos Data Engine (fetches weather, writes the Excel the suite reads):
+requests>=2.25
+xlsxwriter>=3.0
+
+# Notes:
+# - Thermopoulos_Data_Engine.py needs numpy, pandas, requests, pvlib,
+#   pythermalcomfort and xlsxwriter. Run it first to produce Thermopoulos_*.xlsx.
+# - PYROX (pyrox_model, pyrox_groups, run_pyrox, verify) needs only numpy,
+#   plus pandas/openpyxl when driven through the Thermopoulos loader.
+# - HESTIA (hestia_model, run_hestia) needs the full stack above.
+# - Install just the PYROX-core block if you only want the population tier.
