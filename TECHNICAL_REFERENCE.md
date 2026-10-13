@@ -1108,6 +1108,179 @@ Added after the 2026-09-11 snapshot above; covered by `test_recent_features.py`.
   f-strings that only parse on Python ≥ 3.12.
 - `test_pyrox_report.py` now uses a temporary directory (works on Windows).
 
+### Personal runner module (2026-10-06)
+
+`run_loper.py` / `hestia_loper.py`: one runner enters height, weight, age,
+sex, event, date, start time, place, distance and expected pace, plus
+optional VO2max (watch), a recent race result, measured HR_max/HR_rest and
+body fat, drinking habit, NSAID use, heat acclimatisation, clothing and
+weekly training volume. Six health factors (recent fever/infection, poor
+sleep, alcohol, previous heat illness, medication affecting HR/BP/sweating,
+cardiovascular disease) are asked but NOT modelled; they are listed in the
+report.
+
+- Fitness: VO2max priority watch > race (VDOT, Daniels & Gilbert 1979) >
+  population mean. %VO2max at the planned pace follows; above 95 % the
+  engine clamps and the report warns.
+- Measured HR_max/HR_rest are passed to the CVR model (`RunnerProfile.hr_max`,
+  `hr_rest`); without them the model uses Tanaka and Lloyd Eq. 9 as before.
+- Duration = distance x pace, rounded up to whole 10-min steps (otherwise
+  the last partial step is dropped by `build_interp_data`). The engine is
+  time-driven: extra time from slowing down is not simulated.
+- Collapse probability: the same logistic as `run_monte_carlo_adult()` on
+  the race-only T_rect maximum, with the active endpoint's intercept
+  (provisional, pre-2026-10-04 CVR). Reported as "per 1000 runners like you".
+- Model signal (MODELKEUZE, not a clinical scale): red if >= 5 % of runs
+  reach the conjunction (T_rect >= 40.5 °C and CO_reserve <= 0) or the
+  Roberts dose > 60 °C·min; orange if the 97.5th percentile T_rect >= 40.5,
+  >= 5 % EHE, >= 5 % stop on RPE, or median dehydration > 3 %; yellow if the
+  97.5th percentile T_rect >= 39.5, the 2.5th percentile CO_reserve < 2 L/min,
+  or the 97.5th percentile dehydration > 2 %; otherwise green.
+- What-if: pace +0:30 and +1:00 min/km (half ensemble). Shown as median and
+  10 %-worst runs; the 2.5 % tail is too unstable at ~100 runs.
+
+### Validation against real runners: mode B (2026-10-09)
+
+`clinic_validatie.py` runs the validation schema of the Thermo Clinic
+(11 October 2026). Mode A is the unchanged runner module per participant
+(planned pace, pacing law), frozen before any FIT file is converted. Mode B
+(`hestia_reconstructie.py`) reconstructs each runner minute by minute:
+
+- exercise from the measured speed: Daniels & Gilbert (running, ≥ 1.8 m/s),
+  ACSM walking equation (0.3–1.8 m/s), 1.5 MET standing; MET = VO2/3.5;
+- self-generated wind from the measured speed (law of cosines with the
+  ambient 1.5 m wind, as `compute_relative_wind`), not back-computed from MET;
+- no pacing law and no RPE stop; drinking = reported millilitres spread over
+  the recording; sweat from the last JOS-3 step × sweat factor;
+- 1-minute steps from the start of the recording, so the standing time before
+  the main segment is part of the simulation;
+- ensemble (default 50): air temperature + N(0, 1 °C), RH + N(0, 5), radiant
+  temperature from shade to sun, wind direction, + U(0, 0.3) clo while
+  standing, sweat factor as in `hestia_model`; central run = Data Engine MRT,
+  90° wind, mean sweat factor.
+
+Three variants, fixed before the clinic data:
+
+| Variant | JOS-3 `par` | T_rect |
+|---|---|---|
+| B1 (primary, as the suite) | MET | mean of 17 core segments + 0.5 °C |
+| B2 | MET × 58.2 / BMR | as B1 |
+| B3 | MET × 58.2 / BMR | pelvis core (segment 4) |
+
+Development check on L01 (18 Sept 2026; age, height and weight uncertain):
+over the 43-min main segment B3 bias +0.21 °C, RMSE 0.24 °C, warming
+1.76 vs 1.49 °C measured; B1 bias −0.11 °C but RMSE 0.66 °C, because the
+mean over 17 segments drops to ~34 °C during 110 min of standing at 17 °C
+(cooling limbs) and then warms 3.7 °C; B2 is ~0.8 °C too warm. The CORE
+signal lags the model by ~4–10 min. The 95 % band (input uncertainty only)
+is narrow, so coverage is low for all variants.
+
+### Level versus dynamics (2026-10-10, exploratory)
+
+Per-minute bias and RMSE mix level and timing. `dynamiek.py` fits, for model
+and CORE separately, y = y0 + K·x with tau·dx/dt = (u(t−L) − 1.5) − x, u = MET
+from the measured speed (identical input for both), dead time L 0–10 min.
+Window: 15 min before to 40 min after the main segment; tau also fitted
+separately for rise and fall (y0, L fixed). Peak = maximum over the main
+segment + 20 min.
+
+L01 (18 Sept 2026):
+
+| | L (min) | tau (min) | K (°C/MET) | tau rise/fall | peak (°C) |
+|---|---|---|---|---|---|
+| Model B3 | 3 | 19 | 0.28 | 18 / 23 | 38.65 (min 146) |
+| CORE | 6 | 28 | 0.30 | 20 / 26 | 38.66 (min 165) |
+
+Second-order fits add a short tau of 1.5–2.6 min that hardly improves the fit.
+A first-order sensor (tau 8 min) behind the model reproduces the CORE step
+response (tau_total ≈ 19 + 8 ≈ 28), but a pure sensor lag would lower the
+measured peak by ~0.1 °C, which was not observed. The late CORE peak falls in
+a phase of reduced effort (5–7 MET) with heart rate still 140–145 /min while
+the model's heart rate fell to 115–125: either real after-glow during reduced
+effort (JOS-3 cools as soon as MET falls; it has no after-glow of its own), or
+the CORE algorithm following the heart rate. Separable only with a pill or
+rectal reference.
+
+### Heart rate and CO_reserve dynamics (2026-10-10, exploratory)
+
+Same identification with heart rate (chest strap, no algorithm) as output.
+L01: measured K 9.2 /min per MET, tau 5.6 min; CVR model (B3, population
+VO2max) K 9.8, tau 0.6 min. The CVR module computes HR and CO_reserve
+algebraically from the current MET and temperatures, so CO_reserve recovers
+almost instantly when effort drops. After the main segment the measured HR
+stayed on average 6 /min above its own first-order fit and 22 /min above the
+model (corrected for a 4 /min offset in the 30 min before the start): a
+cardiovascular after-glow (skin perfusion while the core stays warm, lower
+stroke volume). Measures `dyn_hr_*` in `dynamiek.hartslag_dynamiek()`.
+
+### Damping: overshoot or not (2026-10-10)
+
+No overshoot was found. JOS-3 step response (9.5 MET, 150 min, 17 and 30 °C):
+monotone, overshoot <= 0.003 °C. Second-order fits with free damping on L01:
+CORE zeta ~ 1.9, heart rate zeta at the upper bound (5): both overdamped.
+Thermoregulation behaves as proportional control on a large heat capacity:
+no integrator and little delay, so no overshoot but a steady-state offset
+proportional to the load (K ~ 0.3 °C per MET is that offset). The after-glow
+is not overshoot but a cascade of heat stores (working muscle -> blood ->
+core): the core keeps rising after the input drops until the muscle is no
+longer warmer than the core. The model's pacing loops are also strongly
+damped: loop gain per 10-min step ~ K_P_PACING x K = 0.1 x 0.3 = 0.03
+(thermal) and ~ K_P_PACING_CV x dCO_reserve/dMET = 0.1 x 1 = 0.1
+(cardiovascular), pole near -0.1: at most a small alternation that dies out
+within one step.
+
+### Planned after the clinic: dynamic CO_reserve and T_rect
+
+Not implemented before the clinic (pre-registration: no model change on the
+data used to judge it; one runner is too few).
+
+1. CO_reserve: first-order filter on the MET fed to the CVR module, separate
+   tau for rise and fall, discretised as a = 1 - exp(-dt/tau) so it holds at
+   10-min population steps. Estimate tau per runner from heart rate (direct
+   measurement).
+2. T_rect: only if the slower fall and after-glow recur in all runners and
+   are not explained by CORE lag (a tau difference roughly constant across
+   runners points to the sensor). Part follows automatically: a warmer core
+   keeps skin perfusion high and CO_reserve low.
+3. Post-finish: let `simulate_post_finish()` (venous pooling,
+   `PF_DELTA_T_NAGLOED`) use the same dynamics instead of a separate
+   finish-only rule.
+4. Effect on risk: with instant CO_reserve recovery the pacing loop acts
+   without actuator lag and is too optimistic; with lag, slowing down helps
+   later and the conjunction (T_rect >= 40.5 °C and CO_reserve <= 0) lasts
+   longer. Then re-estimate the collapse intercepts.
+5. Test at the next clinic, preferably with a real 10-min stop and a few pill
+   or rectal references.
+
+### Findings 2026-10-09
+
+- **MET passed as JOS-3 `par`.** JOS-3 computes heat production as
+  `par × BMR` (`local_q_work = (par − 1) × bmr`); `par` is a multiple of the
+  person's own basal rate (~40–45 W/m²), not of 1 MET (58.2 W/m²). The
+  engine sets `jos3_model.par = current_met`, so heat production during
+  exercise is ~24 % (35 y) to ~33 % (older) too low. Example, 35 y, 10 MET,
+  60 min, 22 °C: pelvis core 38.57 vs 39.24 °C; mean+0.5 39.07 vs 39.85 °C.
+  The CVR module uses the same number correctly as MET. The suite's
+  T_rect definition (mean of 17 segments + 0.5 °C) partly offsets the low
+  input; correcting only the input would double-count. Decision deferred
+  until after the clinic (variants B1–B3).
+- **T_rect = mean of 17 core segments + 0.5 °C** is sensitive to limb
+  cooling at rest: after standing in mild weather it falls far below the
+  measured core. In race-start simulations (neutral initial state) this
+  does not show.
+- **Sweat rate averaged over the whole history — FIXED 2026-10-09.** The
+  engine used `np.mean(dict_results()['weight_loss_by_evap_and_res'])`, i.e.
+  the mean rate since the start, not the rate of the current step. At
+  constant work the accumulated loss was ~26–28 % too low in the first hour
+  and ~19–20 % after two hours. Now the mean over the minutes of the current
+  step. Population effect (600 runners, 100 min, MET 10, seed 42, synthetic
+  weather): median net dehydration 1.30 → 1.58 % (22 °C) and 1.52 → 1.86 %
+  (30 °C); median minimum CO_reserve 2.29 → 2.07 and 1.61 → 1.38 L/min;
+  expected collapses per 1000 0.32 → 0.35 and 2.03 → 2.15; T_rect
+  unchanged. The collapse intercepts were calibrated with the old
+  accounting and should be re-estimated (`intercept_estimation.py`)
+  together with the pending post-CVR recalibration. Test: `test_zweet_fix.py`.
+
 ### Still open (from the 2026-10-01 review)
 
 - **UHI diurnal step function** (`Thermopoulos_Data_Engine.py`): factor 0.6
@@ -1120,6 +1293,23 @@ Added after the 2026-09-11 snapshot above; covered by `test_recent_features.py`.
   18–29 June 2026, is the natural second test.
 - **`PACE_MIN_PER_KM_CEILING = 7.45`** is the Dam tot Damloop course limit and
   is not rescaled for other event distances.
+- [2026-10-06] **Post-finish after-glow**: `PF_DELTA_T_NAGLOED = 0.40` is
+  documented as a peak amplitude (°C) but applied as a rate (°C/min) times
+  exp(-t/2); its integral is 0.8 °C. Affects post-finish doses only.
+- [2026-10-06] **Missing weather values** are not caught by the population
+  paths; the engine silently produces NaN traces.
+- [2026-10-06] **Last partial 10-min step** of an event is not simulated in
+  the population paths.
+- [2026-10-08] **JOS-3 set-point collapse (fixed with `maak_jos3()`)**: in
+  pythermalcomfort 4.6.0 the core set point drops to ~35.5 C for people with
+  a low BMR per m2 (from ~70 y), because the PMV=0 solver hits the ISO 7730
+  limit (tdb <= 30 C). Repaired by recomputing with limit_inputs=False.
+  Report upstream.
+- [2026-10-08] **T_rect definition**: mean of the 17 JOS-3 core segments
+  + 0.5 C. In warm conditions this is ~0.4 C above JOS-3's pelvis core.
+  Check which definition the sport validation (bias +0.18 C) used.
+- [2026-10-08] `jos3_model.t_core[:] = 37.0` is a no-op (property returns a
+  copy).
 
 ---
 

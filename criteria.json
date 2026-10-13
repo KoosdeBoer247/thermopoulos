@@ -1,0 +1,127 @@
+{
+  "versie": "2026-10-10",
+  "bron": "Validatieschema HESTIA - Thermo Clinic 11 oktober 2026, hoofdstuk 6",
+  "toelichting": "Grenzen voor het groepsgemiddelde over de lopers (eenheid van analyse = de loper). 'abs_max': |gemiddelde| <= grens; 'max': gemiddelde <= grens; 'min': gemiddelde >= grens. Verkennend = wel berekend en getoond, geen oordeel. Maten met goed = null hebben geen grens: alleen beschrijvend (dynamiek.py).",
+  "min_lopers_groepsoordeel": 8,
+  "primaire_variant": "B1",
+  "varianten": {
+    "B1": "primair: de huidige suitedefinitie (par = MET, gemiddelde 17 kernsegmenten + 0,5 C)",
+    "B2": "secundair: par omgerekend naar de eigen rustverbranding, T_rect als B1",
+    "B3": "secundair: par omgerekend, T_rect = JOS-3-bekkenkern"
+  },
+  "maten": {
+    "kern_bias": {
+      "label": "Bias kerntemperatuur",
+      "eenheid": "°C",
+      "goed": 0.3,
+      "acceptabel": 0.5,
+      "toets": "abs_max",
+      "verkennend": false
+    },
+    "kern_rmse": {
+      "label": "RMSE kerntemperatuur",
+      "eenheid": "°C",
+      "goed": 0.4,
+      "acceptabel": 0.6,
+      "toets": "max",
+      "verkennend": false
+    },
+    "kern_opwarming_verschil": {
+      "label": "Opwarming in het hoofddeel, model min meting",
+      "eenheid": "°C",
+      "goed": 0.3,
+      "acceptabel": 0.5,
+      "toets": "abs_max",
+      "verkennend": false
+    },
+    "kern_dekking": {
+      "label": "Dekking 95%-band kerntemperatuur",
+      "eenheid": "%",
+      "goed": 80,
+      "acceptabel": 60,
+      "toets": "min",
+      "verkennend": false
+    },
+    "vocht_verschil": {
+      "label": "Vochtverlies, model min meting",
+      "eenheid": "%-punt",
+      "goed": 0.5,
+      "acceptabel": 1.0,
+      "toets": "abs_max",
+      "verkennend": false
+    },
+    "hr_bias": {
+      "label": "Bias hartslag",
+      "eenheid": "/min",
+      "goed": 5,
+      "acceptabel": 10,
+      "toets": "abs_max",
+      "verkennend": true
+    },
+    "hr_drift_verschil": {
+      "label": "Hartslagdrift, model min meting",
+      "eenheid": "/min per 10 min",
+      "goed": 3,
+      "acceptabel": 6,
+      "toets": "abs_max",
+      "verkennend": true
+    },
+    "vo2max_verschil_pct": {
+      "label": "VO2max HESTIA (hartslag-snelheid) tegen Garmin",
+      "eenheid": "%",
+      "goed": 5,
+      "acceptabel": 10,
+      "toets": "abs_max_per_loper",
+      "verkennend": false
+    },
+    "kern_max_verschil": {
+      "label": "Maximum kerntemperatuur (hoofddeel + 20 min), model min meting",
+      "eenheid": "°C",
+      "goed": 0.3,
+      "acceptabel": 0.5,
+      "toets": "abs_max",
+      "verkennend": true
+    },
+    "dyn_K_verhouding": {
+      "label": "Statische versterking K, CORE gedeeld door model",
+      "eenheid": "-",
+      "goed": null,
+      "acceptabel": null,
+      "toets": "abs_max",
+      "verkennend": true
+    },
+    "dyn_dode_tijd_verschil": {
+      "label": "Dode tijd, CORE min model",
+      "eenheid": "min",
+      "goed": null,
+      "acceptabel": null,
+      "toets": "abs_max",
+      "verkennend": true
+    },
+    "dyn_tau_verschil": {
+      "label": "Tijdconstante tau, CORE min model",
+      "eenheid": "min",
+      "goed": null,
+      "acceptabel": null,
+      "toets": "abs_max",
+      "verkennend": true
+    },
+    "dyn_hr_tau_verschil": {
+      "label": "Tijdconstante hartslag, gemeten min model",
+      "eenheid": "min",
+      "goed": null,
+      "acceptabel": null,
+      "toets": "abs_max",
+      "verkennend": true
+    },
+    "dyn_hr_na_model_verschil": {
+      "label": "Hartslag in 20 min na het hoofddeel, gemeten min model (gecorrigeerd voor rustverschil)",
+      "eenheid": "/min",
+      "goed": null,
+      "acceptabel": null,
+      "toets": "abs_max",
+      "verkennend": true
+    }
+  },
+  "nawarmte_beslisregel": "Is de gemeten stijging na het stoppen gemiddeld kleiner dan de helft van de modelstijging (modus A), dan stellen we voor PF_DELTA_T_NAGLOED te halveren. Toetsen op een volgende clinic, niet op deze data."
+}

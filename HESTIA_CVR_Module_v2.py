@@ -58,6 +58,16 @@ class RunnerProfile:
     age:         float                 # years
     sex:         str                   # 'male' | 'female'
     vo2max:      float                 # mL/kg/min
+    # [2026-10-06] Optional measured values (e.g. from a sports watch or a
+    # maximal test). None = population equations below (Tanaka 2001 for
+    # HR_max, Lloyd 2022 Eq. 9 for HR_rest), exactly as before. Used by the
+    # single-runner module (hestia_loper.py); the population Monte Carlo
+    # never sets them, so its results are unchanged.
+    # MODELKEUZE: Lloyd et al. validated the CVR model with the equation
+    # values; substituting a measured HR_max/HR_rest is physiologically
+    # more individual but was not itself part of that validation.
+    hr_max:      Optional[float] = None  # beats/min, measured
+    hr_rest:     Optional[float] = None  # beats/min, measured
 
 
 @dataclass
@@ -236,8 +246,10 @@ class CVRModel:
 
         self.SV_max  = 40.59 + 24.81 * v         # mL/beat
         self.SV_rest = 85.1                        # mL/beat
-        self.HR_max  = 208 - 0.7 * self.runner.age
-        self.HR_rest = max(40.0, 90.93 - 0.64 * self.runner.vo2max)
+        self.HR_max  = (float(self.runner.hr_max) if self.runner.hr_max
+                        else 208 - 0.7 * self.runner.age)
+        self.HR_rest = (max(30.0, float(self.runner.hr_rest)) if self.runner.hr_rest
+                        else max(40.0, 90.93 - 0.64 * self.runner.vo2max))
         self.CO_max  = (self.SV_max  / 1000) * self.HR_max
         self.CO_rest = (self.SV_rest / 1000) * self.HR_rest
 

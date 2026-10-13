@@ -671,6 +671,91 @@ except ImportError:
 import pvlib
 import math
 from pythermalcomfort.models import JOS3
+from pythermalcomfort.models import pmv_ppd_iso as _pmv_ppd_iso
+from pythermalcomfort.utilities import met_to_w_m2 as _MET_TO_W_M2
+
+
+# =============================================================================
+#  [2026-10-08] JOS-3 SET-POINT REPAIR (pythermalcomfort 4.6.0)
+#
+#  JOS3.__init__() derives its thermoregulatory set points from a steady
+#  state at the operative temperature where PMV = 0 for the person's resting
+#  metabolism (BMR x 1.25). For people with a low BMR per m2 (older, or tall
+#  and light) that temperature lies above 30 C. pmv_ppd_iso() then returns
+#  NaN (ISO 7730 applicability limit, limit_inputs=True), the solver in
+#  JOS3._calculate_operative_temp_when_pmv_is_zero() falls back to a wrong
+#  value, and the core set point collapses to ~35.5 C (or NaN from ~86 y).
+#  The whole simulation then regulates around a core ~2 C too low.
+#  Found 2026-10-08 with Koos' own test runs (75 y, 1.94 m, 82 kg: T_rect
+#  37.0 C after 1:45 at 81% VO2max). Threshold for 1.94 m / 82 kg: 73 y;
+#  1.75 m / 70 kg: ~70 y. Population runs (age clipped 18-65) are hardly
+#  affected (only tall, light 65-year-old men in a grid check).
+#
+#  Repair: if the core set point of the pelvis is implausible (< 36.5 C or
+#  NaN), redo the same steady-state calculation with the PMV = 0 temperature
+#  found by bisection with limit_inputs=False. Identical to JOS-3's own
+#  procedure otherwise (verified: unchanged set points where JOS-3 was
+#  already correct). Uses JOS3._run (private API) -- recheck on a
+#  pythermalcomfort upgrade.
+#
+#  NB: the lines 'jos3_model.t_core[:] = 37.0' elsewhere are a no-op:
+#  JOS3.t_core returns a copy. The initial state is JOS-3's own set-point
+#  state (core ~37.1-37.6 C). Left in place; behaviour unchanged.
+# =============================================================================
+JOS3_SETPOINT_MIN = 36.5   # degC -- plausibility floor for the pelvis core set point
+
+
+_PMV_MODEL = None   # '7730-2025' (pythermalcomfort >= 4) of '7730-2005' (3.x)
+
+
+def _pmv_onbegrensd(t, v, rh, met, clo):
+    """PMV zonder ISO-domeingrens, met hetzelfde ISO 7730-model dat de
+    geinstalleerde JOS-3 zelf gebruikt: pythermalcomfort 4.x rekent met
+    7730-2025, 3.x kent alleen 7730-2005 (gevonden 2026-10-08 op Koos'
+    Windows-installatie: 'PMV calculations can only be performed in
+    compliance with ISO 7730-2005')."""
+    global _PMV_MODEL
+    kandidaten = [_PMV_MODEL] if _PMV_MODEL else ["7730-2025", "7730-2005"]
+    laatste_fout = None
+    for mdl in kandidaten:
+        try:
+            uit = _pmv_ppd_iso(t, t, v, rh, met, clo, model=mdl,
+                               limit_inputs=False, round_output=False).pmv
+            _PMV_MODEL = mdl
+            return uit
+        except ValueError as e:
+            laatste_fout = e
+    raise laatste_fout
+
+
+def _to_bij_pmv_nul(met: float, v: float = 0.1, rh: float = 50.0, clo: float = 0.0) -> float:
+    def f(t):
+        return _pmv_onbegrensd(t, v, rh, met, clo)
+    lo, hi = 10.0, 45.0
+    for _ in range(60):
+        mid = 0.5 * (lo + hi)
+        if f(mid) > 0:
+            hi = mid
+        else:
+            lo = mid
+    return 0.5 * (lo + hi)
+
+
+def maak_jos3(**kwargs) -> JOS3:
+    """JOS3(**kwargs) with the set-point repair described above."""
+    model = JOS3(**kwargs)
+    sp = float(model.cr_set_point[4])
+    if not (sp >= JOS3_SETPOINT_MIN):
+        met = model.bmr * 1.25 / _MET_TO_W_M2
+        model.to = _to_bij_pmv_nul(met)
+        model.rh, model.v, model.clo, model.par = 50, 0.1, 0, 1.25
+        model.options["ava_zero"] = True
+        for _ in range(10):
+            model._run(dtime=60000, passive=True)
+        model.cr_set_point = model.t_core
+        model.sk_set_point = model.t_skin
+        model.options["ava_zero"] = False
+    return model
 from pythermalcomfort.models import utci, wbgt
 from pythermalcomfort.utilities import wet_bulb_tmp
 from Thermopoulos_Data_Engine import calculate_globe_vectorized, calculate_mrt_vectorized, wind_speed_at_height
@@ -761,6 +846,11 @@ class AdultParticipantProfile:
     # placeholder standing in for a real value.
     pace_min_per_km:   float = 0.0   # min/km -- see sample_recreational_pace_min_per_km()
     duration_hours:    float = 0.0   # this participant's own exposure duration
+    # [2026-10-06] Measured HR_max / HR_rest (0.0 = unknown -> CVR uses its
+    # population equations, identical to previous behaviour). Only set by
+    # the single-runner module hestia_loper.py.
+    hr_max_known:      float = 0.0
+    hr_rest_known:     float = 0.0
 
 
 # =============================================================================
@@ -3400,7 +3490,7 @@ def calculate_indices_jos3_adult(interp_data, lat, lon, met_value, clo_value,
     # getattr() keeps this backward-compatible with any caller still passing
     # a plain object/tuple without the field.
     fat_percentage = getattr(participant_params, 'body_fat_pct', 25 if gender == "female" else 15)
-    jos3_model     = JOS3(height=height, weight=weight, age=runner_age,
+    jos3_model     = maak_jos3(height=height, weight=weight, age=runner_age,
                           fat=fat_percentage, sex=gender)
     jos3_model.t_core[:] = 37.0
 
@@ -3413,6 +3503,8 @@ def calculate_indices_jos3_adult(interp_data, lat, lon, met_value, clo_value,
         cvr_runner = RunnerProfile(
             mass=weight, height=height * 100,
             age=runner_age, sex=gender, vo2max=vo2max,
+            hr_max=(getattr(participant_params, 'hr_max_known', 0.0) or None),
+            hr_rest=(getattr(participant_params, 'hr_rest_known', 0.0) or None),
         )
         jos3_cvr_series          = []
         cvr_water_loss_kg        = 0.0
@@ -3540,7 +3632,16 @@ def calculate_indices_jos3_adult(interp_data, lat, lon, met_value, clo_value,
         results_jos3 = jos3_model.dict_results()
 
         if 'weight_loss_by_evap_and_res' in results_jos3:
-            water_loss_rate_g_per_s = float(np.mean(results_jos3['weight_loss_by_evap_and_res']))
+            # [fix 2026-10-09] Rate of THIS step only. dict_results() returns
+            # the whole history (one entry per simulated minute); the mean
+            # over all of it is the average rate since the start, which lags
+            # a rising sweat rate. Verified (35 y, par 9, 25 C, 10-min
+            # steps): accumulated loss was 26-28 % too low in the first hour
+            # and 19 % after two hours. Now: mean over the minutes simulated
+            # in this step (time_steps_minutes[i] entries).
+            _wl = np.asarray(results_jos3['weight_loss_by_evap_and_res'], dtype=float).ravel()
+            _n_stap = max(1, int(round(time_steps_minutes[i]))) if i > 0 else 1
+            water_loss_rate_g_per_s = float(np.mean(_wl[-_n_stap:])) if _wl.size else 0.0
         else:
             metabolic_heat_flux     = jos3_model.par * 58.2
             evap_fraction           = 0.6
@@ -3852,7 +3953,7 @@ def run_pediatric_simulation(interp_data, lat, lon, met_value, clo_value,
         twbs = [wet_bulb_tmp(tdb=t, rh=r) for t, r in zip(temps, rhs)]
     wbgts_pre = [entry.get('wbgt_precomputed') for entry in interp_data]
     utcis_pre = [entry.get('utci_precomputed') for entry in interp_data]
-    jos3_model = JOS3(height=height, weight=weight, age=age,
+    jos3_model = maak_jos3(height=height, weight=weight, age=age,
                        fat=fat_percentage, sex=gender)
     jos3_model.t_core[:] = 37.0
     time_steps_minutes = [(times[i+1] - times[i]).total_seconds() / 60.0
@@ -5083,7 +5184,7 @@ def get_representative_participant(age, gender):
 
 
 def run_single_simulation_for_temp(met_value, env_conditions, participant, clo_value, duration_minutes):
-    jos3 = JOS3(height=participant['height'], weight=participant['weight'],
+    jos3 = maak_jos3(height=participant['height'], weight=participant['weight'],
                 age=participant['age'], fat=participant['fat'], sex=participant['sex'])
     jos3.t_core[:] = 37.0
     jos3.par = met_value

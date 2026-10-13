@@ -117,6 +117,18 @@ GEO_THRESHOLD_KM = {
 # test_era5_seamless.py / diagnose_era5_land.py for how to do that).
 COASTAL_CORRECTION_PEAK_C = 3.0
 
+# [fix 2026-10-12] The distance check alone is not a coastal test: inland, the
+# nearest ERA5-Land cell centre can lie up to half the cell DIAGONAL away
+# (~5.6 km north-south and ~3.4 km east-west at 52 N, ~6.5 km diagonally), so a
+# distance just above the 5 km half-width occurs at ordinary inland sites
+# (Soestduinen: 5.1 km). Applying the coastal correction there would add up to
+# COASTAL_CORRECTION_PEAK_C (3 C) at midday to an inland temperature.
+# KUSTLOCATIE: True = coastal site (correction allowed when the distance check
+# fires), False = inland (never applied), None = old behaviour (distance check
+# only; kept for programmatic callers such as individual_engine.py).
+# main() asks the user once.
+KUSTLOCATIE: Optional[bool] = None
+
 # =============================================================================
 # Terrain roughness: settings and helper function
 # =============================================================================
@@ -164,6 +176,24 @@ def _haversine_km(lat1, lon1, lat2, lon2):
 # =============================================================================
 # Geocoding & API
 # =============================================================================
+
+
+def _lokaliseer(index: pd.DatetimeIndex, tz: str) -> pd.DatetimeIndex:
+    """Local wall-clock times from Open-Meteo -> tz-aware index.
+
+    [fix 2026-10-12] At the end of daylight saving time (last Sunday of
+    October) the hour 02:00 occurs twice. Open-Meteo returns it only once,
+    so ambiguous='infer' fails with "Cannot infer dst time ... as there are
+    no repeated times" (seen for a forecast window containing 2026-10-25).
+    Then fall back to ambiguous=True (summer time), the same choice as
+    individual_engine.py; the series has a one-hour gap there, which the
+    downstream interpolation handles. Spring-forward hours are shifted as
+    before.
+    """
+    try:
+        return index.tz_localize(tz, nonexistent="shift_forward", ambiguous="infer")
+    except Exception:
+        return index.tz_localize(tz, nonexistent="shift_forward", ambiguous=True)
 
 def geocode_city_candidates(city: str, max_results: int = 7) -> List[Dict]:
     """Geocode city name to coordinates."""
@@ -267,7 +297,7 @@ def fetch_hourly_forecast(lat: float, lon: float, tz: str, days: int = 7) -> pd.
     df.set_index("time", inplace=True)
     
     if df.index.tz is None:
-        df.index = df.index.tz_localize(tz, nonexistent='shift_forward', ambiguous='infer')
+        df.index = _lokaliseer(df.index, tz)
 
     df.rename(columns={
         "temperature_2m": "T_air_rural",
@@ -364,7 +394,12 @@ def fetch_historical_data(lat: float, lon: float, tz: str,
     returned_lon = response_json.get("longitude", lon)
     distance_km = _haversine_km(lat, lon, returned_lat, returned_lon)
     threshold_km = GEO_THRESHOLD_KM.get(params.get("models", "era5"), 12.5)
-    if distance_km > threshold_km:
+    if distance_km > threshold_km and KUSTLOCATIE is False:
+        logger.info(
+            f"Grid cell is {distance_km:.1f} km from the requested location; "
+            f"inland site, so no coastal correction (normal for a grid cell).")
+        coastal_active = False
+    elif distance_km > threshold_km:
         logger.warning(
             f"Grid cell is {distance_km:.1f} km from the requested location "
             f"(threshold {threshold_km} km for model '{params.get('models')}') "
@@ -379,7 +414,7 @@ def fetch_historical_data(lat: float, lon: float, tz: str,
     df.set_index("time", inplace=True)
     
     if df.index.tz is None:
-        df.index = df.index.tz_localize(tz, nonexistent='shift_forward', ambiguous='infer')
+        df.index = _lokaliseer(df.index, tz)
 
     df.rename(columns={
         "temperature_2m": "T_air_rural",
@@ -1152,6 +1187,14 @@ def main():
     # heuristic. Applies to all three datasets fetched below.
     roughness_z0, terrain_label = select_terrain_roughness()
 
+    # [fix 2026-10-12] Coastal correction only for coastal sites (see KUSTLOCATIE).
+    global KUSTLOCATIE
+    antwoord = input("\nLigt het parcours binnen ~10 km van zee of een groot meer "
+                     "(kustcorrectie op de temperatuur)? (j/N): ").strip().lower()
+    KUSTLOCATIE = antwoord in ("j", "ja", "y", "yes")
+    print("  Kustcorrectie: " + ("toegestaan als de rastercel ver van de locatie ligt"
+                                 if KUSTLOCATIE else "uit (binnenland)"))
+
     # =========================================================================
     # STEP 2: Fetch 7-Day Forecast
     # =========================================================================
@@ -1199,7 +1242,23 @@ def main():
         try:
             historical_df, historical_coastal_active = fetch_historical_data(lat, lon, tz, start_date, end_date)
             historical_df = validate_weather_data(historical_df, "custom historical")
-            logger.info(f"Custom historical data: {len(historical_df)} hours")
+            leeg = historical_df["T_air_rural"].isna()
+            if leeg.all():
+                # [fix 2026-10-12] Open-Meteo's ERA5 archive lags about 5 days
+                # behind real time; a period that is too recent comes back as
+                # all-null and used to crash process_weather_data().
+                beschikbaar = (pd.Timestamp(end_date) + pd.Timedelta(days=6)).date()
+                print(f"\n  ! Nog geen archiefdata voor {start_date} t/m {end_date}: het "
+                      f"ERA5-archief van Open-Meteo loopt ongeveer 5 dagen achter.\n"
+                      f"    Probeer het opnieuw vanaf ongeveer {beschikbaar}. "
+                      f"Verder zonder eigen historische periode.")
+                historical_df = None
+                historical_coastal_active = False
+            else:
+                if leeg.any():
+                    print(f"\n  ! {leeg.mean():.0%} van de uren ontbreekt nog (archief loopt "
+                          f"~5 dagen achter); die uren blijven leeg in het bestand.")
+                logger.info(f"Custom historical data: {len(historical_df)} hours")
         except Exception as e:
             logger.error(f"Error fetching custom historical data: {e}")
             print("Continuing without custom historical data...")

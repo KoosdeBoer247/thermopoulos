@@ -486,6 +486,8 @@ def run_individual_assessment(
     progress_callback: Callable[[float, str], None] | None = None,
     band_lo_pct: float = 2.5,
     band_hi_pct: float = 97.5,
+    weather_override: tuple | None = None,
+    profile_hook: Callable | None = None,
 ) -> IndividualAssessment:
     """Run the personal ensemble and return the aggregated assessment.
 
@@ -503,6 +505,15 @@ def run_individual_assessment(
     band_lo_pct/band_hi_pct control the T_rect/CO_reserve percentile
     band width (default 2.5/97.5, a 95% band -- see _extended_bands()'s
     docstring for why that default was chosen over a tighter 10/90).
+
+    [2026-10-06] weather_override: optional (weather_df, city, lat, lon, tz)
+    tuple, same shape fetch_scenario_weather() returns. Lets a caller supply
+    weather read from a Thermopoulos Data Engine Excel file (offline use,
+    and the exact same hourly data a population run of the same event
+    uses) instead of fetching it. None = previous behaviour (fetch).
+    profile_hook: optional callable(profile) -> profile, applied to every
+    ensemble member after _build_profile(); used by hestia_loper.py to set
+    measured HR_max/HR_rest. None = previous behaviour.
     """
     inputs.validate()
     if acclimatization_factor is None:
@@ -513,7 +524,10 @@ def run_individual_assessment(
             progress_callback(frac, text)
 
     _progress(0.0, "Locatie en weer ophalen\u2026")
-    weather_df, city, lat, lon, tz = fetch_scenario_weather(scenario)
+    if weather_override is not None:
+        weather_df, city, lat, lon, tz = weather_override
+    else:
+        weather_df, city, lat, lon, tz = fetch_scenario_weather(scenario)
     finish_local = scenario.start_local + pd.Timedelta(minutes=scenario.duration_minutes)
     # CRITICAL: weather_df's index is tz-aware (localized to the event's
     # own timezone by Thermopoulos_Data_Engine.py). scenario.start_local/
@@ -558,6 +572,8 @@ def run_individual_assessment(
     all_traces = []
     for i in range(n_ensemble):
         profile = _build_profile(inputs, rng)
+        if profile_hook is not None:
+            profile = profile_hook(profile)
         res = calculate_indices_jos3_adult(
             interp_data, lat, lon, met_value_ref, scenario.clo_value,
             profile, training_factor, acclimatization_factor,

@@ -109,6 +109,21 @@ The user has been working on this for ~2 years (this predates the KNMI
   not the bridge; calibration/validation remains intact. Enable via
   use_nocturnal_recovery=True.
 
+- **[2026-10-09] Sweat accounting:** `calculate_indices_jos3_adult()` uses
+  the sweat rate of the current step (was: mean over the whole history,
+  19–28 % too low). Collapse intercepts predate this and the CVR change;
+  re-estimate with `intercept_estimation.py` after the clinic.
+- **[2026-10-09] Open model choice, do not silently fix:** JOS-3 `par` is set
+  to MET, but JOS-3 expects a multiple of the person's own BMR (heat
+  production ~24–33 % low during exercise). The T_rect definition (mean of 17
+  core segments + 0.5 °C) partly offsets this. Clinic variants B1/B2/B3
+  decide; B1 = current suite = primary.
+- **[2026-10-10] CORE as reference:** the CORE computes core temperature
+  (heat flux, skin temperature, heart rate); it is not an independent
+  thermometer. On L01 it responded more slowly than JOS-3 (tau 28 vs 19 min)
+  at equal end level. Compare level (K, peak) and dynamics (dead time, tau)
+  separately (`dynamiek.py`).
+
 ## What can and cannot be claimed
 
 - **Can:** PYROX is an early-warning instrument that gets groups, timing,
@@ -133,6 +148,10 @@ Calibration tool: `intercept_estimation.py` (Newton-calibrates
 that shifts the T_rect/CO_reserve/dehydration distributions).
 Documentation in `docs/`: TECHNICAL_REFERENCE, REFERENCES, COUPLING_DESIGN,
 CONTRIBUTION_AND_POSITIONING. See MANIFEST.md for the full overview.
+Personal runner: `run_loper.py` -> `hestia_loper.py` (+ plots, Word report).
+Field validation: `fit_lezer.py` (anonymised FIT) -> `clinic_validatie.py`
+(`clinic_invoer.py`, `inspanning_uit_fit.py`, `hestia_reconstructie.py`,
+`dynamiek.py`, `clinic_rapport.py`, limits in `criteria.json`).
 
 ## Verified core references
 

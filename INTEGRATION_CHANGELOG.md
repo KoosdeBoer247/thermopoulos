@@ -4134,3 +4134,342 @@ door hitte verlaagde VO2max). Boven nul niets gewijzigd.
   HESTIA_CVR_Module_v2.py en test_cvr_freeze_fix.py.
 - docs_word/: alle vijf Word-kopieen opnieuw gegenereerd uit de .md-bestanden
   (stonden op 1 oktober en misten de wijzigingen sindsdien).
+
+
+---
+
+## 2026-10-06 — Persoonlijke loper-module (hestia_loper)
+
+Nieuw, op verzoek van Koos: een analyse voor EEN hardloper die zelf zijn
+gegevens invult, met risicoanalyse, figuren en een persoonlijk Word-rapport.
+
+Nieuwe bestanden:
+- `hestia_loper.py` — invoer (LoperInvoer, JSON), afgeleide fitheid
+  (VO2max uit horloge, uit een recente wedstrijd via Daniels & Gilbert, of
+  populatiegemiddelde), weer uit een Data Engine-bestand of online, analyse
+  per ensemble-run (Roberts-dosis, TCF, punt van geen terugkeer, EHE/EAC,
+  collapsekans, uitdroging, pacing, geschatte finishtijd), modelsignaal
+  groen/geel/oranje/rood met redenen, tempo-gevoeligheid (+0:30, +1:00/km),
+  Excel-export.
+- `hestia_loper_plots.py` — 9 figuren, basislettergrootte 15 pt.
+- `hestia_loper_rapport.py` — Word-rapport in het Nederlands, 14 pt.
+- `run_loper.py` — vragenlijst (`--nieuw`), voorbeeld (`--voorbeeld`), analyse.
+- `loper_invoer_voorbeeld.json`, `test_loper.py` (37 controles).
+
+Geen fysiologie gedupliceerd: alles loopt via individual_engine.py.
+
+Kleine, achterwaarts compatibele wijzigingen in bestaande code:
+- `HESTIA_CVR_Module_v2.RunnerProfile`: optionele `hr_max`, `hr_rest`
+  (gemeten waarden). None = Tanaka / Lloyd Eq. 9 zoals voorheen.
+  MODELKEUZE: Lloyd valideerde met de vergelijkingswaarden.
+- `hestia_model.AdultParticipantProfile`: `hr_max_known`, `hr_rest_known`
+  (standaard 0,0 = onbekend), doorgegeven aan RunnerProfile.
+- `individual_engine.run_individual_assessment()`: optionele
+  `weather_override` (weer uit Excel, offline) en `profile_hook`.
+- CHECKSUMS.txt: 6 nieuwe bestanden; 43 in totaal, alle kloppen.
+- Controle: T_rect, CO_reserve en HR van drie populatieprofielen zijn
+  bit-voor-bit gelijk aan de versie van 2026-10-05. Alle bestaande tests slagen.
+
+Bevindingen tijdens het bouwen (niet gewijzigd, ter beoordeling):
+1. **Ontbrekende weerdata worden stil doorgerekend.** Het Hindcast-blad van
+   Thermopoulos_DataEngine_Amsterdam_20260925_1726.xlsx heeft geen data voor
+   20–24 september; de engine gaf dan een T_rect-reeks van NaN zonder
+   foutmelding. hestia_loper weigert zo'n venster; de populatiepaden
+   (run_hestia.py) controleren dit niet.
+2. **Laatste deelstap valt weg.** build_interp_data() maakt stappen van
+   10 min tot en met de finish; een restant (bijv. 8,5 min van 88,5) wordt
+   niet gesimuleerd. hestia_loper rondt de duur naar boven af op 10 min;
+   de populatieruns hebben dit effect nog.
+3. **Nawarmte na de finish is ongeveer twee keer zo groot als beschreven.**
+   PF_DELTA_T_NAGLOED = 0,40 heet in de docstring "peak amplitude" (°C),
+   maar wordt toegepast als snelheid (°C/min) x exp(-t/2) x dt. De integraal
+   is 0,40 x 2 = 0,8 °C. In de testruns stijgt T_rect na de finish 0,7–0,8 °C.
+   Dit raakt de post-finish Roberts-dosis, EHS-postfinish en TCF-postfinish.
+   De collapsekans gebruikt alleen de race-stappen en wordt niet geraakt.
+
+### 2026-10-06 (avond) — run_loper.py: keuzemenu
+
+- Zonder argumenten (Spyder `runfile`) toonde run_loper.py alleen de hulptekst
+  en stopte met SystemExit 1. Nu een keuzemenu: 1 vragenlijst, 2 bestaand
+  .json kiezen (plus aantal runs), 3 voorbeeld schrijven.
+- Weerbestand kiezen met hetzelfde menu als run_hestia/run_pyrox
+  (`choose_thermopoulos_file`). Staat het pad uit de JSON niet op deze
+  computer, dan zoekt het script in de map van de JSON en de werkmap, en
+  anders mag de gebruiker kiezen.
+- Fouten in invoer of weer geven een leesbare melding in plaats van een
+  traceback; geen `sys.exit(0)` meer bij normaal afsluiten.
+
+### 2026-10-06 (avond) — hestia_loper: begrensd tempo
+
+- Fout gevonden in Koos' eerste eigen run (5:00 min/km met VO2max 31 uit een
+  halve marathon in 2:17 = 116% van VO2max): de engine begrenst dan op 95%,
+  maar afstand, tempocurve en finishtijd werden nog berekend vanaf het
+  geplande tempo. Gevolg: finishtijd 1:21 i.p.v. ca. 1:36. Opgelost met
+  `vo2_anker()` (start-VO2 = min(gepland, 0,95 x VO2max)).
+- Nieuw: `haalbaar_tempo()` (Daniels & Gilbert) — de waarschuwing noemt nu
+  het gesimuleerde tempo en een realistisch wedstrijdtempo; het rapport
+  zet bij begrenzing een rode melding bovenaan en markeert begrensde
+  rijen in de wat-als-tabel.
+- test_loper.py: 3 controles erbij (37).
+
+### 2026-10-08 — hestia_loper: weerbestand netjes sluiten
+
+- `weer_uit_excel()` opende het Excel-bestand zonder het te sluiten; Python
+  meldde dat later als `ResourceWarning: unclosed file` midden in de
+  simulatie (de melding wees misleidend naar pythermalcomfort/jos3.py).
+  Nu in een with-blok. Geen invloed op de uitkomsten.
+
+---
+
+## 2026-10-08 — JOS-3 set-point herstel (fout in pythermalcomfort 4.6.0)
+
+**Gevonden** met Koos' eigen testruns (75 jaar, 1,94 m, 82 kg, 16,1 km in
+1:45 bij ~14 C): T_rect bleef op 37,0 C, bij 8:00 min/km zelfs 35,9 C.
+
+**Oorzaak.** JOS3.__init__() bepaalt de set points uit een evenwicht bij
+de operatieve temperatuur waarbij PMV = 0 voor de rustverbranding
+(BMR x 1,25). Bij een lage BMR per m2 (ouderen; lang en licht) ligt die
+temperatuur boven 30 C. pmv_ppd_iso() geeft dan NaN (ISO 7730-grens,
+limit_inputs=True); de zoekroutine valt terug op een verkeerde waarde en het
+kern-set point zakt naar ~35,5 C (vanaf ~86 jaar NaN). Het model regelt
+daarna de hele loop rond een kern die ~2 C te laag ligt. Drempel bij
+1,94 m / 82 kg: 73 jaar; bij 1,75 m / 70 kg: ~70 jaar.
+
+**Herstel.** `hestia_model.maak_jos3()` vervangt de drie `JOS3(...)`-
+aanroepen. Is het set point van de bekkenkern < 36,5 C of NaN, dan wordt
+dezelfde evenwichtsberekening opnieuw gedaan met de PMV=0-temperatuur via
+bisectie met limit_inputs=False. Waar JOS-3 al klopte verandert niets.
+
+**Gevolgen.**
+- Populatieruns (leeftijd 18–65): vrijwel niet geraakt; in een rasteronderzoek
+  alleen lange, lichte mannen van 65. Drie referentieprofielen bit-voor-bit
+  gelijk aan de vorige versie.
+- Loper-module: elke loper vanaf ~70 jaar. Voor Koos' profiel bij 14,5 C en
+  6:30 min/km: piek T_rect 37,0 -> 39,2 C.
+- Kinderen (run_pediatric_simulation) en analyze_met_thresholds gebruiken
+  dezelfde functie.
+
+**Ook vastgesteld (niet gewijzigd):** `jos3_model.t_core[:] = 37.0` doet
+niets (JOS3.t_core geeft een kopie). De beginstand is JOS-3's eigen
+set-pointtoestand. En T_rect = gemiddelde van de 17 kernsegmenten + 0,5;
+in warme omstandigheden ligt dat ~0,4 C boven de bekkenkern van JOS-3.
+Open vraag: welke definitie hoort bij de validatie (bias +0,18 C)?
+
+Tests: test_loper.py +4 (41). Alle testscripts en suite_smoke_test slagen.
+Melden bij pythermalcomfort (Federico Tartarini).
+
+### 2026-10-08 (avond) — maak_jos3 werkt ook met pythermalcomfort 3.x
+
+- Op Koos' Windows-installatie (pythermalcomfort 3.x) faalde het herstel met
+  "PMV calculations can only be performed in compliance with ISO 7730-2005":
+  3.x kent het model '7730-2025' niet. `_pmv_onbegrensd()` probeert nu
+  '7730-2025' en valt terug op '7730-2005' -- hetzelfde model dat de
+  geinstalleerde JOS-3 intern gebruikt. Getest op 3.9.8, 4.4.3 en 4.6.0:
+  set point 37,57 C en na 60 min hardlopen 39,25 C, in alle drie gelijk.
+- De set-pointfout zelf zit ook in 3.9.8 en 4.4.3 (35,58 C).
+- run_loper.py: geen SystemExit meer bij een foutmelding in Spyder/IPython.
+
+---
+
+## 2026-10-09 — fit_lezer.py: FIT-bestanden lezen en anonimiseren
+
+Eerste stap van de koppeling met de Thermo Clinics (Joost Fonville).
+Getest op twee FIT-bestanden van 18-09-2026 (Garmin + CORE Connect IQ-app).
+
+- Leest met `fitdecode`; neemt alleen velden van een toegestane lijst over.
+  GPS, serienummers, user_profile, HRV en alle onbekende velden vallen weg.
+  Controleverslag per bestand: welke velden overgenomen, welke weggelaten.
+- Klokttijd -> seconden vanaf start; datum + starttijd (lokaal, afgerond op
+  10 min) blijven voor het weer. Hoogte alleen als verschil t.o.v. de start.
+- CORE-velden in deze bestanden: core_temperature, skin_temperature,
+  core_data_quality, heat_strain_index (developer fields van de CORE-app).
+  De betekenis van de kwaliteitsschaal is nog onbekend: bestand 1 vooral 20,
+  bestand 2 vooral 1–3. Navragen bij Joost/greenteg.
+- Herkent inspanningsdelen (voortschrijdend gemiddelde > 1,8 m/s, >= 2 min).
+- Uitvoer heet naar een zelfgekozen code. De oorspronkelijke bestandsnamen
+  van Garmin bevatten e-mailadressen en worden nergens overgenomen.
+- requirements.txt: fitdecode toegevoegd.
+
+Eerste waarneming (bestand L01): na het stoppen stijgt de CORE-kerntemperatuur
+nog hooguit enkele honderdsten graden en daalt dan; het model laat na de
+finish 0,65–0,8 °C stijging zien (zie de nawarmte-bevinding van 2026-10-06).
+Eén meting, en de CORE-sensor heeft zelf vertraging -- een aanwijzing, geen
+bewijs.
+
+### 2026-10-09 (middag) — CORE-kwaliteitsveld ontleed
+
+Bron: CORE BLE Service Specification v2.2 (tabel 4) en CORE Developer
+Information (FIT-conventie), beide van greenteg/CORE.
+- Laagste bits van core_data_quality: 0 ongeldig, 1 slecht, 2 redelijk,
+  3 goed, 4 uitstekend (7 = niet beschikbaar).
+- +16: de CORE gebruikt een hartslagsignaal (sportalgoritme). Zonder
+  hartslag schat de CORE met het algoritme voor dagelijks leven; volgens de
+  specificatie is de schatting tijdens zware inspanning dan veel minder goed.
+  Kanttekening: de BLE-specificatie gebruikt bit 4 voor 'ondersteund, geen
+  signaal'; de FIT-documentatie zegt +16 = hartslag in gebruik. Wij volgen
+  de FIT-documentatie.
+- fit_lezer.py: nieuwe kolommen core_niveau en core_hartslag_gebruikt,
+  percentages per inspanningsdeel, waarschuwing in Meta en in het menu,
+  extra paneel in de controlefiguur.
+- Bevinding 18-09: L01 97% met hartslag, 96% 'uitstekend'. L02 8% met
+  hartslag, 22% 'slecht'; tijdens het hoofddeel 2% met hartslag. L02 laat
+  na het lopen een daling van 39,2 naar 37,3 C in ~8 minuten zien --
+  fysiologisch niet mogelijk, past bij een onbetrouwbare schatting.
+  L02 is niet geschikt voor modelvalidatie.
+
+### 2026-10-09 (middag) — VO2max-schatting van Garmin uit het FIT-bestand
+
+- fit_lezer.py neemt bericht 140, veld 7 over (Garmin's VO2max-schatting na de
+  activiteit; METmax x 65536, dus VO2max = waarde x 3,5 / 65536). Niet
+  officieel gedocumenteerd; zo gelezen door GoldenCheetah en Intervals.icu.
+  Staat in Meta als vo2max_garmin_schatting, met een waarschuwing.
+- 18-09: L01 56,4 en L02 48,9 mL/kg/min. Het horlogeprofiel heeft bij beide
+  een standaardachtige maximale hartslag (195/193) en bij L01 een rusthartslag
+  van 90: waarschijnlijk geen gemeten waarden van de deelnemer. Bruikbaarheid
+  van de schatting hangt af van hoe Joost de horloges per deelnemer instelt.
+
+
+## 2026-10-09 — Clinic-validatie met modus B (reconstructie)
+
+Alleen nieuwe bestanden; geen bestaand bestand gewijzigd (byte voor byte
+vergeleken met HESTIA-PYROX-Suite-2026-10-09-fit). Populatie- en
+looperuitkomsten zijn daardoor gelijk.
+
+- Nieuw: `clinic_invoer.py`, `inspanning_uit_fit.py`, `hestia_reconstructie.py`,
+  `clinic_validatie.py`, `clinic_rapport.py`, `criteria.json`,
+  `test_clinic.py` (43 controles).
+- Volgorde afgedwongen: `voorspel` (modus A, vastgelegd met tijdstempel,
+  hash van deelnemers.xlsx en vingerafdruk van de suite; nooit
+  overschreven) vóór `vergelijk` (weigert zonder). Het rapport meldt
+  FIT-exports die ouder zijn dan de voorspelling en bestanden die sindsdien
+  veranderd zijn.
+- Modus B in drie vooraf vastgelegde varianten B1/B2/B3 (zie
+  TECHNICAL_REFERENCE §8a). B2 en B3 delen dezelfde JOS-3-runs.
+- Ontwikkelrun op L01/L02 van 18 september 2026 (L02 valt af: CORE
+  ontving 2% van de tijd hartslag).
+- Bevindingen vastgelegd, niet gerepareerd: MET als JOS-3-`par`; T_rect als
+  gemiddelde van 17 segmenten koelt af in rust.
+
+## 2026-10-09 (avond) — Zweetsnelheid per stap (hele suite)
+
+Op verzoek van Koos gerepareerd vóór de clinic, zodat het gemeten
+vochtverlies tegen een correct model wordt gelegd.
+
+- `hestia_model.calculate_indices_jos3_adult()`: zweetsnelheid = gemiddelde
+  over de minuten van de huidige stap (`time_steps_minutes[i]`), niet meer
+  over de hele voorgeschiedenis. Het oude gemiddelde liep achter bij
+  oplopend zweten: opgeteld 19-28 % te weinig.
+- Effect populatie (600 lopers, 100 min, MET 10, seed 42, synthetisch weer):
+  mediane netto uitdroging 1,30 -> 1,58 % (22 C) en 1,52 -> 1,86 % (30 C);
+  mediane laagste CO_reserve 2,29 -> 2,07 en 1,61 -> 1,38 L/min; verwachte
+  collapses per 1000 0,32 -> 0,35 en 2,03 -> 2,15. T_rect ongewijzigd.
+- De collapse-intercepts zijn met de oude boekhouding gekalibreerd;
+  herschatten samen met de openstaande herkalibratie na de CVR-wijziging.
+- Nieuwe test: `test_zweet_fix.py` (faalt op de oude code, slaagt nu).
+  Alle bestaande tests slagen.
+- Kindertak en post-finish: niet geraakt (rekenen het zweetverlies niet uit
+  de JOS-3-geschiedenis).
+
+## 2026-10-10 — Verkennende maten voor niveau en dynamica
+
+- Nieuw: `dynamiek.py`. Per loper, voor model (per variant) en CORE: eerste-orde
+  systeem met dode tijd uit de inspanning (K, dode tijd, tau), tau apart voor
+  stijgen en dalen, maximum in hoofddeel + 20 min, en het aandeel minuten
+  waarin de hartslag hoog blijft terwijl de inspanning daalt.
+- `clinic_validatie.py`: maten in Maten_B1/B2/B3 en de groepstabel;
+  `criteria.json` (versie 2026-10-10) met vier verkennende maten, drie zonder
+  grens (`goed = null`). `clinic_rapport.py`: hoofdstuk 10 'niveau en
+  dynamica', kanttekening bij de nawarmte.
+- `test_clinic.py`: 52 controles (identificatie van een bekend systeem,
+  trage sensor -> grotere tau en lager maximum, ontkoppelde hartslag).
+- Validatieschema bijgewerkt: varianten B1-B3 (hfst. 5), verkennende maten
+  (hfst. 5/6), lijst voor Joost (ANT+-nummer, eigen borstband, 15 min,
+  proefopname), stappenplan (hfst. 8), beperkingen (hfst. 9). Bevroren versie:
+  HESTIA-PYROX-Suite-2026-10-10-validatie.
+- L01: K 0,30 (CORE) tegen 0,28 (B3) C/MET, tau 28 tegen 19 min, maximum
+  38,66 tegen 38,65 C.
+
+## 2026-10-10 (middag) — Hartslagdynamica, demping, ontwerp voor na de clinic
+
+- `dynamiek.hartslag_dynamiek()`: hartslag als uitvoer (K, dode tijd, tau),
+  gemeten en CVR-model; hartslag na het hoofddeel boven de eigen fit en boven
+  het model (gecorrigeerd voor het rustverschil). Twee verkennende maten in
+  `criteria.json`; tabel in hoofdstuk 10 van het rapport. `test_clinic.py`:
+  55 controles.
+- L01: tau hartslag 5,6 min gemeten tegen 0,6 min in het model; na het
+  hoofddeel 22 /min boven het model. De CVR-module herstelt de hartreserve
+  vrijwel direct bij minder inspanning.
+- Demping: geen overshoot in JOS-3, CORE of hartslag (overgedempt; zeta 1,9
+  voor de CORE). De pacinglussen van het model hebben een lusversterking van
+  0,03-0,1 per stap.
+- Ontwerp vastgelegd (TECHNICAL_REFERENCE §8a), NIET gebouwd: dynamische
+  hartreserve (eerste-orde, aparte tau stijgen/dalen), eventueel tragere
+  daling van T_rect, aansluiting op de berekening na de finish, daarna
+  herkalibratie. Pas na de clinicdata.
+
+## 2026-10-12 — Data Engine: zomertijd-einde in de verwachting
+
+- Fout bij het ophalen van de 7-daagse verwachting rond 25 oktober 2026:
+  "Cannot infer dst time from 2026-10-25 02:00:00 as there are no repeated
+  times". Open-Meteo geeft het dubbele uur 02:00 maar één keer, waardoor
+  `tz_localize(ambiguous='infer')` faalt.
+- `Thermopoulos_Data_Engine._lokaliseer()`: eerst 'infer', anders
+  ambiguous=True (zomertijd, zelfde keuze als individual_engine.py). Gebruikt
+  voor de verwachting en de historische reeks. Geen invloed op de bevroren
+  clinicketen (niet in de vingerafdruk) en niet op data buiten die nacht.
+- Nog open: `hestia_loper._zoek_blad()` gebruikt ook 'infer'; alleen relevant
+  als een evenement precies in die nacht valt.
+
+## 2026-10-12 (2) — Data Engine: kustcorrectie alleen aan de kust; leeg archief
+
+- Bij Soestduinen lag de ERA5-Land-rastercel 5,1 km van de locatie, net boven
+  de drempel van 5,0 km, waardoor de kustcorrectie (tot +3 C rond het middaguur)
+  werd ingeschakeld. In het binnenland is zo'n afstand normaal: het dichtstbijzijnde
+  celmidden kan tot een halve celdiagonaal (~6,5 km) weg liggen. `main()` vraagt
+  nu of het parcours aan de kust ligt (`KUSTLOCATIE`); in het binnenland wordt de
+  correctie nooit toegepast. Andere aanroepers (individual_engine) houden het oude
+  gedrag (KUSTLOCATIE = None).
+- Een eigen historische periode die nog niet in het ERA5-archief staat (Open-Meteo
+  loopt ~5 dagen achter) kwam terug als volledig leeg en liet de verwerking
+  crashen ("unsupported operand type(s) for *: 'float' and 'NoneType'"). Nu een
+  duidelijke melding met de datum waarop het opnieuw kan, en verder zonder die periode.
+
+## 2026-10-12 (3) — Startmenu voor de hele suite
+
+- Nieuw `start_thermopoulos.py`: een menu met alle onderdelen in de juiste
+  volgorde (weer -> analyses; clinic a -> b -> c -> d), zodat niet steeds zelf
+  een script gekozen hoeft te worden. Werkmap en clinicmap worden onthouden
+  (`~/.thermopoulos_start.json`, alleen paden). De scripts zelf zijn niet
+  gewijzigd; het menu start ze zoals Spyder dat zou doen.
+- Volgordebewaking clinic: voorspellen kan niet zonder deelnemers.xlsx,
+  vergelijken niet zonder vastgelegde voorspelling en FIT-exports; een
+  waarschuwing als FIT-exports er al staan voordat er voorspeld is.
+
+## 2026-10-12 (4) — Modus B met los weerbestand (archiefweer achteraf)
+
+- `clinic_validatie.vergelijk(..., weerbestand=...)` en `--weer` op de
+  opdrachtregel: modus B kan met een ander weerbestand rekenen dan de
+  voorspelling, zonder deelnemers.xlsx te wijzigen (dat zou de controlesom
+  breken). Modus A blijft de vastgelegde voorspelling.
+- Uitvoer dan in `validatie_uitvoer_<naam weerbestand>`; de run met het
+  verwachte weer blijft staan. Het verschil tussen beide runs is de fout door
+  de weersverwachting, de rest is modelfout.
+- Excel (tabblad Vastlegging) en rapport (hoofdstuk 2) noemen het gebruikte weer.
+- Startmenu stap d vraagt welk weerbestand (Enter = uit deelnemers.xlsx).
+- Gevolg voor Soestduinen: `clinic_validatie.py` valt onder de vingerafdruk,
+  dus de controle meldt nu "suitebestanden gewijzigd na de voorspelling:
+  clinic_validatie.py". Dat is terecht gemeld en onschadelijk: alleen de
+  vergelijkingsstap is veranderd; de voorspellingen zelf staan ongewijzigd in
+  modus_A/vastlegging.json.
+
+## 2026-10-13 — Nieuwe README voor GitHub
+
+- `README.md` herschreven voor GitHub: wat de suite is, status (onderzoekssoftware,
+  niet gevalideerd voor operationele waarschuwingen), een tabel met bekende
+  problemen (par = MET, T_rect-definitie, hartslag zonder traagheid, geen
+  terreinfactor, nagloei, kalibratie eindpunten, weerarchief/kust, PYROX),
+  de opzet en voorlopige resultaten van de validatie (Thermo Clinic, Joost
+  Fonville; namen met toestemming), vervolgstappen, snelle start en licentie.
+- De uitgebreide bestandslijst en de sessiegeschiedenis die in de oude README
+  stonden, staan in `MANIFEST.md` en in dit logboek.
+- `LICENSE` (MIT) toegevoegd aan de map.

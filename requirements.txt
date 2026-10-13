@@ -21,6 +21,8 @@ matplotlib>=3.4
 seaborn>=0.11
 tqdm>=4.62
 colorama>=0.4
+python-docx>=1.0   # personal runner report (hestia_loper_rapport.py)
+fitdecode>=0.10    # FIT files (Garmin/CORE) -- fit_lezer.py
 
 # Thermopoulos Data Engine (fetches weather, writes the Excel the suite reads):
 requests>=2.25
