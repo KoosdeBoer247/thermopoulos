@@ -89,14 +89,36 @@ def test_jos3_setpoint():
     from hestia_model import maak_jos3
     ruw = JOS3(height=1.94, weight=82, age=75, fat=18, sex="male")
     hersteld = maak_jos3(height=1.94, weight=82, age=75, fat=18, sex="male")
-    check("JOS-3 zonder herstel: setpoint te laag (bekende fout)", ruw.cr_set_point[4] < 36.5,
-          f"{ruw.cr_set_point[4]:.2f}")
-    check("maak_jos3: setpoint hersteld", 37.0 < hersteld.cr_set_point[4] < 38.0,
-          f"{hersteld.cr_set_point[4]:.2f}")
-    a = JOS3(height=1.80, weight=75, age=45, fat=18, sex="male")
-    b = maak_jos3(height=1.80, weight=75, age=45, fat=18, sex="male")
-    check("maak_jos3 ongewijzigd waar JOS-3 al klopte",
-          np.allclose(a.cr_set_point, b.cr_set_point) and np.allclose(a.sk_set_point, b.sk_set_point))
+    # [2026-10-16] pythermalcomfort 4.6.2 lost de fout zelf op (issue #435,
+    # pythermalcomfort maintainers). Op oudere versies moet de fout zichtbaar zijn, op 4.6.2+
+    # moet ook de ruwe JOS-3 een correct setpoint geven.
+    import pythermalcomfort as _ptc
+    _v = tuple(int(x) for x in _ptc.__version__.split(".")[:3])
+    if _v >= (4, 6, 2):
+        check("JOS-3 >= 4.6.2: setpoint ook zonder herstel correct", 37.0 < ruw.cr_set_point[4] < 38.0,
+              f"{ruw.cr_set_point[4]:.2f} (v{_ptc.__version__})")
+    else:
+        check("JOS-3 zonder herstel: setpoint te laag (bekende fout)", ruw.cr_set_point[4] < 36.5,
+              f"{ruw.cr_set_point[4]:.2f}")
+    # [2026-10-23] maak_jos3 zet de kern in rust op JOS3_REST_CORE_C (37,0) en schuift de
+    # kern-instelwaarden mee (besluit van de auteur, ThermoClinic Emmen). De oude controles gelden
+    # met JOS3_REST_CORE_SHIFT = False.
+    import hestia_model as _H
+    check("maak_jos3: bekkenkern en instelwaarde in rust 37,0",
+          abs(hersteld.cr_set_point[4] - _H.JOS3_REST_CORE_C) < 1e-9 and abs(hersteld.t_core[4] - _H.JOS3_REST_CORE_C) < 1e-9,
+          f"{hersteld.cr_set_point[4]:.2f} / {hersteld.t_core[4]:.2f}")
+    _H.JOS3_REST_CORE_SHIFT = False
+    try:
+        a = JOS3(height=1.80, weight=75, age=45, fat=18, sex="male")
+        b = maak_jos3(height=1.80, weight=75, age=45, fat=18, sex="male")
+        check("maak_jos3 zonder rustverschuiving ongewijzigd waar JOS-3 al klopte",
+              np.allclose(a.cr_set_point, b.cr_set_point) and np.allclose(a.sk_set_point, b.sk_set_point))
+    finally:
+        _H.JOS3_REST_CORE_SHIFT = True
+    c = maak_jos3(height=1.80, weight=75, age=45, fat=18, sex="male")
+    _d = c.cr_set_point - a.cr_set_point
+    check("rustverschuiving: alle kern-instelwaarden even ver, huid-instelwaarden ongewijzigd",
+          np.allclose(_d, _d[0]) and np.allclose(a.sk_set_point, c.sk_set_point), f"{_d[0]:+.3f} C")
     for m in (hersteld,):
         m.tdb, m.tr, m.rh, m.v, m.clo, m.par = 14.5, 24, 70, 3.0, 0.2, 7.36
         m.simulate(times=60, dtime=60)
@@ -197,14 +219,17 @@ def test_end_to_end():
         check("reproduceerbaar met dezelfde seed",
               np.allclose(r2.per_run["t_rect_max"], d1["t_rect_max"]))
         plots = maak_alle_plots(r, d / "fig")
-        check("9 figuren", len(plots) == 9 and all(p.exists() for p in plots.values()))
+        verwacht = {"weer", "weer_dag", "dashboard", "alle_runs", "uitkomsten", "samenhang", "kerntemperatuur",
+                    "hartreserve", "hartslag", "tempo", "vocht", "fasediagram", "verdeling", "tempo_watals"}
+        check("14 figuren (incl. weer over de dag, dashboard, alle runs, uitkomsten, samenhang)",
+              set(plots) == verwacht and all(p.exists() for p in plots.values()), str(sorted(verwacht - set(plots))))
         doc = maak_rapport(r, plots, d / "r.docx")
         from docx import Document
         tekst = "\n".join(p.text for p in Document(doc).paragraphs)
         check("rapport geschreven", doc.exists() and "Samenvatting" in tekst)
         check("niet-gemodelleerde factor in rapport", "infectie" in tekst)
         xl = hl.exporteer_excel(r, d / "r.xlsx")
-        check("Excel met 6 bladen", len(pd.ExcelFile(xl).sheet_names) == 6)
+        check("Excel met 8 bladen (incl. Weer_loop en Weer_dag)", {"Weer_loop", "Weer_dag"} <= set(pd.ExcelFile(xl).sheet_names) and len(pd.ExcelFile(xl).sheet_names) == 8, str(pd.ExcelFile(xl).sheet_names))
 
 
 if __name__ == "__main__":

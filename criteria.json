@@ -1,13 +1,15 @@
 {
-  "versie": "2026-10-10",
+  "versie": "2026-10-27",
   "bron": "Validatieschema HESTIA - Thermo Clinic 11 oktober 2026, hoofdstuk 6",
   "toelichting": "Grenzen voor het groepsgemiddelde over de lopers (eenheid van analyse = de loper). 'abs_max': |gemiddelde| <= grens; 'max': gemiddelde <= grens; 'min': gemiddelde >= grens. Verkennend = wel berekend en getoond, geen oordeel. Maten met goed = null hebben geen grens: alleen beschrijvend (dynamiek.py).",
   "min_lopers_groepsoordeel": 8,
-  "primaire_variant": "B1",
+  "primaire_variant": "B3",
+  "geschiedenis_primair": "Bij de vastlegging (11 oktober 2026) was B1 primair. Na de proef (18 september) en Soestduinen (11 oktober) is B3 op 19 oktober de suitedefinitie geworden en sindsdien de primaire variant. Emmen (17 oktober): de suiteversie van 21 oktober, na de clinic maar voor aanpassingen op basis van deze data, gaf voor de piekkern (verkennende maat) gemiddeld +1,21 C; dat was geen prospectieve voorspelling.",
   "varianten": {
-    "B1": "primair: de huidige suitedefinitie (par = MET, gemiddelde 17 kernsegmenten + 0,5 C)",
+    "B1": "oorspronkelijk primair (11 oktober 2026): de toenmalige suitedefinitie (par = MET, gemiddelde 17 kernsegmenten + 0,5 C); niet meer in gebruik",
     "B2": "secundair: par omgerekend naar de eigen rustverbranding, T_rect als B1",
-    "B3": "secundair: par omgerekend, T_rect = JOS-3-bekkenkern"
+    "B3": "par omgerekend, T_rect = JOS-3-bekkenkern; sinds 2026-10-19 de suitedefinitie (gekozen op de proef en Soestduinen) en daarom primair",
+    "B4": "verkennend, achteraf toegevoegd (2026-10-27): als B3, koude-huidsignaal van JOS-3 begrensd op 2 K"
   },
   "maten": {
     "kern_bias": {
@@ -121,7 +123,18 @@
       "acceptabel": null,
       "toets": "abs_max",
       "verkennend": true
+    },
+    "huid_borst_bias": {
+      "label": "Huidtemperatuur borst, model min CORE (verkennend; de CORE meet onder de sensor)",
+      "eenheid": "°C",
+      "goed": null,
+      "acceptabel": null,
+      "toets": "abs_max",
+      "verkennend": true
     }
   },
-  "nawarmte_beslisregel": "Is de gemeten stijging na het stoppen gemiddeld kleiner dan de helft van de modelstijging (modus A), dan stellen we voor PF_DELTA_T_NAGLOED te halveren. Toetsen op een volgende clinic, niet op deze data."
+  "nawarmte_beslisregel": "Is de gemeten stijging na het stoppen gemiddeld kleiner dan de helft van de modelstijging (modus A), dan stellen we voor PF_DELTA_T_NAGLOED te halveren. Toetsen op een volgende clinic, niet op deze data.",
+  "wijzigingen": [
+    "2026-10-27: variant B4 en maat huid_borst_bias toegevoegd, beide verkennend en na de clinic van 17-10 vastgelegd; bestaande grenzen ongewijzigd."
+  ]
 }

@@ -2,13 +2,24 @@
 
 # Technical Reference — HESTIA–PYROX–Klimatos Suite
 
-*First written 2026-08-30. This file did not exist before that date, despite
-being referenced throughout README.md and in code comments across the suite
-(`hestia_model.py`, `run_hestia.py`) since at least the 2026-07-27 baseline.
-Written from the codebase itself — every equation, threshold, and citation
-below was checked directly against the source rather than reconstructed from
-memory. Where a value could not be directly verified in this snapshot, that
-is stated rather than guessed.*
+*Reference for release 2026.10.27. First written 2026-08-30 from the
+codebase itself and kept up to date since: every equation, threshold and
+citation below was checked against the source rather than reconstructed from
+memory. Where a value could not be verified, that is stated. Dated notes such
+as "[2026-10-19]" record when a part changed; `CHANGELOG.md` has the full
+history.*
+
+**Release 2026.10.27.** Adds to 2026.10.25: Klimatos liveability floor and hours-per-year projection (§5.9), and the JOS-3 cold-skin limit as a setting, off by default (§8.x); model results with default settings are unchanged.
+
+**Release 2026.10.25 in brief.** Model results are identical to the frozen
+calibration version of 2026-10-24 (golden-output test, `tests/test_golden.py`).
+The release merged the duplicated weather physics into `thermal_env.py`,
+moved the interactive console out of `hestia_model.py`
+(`hestia_console.py`, `hestia_model_plots.py`), removed prompts from library
+code, fixed seed 42 as the default at the entry points, pinned
+pythermalcomfort to 4.6.2 (§4.1.1) and rounds absolute probabilities in
+reports. Validation status per output: README.md, *Validation status*;
+field comparisons: §8a, *Thermo Clinic results*.
 
 ---
 
@@ -89,7 +100,23 @@ Klimatos shares the underlying physiological engine with HESTIA
 weather-fetch path and its own entry point. It is designed to keep working
 with zero HESTIA/PYROX files present (`HESTIA_AVAILABLE` flag degrades
 gracefully) — see `Klimatos_ClimateShift.py`'s own import-guard near the top
-of the file.
+of the file. Since 2026-10-25 Klimatos and the Data Engine share
+`thermal_env.py` (outdoor radiant physics, wind profile, UHI, geocoding), so
+Klimatos needs that one file next to it.
+
+### 2.0 Module map (release 2026.10.27)
+
+| Layer | Modules |
+|---|---|
+| Weather | `Thermopoulos_Data_Engine.py` (fetch + thermal indices), `thermal_env.py` (shared physics and geocoding), `thermopoulos_loader.py` (reads the Excel format) |
+| HESTIA core | `hestia_model.py` (JOS-3 setup, population, Monte Carlo, post-finish, collapse endpoints), `jos3_leeftijd.py` (age effect, patches JOS-3 in memory), `HESTIA_CVR_Module_v2.py` (cardiovascular response), `HESTIA_ControlFailure_Module.py` (TCF dose) |
+| HESTIA entry points | `run_hestia.py` (event Monte Carlo + report), `hestia_console.py` (the engine's own console), `hestia_model_plots.py` (console figures), `individual_engine.py` / `hestia_loper.py` / `run_loper.py` (one runner), `hestia_bridge.py` (Klimatos and app adapter), `intercept_estimation.py` (endpoint calibration) |
+| Field validation | `fit_lezer.py`, `clinic_invoer.py`, `inspanning_uit_fit.py`, `hestia_reconstructie.py`, `dynamiek.py`, `clinic_validatie.py`, `clinic_rapport.py`, `criteria.json`, `fit_loop.py` (one run, no pre-registration), `groep_lopers.py` (known runners through a chosen run), `aanmelding.py` (sign-up list + FIT files to codes) |
+| PYROX | `pyrox_model.py`, `pyrox_groups.py`, `run_pyrox.py`, `pyrox_plots.py`, `paris2003.py`, `verify.py` |
+| Klimatos | `Klimatos_ClimateShift.py`, `klimatos_ehs_worker.py`, `HEATLim.py` |
+| Reports | `generate_event_report.py`, `generate_klimatos_report.py`, `generate_recommendation_report.py`, `generate_pyrox_report.py`, `hestia_loper_rapport.py`, `report_to_docx.py` + `build_report_docx.js` (Word, needs `npm install`) |
+| Menu and tests | `start_thermopoulos.py` (main menu), `rapportpakket.py` (report later), `run_all_tests.py`, `tests/` (pytest), `test_*.py`, `suite_smoke_test.py` |
+
 
 ### 2.1 Why `hestia_bridge.py` exists as a separate file
 
@@ -282,7 +309,7 @@ outdoor workers by exertion level, endurance athletes, and others), each
 with its own `recovery_threshold`, `max_acclimatization_capacity`,
 `base_recovery_rate`. Three real defects were found and fixed (2026-08,
 prior to this suite's own 2026-08-29 merge — see
-INTEGRATION_CHANGELOG.md for the full provenance):
+CHANGELOG.md for the full provenance):
 
 1. **Resilience double-counted**: `recovery_threshold` was evaluated *after*
    acclimatization's load reduction was applied, making the *effective* flip
@@ -353,7 +380,7 @@ record), 97.0°C (endurance_athletes, deliberately left as the single most
 resistant group in the 23-group taxonomy, above the confirmed record but
 not absurdly so). Full account, including the broader pattern this
 exposed (`adults_18_45` and three other groups share the same structural
-issue, not yet addressed), in `INTEGRATION_CHANGELOG.md`'s final
+issue, not yet addressed), in `CHANGELOG.md`'s final
 2026-09-11 entry.
 
 **[2026-09, follow-up] All 23 groups checked, not only the four above.**
@@ -423,6 +450,44 @@ stopped.
 
 ---
 
+### 3.5 Nocturnal recovery and its timing [2026-10-17]
+
+PYROX's day *d* is that day's exposure followed by that night's recovery
+(`advance_one_day`: Σ ← Σ + input(d) − recovery(q[d])). The optional
+sleep-quality factor q[d] = `night_sleep_quality(T_night)` (1.0 at ≤ 18 °C,
+linear to 0.4 at ≥ 26 °C) must therefore use the night AFTER day *d*.
+`get_daily_heat_loads()` now returns `t_night_min`, the minimum of the urban
+air temperature over 18:00 day *d* → 08:00 day *d*+1 (local); a day whose
+next night is not in the sheet falls back to its own calendar minimum.
+Before 2026-10-17 the calendar-day minimum was used, which mostly falls in the
+early morning of day *d* — the night before, one day too early.
+
+Use: **ON by default** in `assess_population()` and in every PYROX report
+plot (author's decision, 2026-10-17: the night always counts; there is no
+off-switch in the console). Report section 2b lists the night minimum and
+sleep quality per day. `use_nocturnal_recovery=False` is kept only for
+checking against the paper (`verify.py`; the conceptual three-regime plot
+uses constant loads and full recovery).
+
+Paris 2003 check (`paris2003.py` now carries the measured Paris-Montsouris
+Tmin, 1–20 Aug; record 25.5 °C on 11 and 12 Aug):
+
+| Group | Emergency day off → on | Critical day off → on | Corr. with excess deaths |
+|---|---|---|---|
+| 65–85 y | 9 → 8 | 10 → 9 | 0.83 → 0.83 |
+| 85+ | 5 → 5 | 5 → 5 | 0.67 → 0.66 |
+
+The shape barely changes because Σ saturates at Σ_critical (the paper's
+clip) within the plateau; the earlier crossing for 65–85 y matches the
+"~1 day earlier" found for Maastricht. Made the default on 2026-10-17
+(author). The Paris validation plot now shows it as the solid line, the
+paper's full-recovery assumption dashed. Side findings: the Paris validation plot drew every strain
+value one day late (x = index + 1; fixed), and the PYROX report said the
+emergency zone starts at 95 % of Σ_critical while the code uses 90 % (text
+fixed). The reconstructed Paris Tmax (`PARIS_2003_TMAX`) runs 1–5 °C below
+the measured Montsouris maxima on several days; the bridge was calibrated on
+the reconstructed series, which is kept.
+
 ## 4. HESTIA — individual thermophysiology
 
 ![HESTIA](branding/hestia.png){width=1.3in}
@@ -438,9 +503,126 @@ level (MET), and clothing insulation (`clo_value`).
 `clo_value` was for a period hardcoded at 0.5 (light indoor clothing)
 instead of 0.2 (typical warm-weather running kit) — correcting this dropped
 median simulated peak race-phase core temperature from 41.4°C to 40.0°C and
-the fraction exceeding the clinical EHS threshold from 93% to 8%, validated
-against Veltmeijer et al. (2014) Zevenheuvelenloop field data (mean T_rect
+the fraction exceeding the clinical EHS threshold from 93% to 8%, checked
+against Veltmeijer et al. (2015, J Sci Med Sport 18:333–337) Zevenheuvelenloop field data (mean T_rect
 39.2°C, 15% ≥40°C at WBGT 11°C). This fix is present in this snapshot.
+
+#### 4.1.1 Age in JOS-3 — gradual instead of a step [2026-10-16]
+
+JOS-3 lowers heat loss with age in steps: the sweat signal (×0.40–0.75 per
+segment) and skin vasodilation (×0.31–0.91) from exactly 60 y, and the
+cardiac index (×1.00/0.85/0.75/0.70) for <50/50s/60s/≥70 y. At marathon
+effort this gives +1.0 °C T_rect between 59 and 60 y. `jos3_leeftijd.py`
+replaces the steps by linear transitions — sweat/vasodilation factor
+1 − w(age)(1 − f_JOS3) with w = 0 at ≤40 y and 1 at ≥75 y; cardiac index
+interpolated through the group mid-points — keeping JOS-3's magnitude.
+Onset follows Larose et al. (2013), the full value lies between the two
+groups of Bongers et al. (2014). Known limitation: the effect is probably
+too small at 40–55 y and above 75 y. See CHANGELOG.md
+2026-10-16. [2026-10-23] For trained runners it proved too large; it is now
+scaled by fitness and heat acclimatisation (§4.1.3).
+
+#### 4.1.2 Rest core 37.0 °C [2026-10-23, author's decision]
+
+JOS-3's set points are the passive steady state of a nude person at the
+operative temperature where PMV = 0, at 1.25 × BMR, without regulation
+(`models/jos3.py`, `_reset_setpt`). That is a computed rest state, not a
+measured one. For the nine evaluable ThermoClinic runners (Emmen, 17 Oct
+2026) it put the pelvis core at rest at 37.2–37.7 °C. The CORE read 36.8–37.0 °C.
+Rectal norms are 36.7–37.5 °C for men and 36.8–37.1 °C for women
+(Sund-Levander et al. 2002, Scand J Caring Sci 16:122).
+
+`maak_jos3()` now shifts every deep node (artery, vein, core, muscle, fat)
+and all core set points by the same amount, so that the pelvis core at rest
+is `JOS3_REST_CORE_C` = 37.0 °C (`JOS3_REST_CORE_SHIFT = True`). Skin nodes
+and skin set points are unchanged.
+
+Shifting only the initial state does not work. The sweat signal is
+371.2 W per °C of head-core error above its set point, so the regulator
+steers back to its own set point. In the clinic test the peak stayed at
++0.99 °C (against +1.02); with the set points moved along it fell to
++0.80 °C. The rest state is now independent of whether the runner waited
+inside or outside.
+
+#### 4.1.3 Age decrement scaled by fitness and heat acclimatisation [2026-10-23, author's decision]
+
+With the full JOS-3 age decrement (§4.1.1) the model ran about 1.0 °C too
+hot at the peak for nine trained runners aged 49–67 on a cool day (WBGT 12).
+The fit improved monotonically as the decrement was weakened, down to none
+at all: peak +0.80 °C (100 %), +0.62 (50 %), +0.40 (0 %), with rest at
+37.0 °C.
+
+The decrement is now multiplied by a person factor (`jos3_leeftijd`):
+
+    person = g_fit(VO2max / VO2max_norm(age, sex)) × (1 − 0.5 × acclimatisation)
+    g_fit  = 1 at a ratio ≤ 0.80, 0 at ≥ 1.00, linear between
+
+- `VO2max_norm` is the suite's own runner mean: 52 (men) or 44 (women)
+  − 0.5 × (age − 35).
+- The person factor scales the sweat, skin-vasodilation and cardiac-index
+  decrements alike.
+- Anchors 0.80 / 1.00 and the heat factor 0.5 are model choices (author,
+  23-10). Untrained, unacclimatised older people keep JOS-3's own decrement.
+- Basis: Kenney (GSSI Sports Science Exchange 44). In fit older athletes,
+  heat storage and core temperature do not depend on age once VO2max is
+  accounted for. Roberts, Wenger, Stolwijk & Nadel 1977 (J Appl Physiol
+  43:133): training and acclimation lower the sweating and vasodilation
+  thresholds.
+- Population runs: the per-person sampled VO2max and the event's
+  `acclimatization_factor` set the factor.
+- Individual runs: the known or estimated VO2max, and acclimatisation 1 if
+  the runner reports being heat-acclimatised.
+- Clinic reconstruction: the HESTIA heart-rate/speed estimate, else Garmin,
+  else the population mean.
+- `set_person()` is called right before a person's JOS-3 model is built.
+  `reset_person()` (factor 1) is the default, so code that does not call it
+  gets JOS-3 as before.
+
+Effect on the clinic (real weather, 9 runners): median peak +0.40 °C
+(was +1.02); excess rise +0.31 °C (was +0.70); 40 min after the finish
++0.47 °C (was +1.03). The cooling after the finish already matched the
+measurement (1.3 °C in 40 min); only the level was wrong.
+
+**Remaining gap and limits.** The remaining +0.3 to +0.4 °C correlates with
+relative intensity (r = −0.66 with %VO2max, 9 runners, exploratory).
+Runners who ran at about 60 % of VO2max are overestimated most. A study in
+J Sports Sci 2004 (22:1083) found rectal temperature follows relative, not
+absolute, intensity. JOS-3 has no exercise or training term in its sweat
+drive. A fitness-dependent sweat threshold is a candidate next step, but it
+needs more data (a warm day, chest-strap heart rate).
+
+The anchors are not tested in the heat: Larose et al. 2013 measured age
+effects in warm conditions. One cool clinic, 9 runners; the CORE is itself
+an estimate.
+
+**Recalibration (2026-10-23, N = 5000).**
+
+| Endpoint | New intercept | Was | Runs |
+|---|---|---|---|
+| ehs (Boston) | −8.892508 | −9.210416 | seed 42 |
+| hospitalisation (DtD) | −7.510106 | −8.080096 | mean of seeds 42 (−7.506197) and 43 (−7.514014) |
+| first_aid (DtD) | −6.402039 | −6.926663 | mean of seeds 42 (−6.398324) and 43 (−6.405754) |
+| `EAC_LN_K` (DtD) | 3.786865 | 3.808518 | seeds 42 (3.786517) and 43 (3.787212) |
+
+*The three DtD values above were superseded on 2026-10-24 (real DtD weather with measured radiation), see §4.4.*
+
+**Effect after recalibration.**
+- Amsterdam test (N = 1000): median peak T_rect 39.18 °C (was 39.38).
+  Collapses 0.199 per 1000 (was 0.200). EAC 1.28 per 1000 (was 1.22).
+- Hot test day (16.1 km, N = 200, by mean race WBGT), per 1000:
+
+| WBGT (°C) | Collapse, before | Collapse, now | EAC, before | EAC, now |
+|---|---|---|---|---|
+| 15.4 | 0.27 | 0.30 | 1.28 | 1.29 |
+| 19.0 | 0.41 | 0.37 | 1.88 | 1.86 |
+| 22.6 | 1.19 | 0.60 | 4.03 | 3.90 |
+| 26.3 | 10.8 | 5.1 | 12.4 | 12.8 |
+| 28.1 | 46.4 | 32.6 | 24.4 | 26.5 |
+
+With the same reference points (Boston, DtD) the collapse curve is now
+flatter. The model gives about half the collapses at WBGT 22–26 °C, because
+the older runners in the population no longer run 0.8 °C hotter than the
+younger ones. EAC hardly changes: its core term stops at 38.3 °C.
 
 ### 4.2 The cardiovascular response (CVR) module
 
@@ -452,7 +634,7 @@ Cardiac Heat Strain Index (CHSI).
 
 **Key fixed defects, present in this snapshot** (both discovered and fixed
 2026-08, in the parallel Streamlit-based branch, merged into this suite
-2026-08-29 — full account in INTEGRATION_CHANGELOG.md):
+2026-08-29 — full account in CHANGELOG.md):
 
 - **CO_reserve froze incorrectly to NaN, not to its last value**, for any
   participant who stopped mid-race (RPE ≥ 19.5) — the rest of that
@@ -493,9 +675,9 @@ temporal window** — this is enforced in code, not just documentation:
 
 | Endpoint | Full name | Criterion | Window | Calibration status |
 |---|---|---|---|---|
-| **EHS** | Exertional Heat Stroke | T_rect ≥ 40.5°C **AND** CO_reserve ≤ 0 | during exertion | Calibrated against Falmouth/Boston pooled data |
-| **EHE** | Exertional Heat Exhaustion | T_rect > 39.5°C **AND** CO_reserve < 0 | during exertion only | Uncalibrated (mechanistic only) |
-| **EAC** | Exercise-Associated Collapse | sustained CO_reserve deficit, **no temperature condition** | post-finish only | Uncalibrated (mechanistic only) |
+| **EHS** | Exertional Heat Stroke | T_rect ≥ 40.5°C **AND** CO_reserve ≤ 0 (at the ceiling, §4.3.1) | during exertion | Calibrated against Falmouth/Boston pooled data |
+| **EHE** | Exertional Heat Exhaustion | T_rect > 39.5°C **AND** CO_reserve < 0 (at the ceiling, §4.3.1) | during exertion only | Uncalibrated (mechanistic only) |
+| **EAC** | Exercise-Associated Collapse | [2026-10-20] EAC-staan: standing load against orthostatic tolerance, core counted up to 38.3 °C, heat-independent base share (§4.3.6); old CO_reserve-deficit criterion kept as legacy | post-finish (standing) | Calibrated: 1.5 per 1000 starters (Naidoo 2022); no number above WBGT 28 °C |
 
 **A naming collision worth knowing about**: `hestia_bridge.py`'s own field
 `pct_true_ehs_criterion` uses the *same numeric threshold* as EHS above
@@ -519,6 +701,529 @@ incidence, the *most common* of the three endpoints in real events, despite
 being the most recently added to this suite and the least represented in
 its own historical reporting.
 
+### 4.3.1 Forced pace reduction at the cardiovascular ceiling (2026-10-19)
+
+**Author's decision.** CO_reserve has a hard physical limit at 0: the heart
+cannot deliver more than the heat-reduced maximum cardiac output. A runner
+whose chosen pace would need more slows down whether he wants to or not.
+Before this change the model let VO2 run above the heat-reduced VO2max, so
+CO_reserve could go negative during the race (Amsterdam 2026-10-18: 2.6 % of
+runners, down to −0.6 L/min).
+
+**Evidence.** González-Alonso & Calbet 2003 (Circulation 107:824): during
+heavy exercise in heat, VO2max falls 8 % and cardiac output, leg blood flow
+and O2 delivery fall 5–11 % before exhaustion. Périard et al. 2011 (Exp
+Physiol 96:134): self-paced power output is lower in 35 °C than in 20 °C.
+
+**Implementation.**
+- `CVRModel.met_at_ceiling(state)` returns the MET at which VO2 equals the
+  heat-reduced VO2max (Lloyd 2022 Eq. 15/32). That is where CO_demand reaches
+  CO_max_heat and CO_reserve reaches 0.
+- Each 10-min step, `hestia_model` caps the MET at that value (switch
+  `CV_CEILING_FORCED = True`). The voluntary pacing terms (thermal P-term,
+  CV P-term, integral term) act first; the cap acts on top.
+- **Feed-forward** (`CV_CEILING_ANTICIPATE = True`). The cap is computed from
+  the previous step's state, but the ceiling keeps falling during the step.
+  The cap is therefore lowered by the fall seen in the previous step. Without
+  this, 26 of 1000 Amsterdam runners still went below −0.05 L/min; with it, 2.
+- **Crossed regime.** At very high heat strain plus dehydration, the resting
+  cardiac output (+31.3 %/CHSI) rises above the reduced maximum
+  (−8.3 %/CHSI). CO_reserve is then negative at any pace;
+  `met_at_ceiling` returns 0 and the runner is forced to the MET floor
+  (1.5 MET). Seen once in Amsterdam: a 45-kg runner at 5.7 % dehydration in
+  the last race step.
+- Export columns `met_forced_reduction` (per step), `cv_plafond_stappen`
+  (number of forced steps) and `cv_plafond_max_met` (largest cut).
+
+**"At the ceiling" (`CO_RESERVE_CEILING_TOL = 0.05` L/min, domain choice).**
+With the cap the race reserve settles at about 0 instead of going clearly
+negative. A literal `≤ 0` then fires by chance and a strict `< 0` hardly
+ever. All race-window conjunctive criteria therefore read
+`CO_reserve ≤ 0.05 L/min` as "at the cardiovascular ceiling": EHS (race and
+post-finish), EHE, `conjunctie_ooit_bereikt`, `gemist_door_bestaande_criteria`,
+`pct_true_ehs_criterion`, `pct_zero_or_negative`, and the Klimatos scatter
+colouring. 0.05 L/min is about 0.25 % of a typical maximum cardiac output,
+far below what can be measured. The deficit doses (`cumulative_deficit_dose`,
+`participant_trace`, `ehe_dose`) measure depth from the same line
+(`ceiling_depth = max(0, 0.05 − CO_reserve)`). A runner held at the ceiling
+while hot therefore builds dose in proportion to the **time** spent there.
+EAC and the post-finish TCF dose are unchanged: after the finish the
+ceiling does not apply, and EAC is a postural, not a workload, deficit.
+Setting the tolerance to 0 restores the literal tests.
+
+**Interpretation of the conjunction.** "T_rect > 40.5 AND CO_reserve ≤ 0"
+now means *hot and at the cardiovascular ceiling*. It no longer means
+*VO2 above what the heart can supply*, which is physically impossible.
+
+**Effect, Amsterdam 2026-10-18 (N = 1000, seed 42, same intercepts).**
+
+| | no ceiling | ceiling + feed-forward |
+|---|---|---|
+| runners forced to slow | – | 26 (2.6 %) |
+| largest forced cut | – | 1.13 MET |
+| race CO_reserve below −0.05 L/min | 26 | 2 |
+| lowest race CO_reserve | −0.60 | −0.26 (crossed regime, last step) |
+| EHE (peak approximation) | 1.2 % | 0.3 % |
+| collapse risk, mean per 10,000 | 2.44 | 2.33 |
+| collapse risk, P99 per 10,000 | 14.1 | 11.6 |
+
+Peak T_rect, heart rate, dehydration and finish times are unchanged: the
+forced cuts are small and occur late, in few runners.
+
+**Known limitations.** Points 1–3 of the first version (race not longer
+after slowing, RPE stop freezes the state, no T_rect overshoot after
+slowing) are addressed in §4.3.2.
+- One-step lag. When the ceiling falls faster than in the previous step
+   (rapidly rising T_rect), the reserve can still dip to about −0.13 L/min
+   for one step before the cap catches up.
+- Not validated against field data. The size of the forced cut follows
+   from Lloyd 2022's equations, not from measured pace drops.
+
+Tests: `test_cv_ceiling.py` sections 1–3 (the cap is where the reserve is 0;
+the cap falls with heat; the crossed regime; three Amsterdam runners are
+forced and held at the ceiling; consistent tolerance use).
+
+### 4.3.2 Race length, RPE stop and after-glow on slowing (2026-10-19, evening)
+
+Author's decision: add the three open points of §4.3.1 so that slowing has
+all its consequences. Each has its own switch in `hestia_model.py`.
+
+**1. The race is a distance (`RACE_DISTANCE_MODE = True`).** In runs with a
+planned pace (`sample_pace=True`), speed follows the current MET through
+Daniels & Gilbert (1979). It is anchored so that the planned MET gives
+exactly the planned pace. A runner who slows, voluntarily or forced, covers
+less ground per step and is out in the weather longer. The last step is
+shortened to the whole minutes still needed, so the planned time is now exact
+(the old slice was rounded to 10-min steps). The engine gets the whole
+weather window and ends the race at the distance.
+- **Sweep (domain choice): `RACE_SWEEP_FACTOR = 1.25`.** The window is
+  1.25 × the slowest planned time (`race_window_hours()`): Dam tot Damloop
+  2.0 → 2.5 h, marathon 5.2 → 6.6 h. Without this room, the 138 of 1000
+  Amsterdam runners whose pace sits at the sampler's ceiling were swept as
+  soon as they slowed at all. A runner still short of the distance at the
+  end of the window is flagged `dnf_cutoff`.
+- Runs without a planned pace (personal runner module, bridge, fixed-pace
+  Boston calibration) keep the fixed duration.
+
+**2. The RPE stop ends the race (`RPE_STOP_ENDS_RACE = True`).** A runner who
+reached RPE ≥ 19.5 used to be frozen: the last state was copied to the end of
+the race. Now the race ends at the stop and `simulate_post_finish()` follows
+the runner from that moment: after-glow, venous pooling, passive cooling and
+CO_reserve recovery, exactly as after a finish. The stop time is exported
+(`stop_min`).
+
+**3. After-glow on slowing (`SLOWDOWN_AFTERGLOW = True`, model choice, not
+validated).** JOS-3 switches heat production to the new MET instantly. In
+reality, heat already produced in the working muscles still reaches the
+core, while heat loss falls (less self-generated air flow, less skin blood
+flow). After a full stop the suite already adds an after-glow of
+`PF_DELTA_T_NAGLOED` = 0.40 °C (author's choice; clinic 11 Oct measured
+0.23 °C). The same after-glow is now applied to every MET drop during the
+race, scaled to the drop:
+
+    ΔT = PF_DELTA_T_NAGLOED × ΔMET / (MET_initial − PF_MET_RUST)
+
+A drop from race pace to rest gives the full 0.40 °C; a 1-MET drop of a
+10-MET runner about 0.05 °C. The heat is added to the 17 JOS-3 core
+compartments at the start of the step. JOS-3's own thermoregulation then
+removes it, and the CVR module sees it through CHSI. The thermal pacing term
+also sees it, which closes the loop the author described: slowing →
+after-glow → higher T_rect → more slowing. Only drops count; speeding up gives
+no undershoot. The evidence is for stopping (Kenny & Niedre 2002, Eur J Appl
+Physiol 86:342; Journeay, Carter & Kenny 2006, Aviat Space Environ Med
+77:1174). The scaling to partial slowing is an assumption.
+
+**Export columns.**
+- `race_actual_h`, `race_extension_min`, `race_distance_km`
+- `race_finished`, `dnf_cutoff`, `gestopt_rpe`, `stop_min`
+- `nagloei_vertraging_totaal_c`, `nagloei_vertraging_max_c`
+
+`finish_time_h` stays the planned time.
+
+**Effect, Amsterdam 2026-10-18 (N = 1000, seed 42, each at its own calibrated intercepts).**
+
+| | before 19-10 | + ceiling | + race length, RPE stop, after-glow |
+|---|---|---|---|
+| runners forced to slow | – | 26 | 35 |
+| race CO_reserve below −0.05 L/min | 26 | 2 | 2 |
+| race longer than planned, median / P95 / max | – | – | 1.8 / 3.8 / 11.6 min |
+| swept (`dnf_cutoff`) | – | – | 0 |
+| stopped on RPE (median after) | 65 (frozen) | 65 (frozen) | 65 (30 min, followed post-finish) |
+| after-glow on slowing, median / max per runner | – | – | 0.005 / 0.40 °C |
+| peak T_rect P99 | 40.43 °C | 40.43 °C | 40.42 °C |
+| collapse risk, mean per 10,000 | 2.44 | 2.53 | 2.86 |
+| collapse risk, P99 per 10,000 | 14.1 | 12.6 | 14.5 |
+
+The collapse risk rises 17 % over the day's start because a slowed runner is
+out longer and drinks and sweats longer. The Boston reference, which sets the
+ehs intercept, is a fixed-pace run, so it does not absorb the extra time.
+After-glow is small for most runners because the cuts are spread over many
+steps (largest single step 0.021 °C). The exception is the crossed regime:
+one runner was forced from race pace to 1.5 MET and received the full
+0.40 °C.
+
+**Finding the old freeze hid: early RPE stops (resolved in §4.3.3).** 65 of 1000 Amsterdam runners (6.5 %) stop on RPE ≥ 19.5, at a median of 30
+min. They are young (median 28 y), run at 75–82 % VO2max, and have ample
+CO_reserve (2–5 L/min) and T_rect of 39.2–39.9 °C. This happens in mild
+October weather. The old freeze hid it, because those runners stayed "in the
+race" with their state at the moment of stopping. Six and a half per cent
+quitting on exertion in the first half hour is not plausible for a marathon.
+The RPE formula (HR/10 via Swain and Tanaka, plus thermal terms) and/or the
+19.5 threshold need review. That is a domain choice for the author and has
+not been changed here.
+
+**Side finding (resolved in §4.3.3).** The line
+`jos3_model.t_core[:] = 37.0` at the start of each simulation does nothing.
+pythermalcomfort's `t_core` returns a copy, so the assignment never reaches
+the model. Every run has therefore started from JOS-3's own default
+temperatures: core segments 34.6–37.1 °C, mean 36.0 °C. The starting T_rect
+is about 36.5 °C instead of the intended 37.5 °C. The line is left as it is,
+because changing it would shift every calibration and validation. It is
+recorded here so it is not mistaken for an active setting.
+
+Tests: section 4 of `test_cv_ceiling.py`.
+
+### 4.3.3 Foundation repair, drinking and RPE stop (2026-10-19, night)
+
+Author's decision after the suite assessment: repair the foundation and
+revise the RPE stop. During the work a third fault turned up (drinking) and
+was fixed as part of it.
+
+**1. Foundation (README issues 1–2): clinic variant B3.**
+- `par = MET × 58.2 / BMR_JOS3` (`JOS3_PAR_FROM_BMR`). JOS-3 multiplies `par`
+  by its own basal rate (~44 W/m² for a 35-year-old), not by 1 MET; heat
+  production during exercise was 24–33 % too low.
+- `T_rect` = JOS-3 pelvis core, segment 4 (`T_RECT_FROM_PELVIS`). This
+  replaces the mean of 17 core segments + 0.5 °C, which includes the hand
+  and foot cores.
+- The no-op `jos3_model.t_core[:] = 37.0` is removed; runs start from
+  JOS-3's set-point state (T_rect ≈ 37.1 °C).
+- B3 was pre-registered before the clinic data and was best on both data
+  sets: pilot 18 Sept bias +0.21 °C / RMSE 0.24 °C; Thermo Clinic 11 Oct
+  (6 runners) bias +0.05 °C / RMSE 0.18 °C. The old definition (B1) was
+  −1.18 °C over the whole session.
+- Going beyond B3: the CVR module's core temperature (CHSI, Lloyd 2022
+  Eq. 22) uses the same pelvis core (`CHSI_CORE_FROM_PELVIS`). Lloyd's T_core
+  is a rectal/oesophageal temperature, not a limb average. Effect on 100
+  Amsterdam runners: small (median minimum CO_reserve 0.56 vs 0.51 L/min
+  before the drinking fix).
+- Helpers `jos3_par()`, `jos3_t_rect()` and `jos3_core_for_chsi()`. The
+  pediatric path is not changed (own OMNI scale, no validation data).
+
+**2. Drinking bug (found during the work).** `can_drink_again` was meant
+as one drink per thirst episode, but it only reset once the runner was no
+longer thirsty. One 120–180 g drink never brings a sweating runner back below
+the threshold, so after the first drink nobody ever drank again.
+- Measured on 20 Amsterdam runners: 1.2 drinks per runner, intake
+  0.04 L/h. After the foundation repair this gave a net loss of 4.2 %, and
+  30 % of the runners hit the cardiovascular ceiling in mild weather.
+- Now a thirsty runner drinks 120–180 g every step
+  (`DRINK_EVERY_STEP_WHEN_THIRSTY`), up to ~0.9 L/h.
+- Result: gross sweat 0.73 L/h (P10–P90 0.53–0.87), intake 0.42 L/h, net
+  loss 1.8 %.
+- Field data: recreational marathon finishers lost 2.3 % on average
+  (Zouhal et al. 2011, Br J Sports Med 45:1101, 643 runners). Elite
+  marathoners drank 0.55 L/h, range 0.03–1.09 (Beis et al. 2012, Clin J
+  Sport Med 22:254).
+
+**3. RPE from the CVR heart rate (`RPE_FROM_CVR_HR`).**
+- Borg designed the 6–20 scale to run linearly with heart rate from rest to
+  maximum. Applied per person with the CVR model's own heart rate:
+  `RPE = 6 + 14 × (HR − HR_rest) / (HR_max − HR_rest)`.
+- That heart rate already rises with heat and dehydration (CHSI) and reaches
+  HR_max at the cardiovascular ceiling, so the separate heat penalty of the
+  old formula (1.8 per °C above 38 °C) is dropped. Tested on 100 Amsterdam
+  runners (before the wind fix): with half the penalty 38 % "stopped", with
+  none 6 %.
+- Training modifier as before. The old formula (Swain/Tanaka plus heat
+  penalty) stays as the fallback when no CVR heart rate is available.
+
+**4. Motivation sign bug.** `rpe_total = rpe_physical + motivation_effect`
+made a more motivated runner stop *earlier*. That is the opposite of what
+`mf_score` means elsewhere in the suite. Fixed (`−`) in both the adult and
+the pediatric formula.
+
+**5. Motivation-dependent stop limit (domain choice:
+`RPE_STOP_MOTIVATION_SPAN = 2.0`).** Near the ceiling the heart rate goes to
+~96 % of the reserve and RPE to 19.5–20. With a fixed limit every runner who
+approached the ceiling stopped before the forced slowing could act.
+- The stop now compares `rpe_physical` with
+  `19.5 + 2.0 × max(0, mf_score − 0.5)`.
+- Up to mf 0.5 the limit is 19.5, as before. Runners above mf 0.75 never quit
+  on effort alone and are slowed by the ceiling instead.
+- A symmetric version (18.5–20.5) made 11 % stop in Amsterdam and was
+  rejected.
+
+**6. Heading-averaged relative wind (`WIND_ANGLE_AVERAGED = True`, model
+choice, found during the work).** Each runner had one fixed wind angle for the
+whole race (`wind_angle_rad`, uniform 0–2π).
+- A runner with a near-perfect tailwind as fast as his own speed then had
+  ~0.1 m/s air flow for hours. With the repaired heat production this gave
+  runaway core temperatures in cool weather. Amsterdam 13 °C: one runner went
+  from 40.1 to 42.9 °C in 70 min at constant pace while the air flow fell
+  from 0.82 to 0.10 m/s. The same population had 4.0 % above 40.5 °C in
+  Amsterdam against 1.0 % on the warmer Boston reference.
+- Real courses turn, and all runners on one course share its heading, so a
+  per-runner random angle never represented anything real.
+- Now the convective effect is averaged over all headings:
+  `v_eff = (mean over θ of v_rel(θ)^0.62)^(1/0.62)`, with JOS-3's convection
+  exponent 0.62.
+- Result for the same 300 runners: Amsterdam 1.3 % above 40.5 °C, Boston
+  0.7 %.
+- `WIND_ANGLE_AVERAGED = False` restores the per-runner angle, for example for
+  a straight point-to-point course with a known heading.
+
+**7. Boston calibration with sampled pace** over 42.195 km, like Dam tot
+Damloop and every event run, so the calibration population has the same pace
+and duration spread.
+
+**Effect, Amsterdam 2026-10-18 (N = 1000, seed 42, each at its own calibrated intercepts).**
+
+| | before (evening version) | after the foundation repair |
+|---|---|---|
+| T_rect at the start | 36.6 °C | 37.2 °C |
+| peak T_rect: mean / P95 / P99 | 39.30 / 39.90 / 40.42 °C | 39.43 / 40.02 / 40.40 °C |
+| runners above 40 °C | 3.6 % | 5.7 % |
+| net fluid loss, mean | 2.7 % | 1.8 % |
+| minimum CO_reserve: median / P05 | 1.94 / 0.12 L/min | 1.84 / 0.64 L/min |
+| forced to slow | 35 | 0 |
+| stopped on RPE (median after) | 65 (30 min) | 27 (150 min) |
+| collapse risk per 10,000: mean / median / P99 | 2.86 / 1.19 / 14.5 | 2.11 / 1.36 / 6.5 |
+
+Intercepts (fresh, N = 5000):
+- ehs (Boston, sampled pace, seed 42): −9.356118 → −9.151532
+- hospitalisation (Dam tot Damloop, mean of seeds 42 and 43): −7.238066 → −7.899772
+- first_aid (Dam tot Damloop, mean of seeds 42 and 43): −6.135430 → −6.764406
+
+Boston reference after the repair: 0.74 % of runners above 40.5 °C, P99 40.45 °C.
+
+In mild Amsterdam weather the ceiling is no longer reached. Fewer and later
+stops follow from the drinking fix, the motivation fix and the heading-averaged
+wind together. The share above 40 °C rises towards the 15 % Veltmeijer
+measured at a 15-km race, though it stays well below it.
+
+**What this does not settle.**
+- The pace sampler still allows 75–82 % VO2max for a 4-hour marathon; the
+  late stoppers come from that group.
+- The heart-rate time constant is still too short (issue 3).
+- A hot-day check on synthetic weather (36 °C air in sun, 16.1 km, 200
+  runners) shows a mean peak T_rect of 41.3 °C, 21 % forced to slow and 49 %
+  stopping on RPE after a median of 40 min. That weather is
+  extreme, but the heat end of the model needs an independent check
+  (Dam tot Damloop 2017–19 hindcast against Sewry 2023).
+
+Tests: `test_cv_ceiling.py` section 5.
+
+### 4.3.4 Heart lags the load (2026-10-20)
+
+Author's decision: improve the too-fast heart response (README issue 3), as
+planned in "Planned after the clinic", item 1 and 3.
+
+**Measured.** Heart-rate time constant 5.6 min (pilot 18 Sept) and about 3 min
+(Thermo Clinic 11 Oct, 6 runners), against 0.3–0.6 min in the model.
+
+**Implementation (`CV_LAG_ENABLED = True`).** The MET that drives the CVR
+module is a first-order lag of the real MET, discretised exactly:
+
+    MET_cv(t + dt) = MET + (MET_cv(t) − MET) × exp(−dt / tau)
+
+- `CV_TAU_RISE_MIN` applies when the load rises and `CV_TAU_FALL_MIN` when it
+  falls; both are 3.0 min (clinic median). The pilot's 5.6 min is the
+  sensitivity value. They are kept separate so they can be estimated apart
+  once the clinic data allow it.
+- At the start `MET_cv` is `PF_MET_RUST` (standing).
+- After the finish or an RPE stop, `simulate_post_finish(met_cv_finish=…)`
+  lets `MET_cv` decay towards rest instead of jumping to it.
+- HR, and so RPE, lags too.
+- The forced ceiling still compares the real MET with `met_at_ceiling()`:
+  the lag is in the heart's response, not in the oxygen the muscles need.
+
+**Effect.**
+
+| | instant | tau 3.0 min | tau 5.6 min |
+|---|---|---|---|
+| Amsterdam, post-finish CO_reserve median at 0 / 1 / 2 / 5 / 10 min (L/min) | 2.2 / 11.1 / 11.2 / 12.0 / 12.4 | 2.2 / 4.3 / 6.4 / 10.0 / 12.1 | 2.2 / 3.1 / 4.6 / 7.8 / 10.8 |
+| Hot test day (36 °C, 16.1 km, 200 runners): post-finish EHS conjunction | 2.5 % | 11.5 % | – |
+| Hot test day: post-finish CO_reserve below 0 | 4.0 % | 9.5 % | – |
+| Hot test day: EAC | 1.0 % | 1.5 % | – |
+
+- **During the race nothing measurable changes** at 10-min steps: after one
+  step 96 % of a load change has passed through. The peak T_rect, the
+  minimum race CO_reserve, the peak HR and the calibrated collapse risk (a
+  logistic on race values) are identical to three decimals. The intercepts
+  therefore stay as they are.
+- **The effect is in the finish zone.** CO_reserve no longer jumps back the
+  moment a runner stops. The venous-pooling dip now falls into a reserve
+  that is still low, so the conjunction "hot and at the ceiling" lasts
+  longer after the finish.
+
+**Not fixed.**
+- The model HR was about 15 /min too low at the clinic (level, partly
+  terrain).
+- After the main segment the measured HR stayed 22 /min above the model.
+  That is a cardiovascular after-glow (skin perfusion, lower stroke volume),
+  not a lag, and needs its own term.
+- The level gap and the cardiovascular after-glow stay as they are until
+  there are data from an event on a paved surface (author's decision,
+  2026-10-20; the clinic was on loose sand, README issue 4).
+- The collapse logistic now also reads the finish zone: §4.3.5.
+
+Tests: `test_cv_ceiling.py` section 6.
+
+### 4.3.5 Collapse risk counts the finish zone (2026-10-20)
+
+Author's decision: "collapskans moet ook na de finish".
+
+- The two-phase logistic used the maximum T_rect and the minimum CO_reserve
+  of the **race** only. The finish-zone dynamics (after-glow, venous
+  pooling, the lagged cardiac recovery of §4.3.4) therefore reached only the
+  conjunctive criteria.
+- `collapse_extremes(res)` now takes both extremes over race +
+  post-finish window (`COLLAPSE_INCLUDES_POSTFINISH = True`). The engine
+  statistics and `intercept_estimation.run_calibration_simulation()` use the
+  same function, so calibration and application read the same quantity.
+- New export column `cvr_co_reserve_min_incl_postfinish`. `max_t_rect_incl_postfinish`
+  already existed.
+- Effect at the old intercepts:
+  - Amsterdam (200 runners): mean collapse risk 2.20 → 2.24 per 10,000.
+  - Hot test day (36 °C, 16.1 km): 29.5 % → 40.8 %.
+- Intercepts re-estimated (N=5000): ehs −9.151532 → −9.428980 (Boston, seed 42); hospitalisation −7.899772 → −8.553130 and first_aid −6.764406 → −7.355230 (Dam tot Damloop, mean of seeds 42/43). The Dam tot Damloop intercepts move most: on a short, fast course with a warm finish the finish zone carries a large part of the risk.
+
+**Amsterdam 2026-10-18 (N = 1000) at the new intercepts:** mean collapse risk
+2.11 → 1.65 per 10,000, median 1.36 → 1.05, P99 6.5 → 5.9. The milder the
+day, the less of the risk lies in the finish zone. The Boston reference is
+warmer, so it gained more finish-zone risk than Amsterdam; the recalibration
+therefore lowers Amsterdam's absolute number.
+
+Tests: `test_cv_ceiling.py` section 7.
+
+### 4.3.6 Finish zone with JOS-3 and EAC-staan (2026-10-20)
+
+Author's decisions after the study "Collaps na de finish: onderzoek en
+aanbevelingen" (Claude Docs, 20 Oct 2026): option B, the old EAC endpoint
+replaced, 5 min walking and 5 min standing, calibration at 1.5 EAC per 1000
+starters, the 3 % standing deficit on CO_reserve removed.
+
+**Finish zone (`PF_JOS3 = True`, `simulate_post_finish_jos3()`).** After the
+finish or an RPE stop, the runner's own JOS-3 model runs on for 30 min in
+half-minute steps, in the weather at the finish time.
+- Heat: air temperature, sun (MRT) and the ambient wind only.
+- After-glow: the same rule as during the race. 0.40 °C × ΔMET / (MET_start −
+  1.5) goes into the core with τ = 2 min, both at the finish and when walking
+  stops.
+- Activity:
+  1. 5 min walking at 2.8 MET (`PF_WALK_MIN`, `PF_MET_WALK`), with +0.8 m/s
+     air flow from walking.
+  2. 5 min standing (`PF_STAND_MIN`).
+  3. Sitting or lying (1.5 MET).
+
+  A runner who stopped on RPE does not walk and stands at once.
+- Sweat continues; a thirsty runner drinks at most one 120–180 g drink per
+  5 min.
+- Heart: lagged MET and the CVR module on the JOS-3 core and skin
+  temperatures. The acute pooling dip on CO_reserve starts when walking
+  stops. The sustained 3 % standing deficit was removed: CO_reserve
+  measures pump capacity, not filling or blood pressure.
+- `PF_JOS3 = False` restores `simulate_post_finish()`.
+
+**EAC-staan.** Collapse after the finish is a filling and blood-pressure
+problem. Blood pools in the legs when the muscle pump stops (Asplund,
+O'Connor & Noakes 2011, Br J Sports Med 45:1157). The old EAC endpoint
+(sustained CO_reserve deficit) could not see it: after the finish the
+reserve at rest rises to 12–16 L/min. It is kept only as
+`eac_hit_legacy` / `eac_dose_legacy`.
+
+    tol(t) = exp(−0.176·(T_skin − 34.3)⁺) · exp(−0.387·(min(T_rect, 38.3) − 36.8)⁺) · exp(−0.20·dehydration%)
+    R      = ∫ over standing minutes of dt / tol(t)          (min)
+    P(EAC) = EAC_BASE_P + (1 − EAC_BASE_P) · Φ((ln R − EAC_LN_K) / EAC_SIGMA)
+
+- Skin and core coefficients come from Pearson e.a. 2017 (Exp Physiol
+  102:255; LBNP tolerance). Skin +3.3 °C and core +1.5 °C each left about
+  56 %. With both raised, 25 % was measured against 27 % predicted.
+- The dehydration coefficient comes from Schlader e.a. 2015 (Exp Physiol
+  100:926): 0.9 % and 1.9 % body-mass loss left 81 % and 69 %.
+- `EAC_CORE_CAP = 38.3` °C [2026-10-20 late, author's decision]: the core
+  counts only up to the highest core temperature Pearson tested (passive
+  heating at rest). Runners stand at 39–41 °C, so in practice the core term
+  is the same for every runner and sits in the calibration; skin
+  temperature and dehydration make the difference between days.
+- `EAC_BASE_P = 0.0010` [2026-10-20 late, author's decision, value is a
+  model choice]: a heat-independent share. EAC is principally postural
+  hypotension after the muscle pump stops; heat and dehydration aggravate it
+  but are not the primary cause (Asplund 2011). Naidoo 2022 found no WBGT
+  effect within 12–18. Of the 1.5/1000 at the DtD reference, 1.0 does not
+  depend on heat.
+- `EAC_SIGMA = 0.35` is the spread of individual tolerance (model choice).
+  It sits between the LBNP spreads of 0.24 (Pearson) and about 0.43
+  (Keller e.a. 2009).
+- `EAC_LN_K` is the only calibrated value. Target: 1.5 EAC per 1000 starters,
+  base share included (Naidoo, Sewry e.a. 2022, J Sports Med Phys Fitness
+  62:1519; Two Oceans 21/56 km, WBGT 12–18), on the Dam tot Damloop
+  reference population (N = 5000, mean of seeds 42 and 43). Result:
+  `EAC_LN_K` = 3.808518 (seed 42: 3.808401, seed 43: 3.808634; was 4.234274 without cap and base). The hospitalisation and first_aid intercepts from the same runs were reproduced to six decimals.
+- Export columns `eac_kans`, `eac_staanbelasting`, `eac_tolerantie_min`;
+  population statistics `eac_per_1000`, `wbgt_race_max_p50` (median of
+  each runner's highest race WBGT) and `eac_buiten_bereik`. In
+  `individual_engine`, `eac_fraction` is the mean probability.
+- **Reporting.** Above `EAC_WBGT_VALID_MAX = 28` °C (ACSM black flag) the
+  console and the event report (section 6) show "zeer hoog" and no number:
+  no field data exist there, because such races are cancelled or stopped.
+  Below 28 °C the number is shown as **provisional: calibrated at one
+  reference point, not validated**. The constant's name is kept for
+  compatibility; nothing in the EAC model is validated. It is calibrated at
+  the DtD reference and checked for plausibility against field data
+  (table below).
+
+**Why the core cap and the base (second EAC analysis, Claude Docs "EAC bij
+hitte — tweede analyse", 20 Oct 2026).** Without them the curve was far too
+steep: from WBGT 13.6 to 22.6 °C the standing load grew 1.7× but P(EAC)
+107×. The calibration puts the threshold three standard deviations into the
+tail, where a small error in the extrapolated core coefficient becomes a
+factor 10. Field data against which the shape was checked:
+
+| Source | Count | Per 1000 |
+|---|---|---|
+| Naidoo 2022, Two Oceans 2008–2015 | physician-confirmed EAC, WBGT 12–18 | 1.50; high vs low WBGT 1.44 vs 1.55 |
+| Lüning 2019, Göteborgsvarvet 2013–2017 | severe collapse (tent, not recovering, or ambulance) | 1.53; per year 1.19–2.21 |
+| Khorram-Manesh 2020, Göteborgsvarvet | all medical encounters, "strongly weather dependent" | 10–50 |
+| Roberts 2010, Twin Cities | all medical encounters, cool average vs start WBGT 22 (2007) | 23 vs 40 per 1000 finishers |
+| Boston 2012 (Boston Globe 2024) | all medical treatment, high 89 °F | ≈ 100 |
+
+**Limits.**
+- The coefficients come from supine LBNP tests at rest, not from runners
+  standing after a race.
+- Skin above 38.8 °C is still an extrapolation (black-flag days only).
+- The size of the base share (1.0 of 1.5) is not measured. Dutch first-aid
+  records split by severity, with the weather per year, would fix it.
+- Carlström e.a. 2019 (Int J Sports Med 40:312), cited by Khorram-Manesh
+  2020 as "1.8 times more collapses per degree PET", could not be read.
+- Sex is not a factor; Naidoo 2022 found women at 2.25× the rate on 21 km.
+
+**Results (2026-10-20 late, final code).** Hot test day (Thermopoulos_SmokeTest, 16.1 km, start 11:00)
+with the temperature lowered in steps, N = 200 per step, seed 42; Amsterdam marathon test N = 1000.
+The ehs collapse figures are unchanged by this EAC change.
+
+| Scenario | WBGT, race mean (°C) | Standing load R, median (min) | EAC per 1000, before (4.234274, no cap/base) | EAC per 1000, now | Reported | Collapse per 1000 (ehs) |
+|---|---|---|---|---|---|---|
+| DtD reference (calibration, N = 5000) | — | 13.8 | 1.50 | 1.50 (target) | number | — |
+| Amsterdam marathon test | max 11.3 | 12.4 | 0.13 | 1.22 | number | 0.20 |
+| Hot test day, −18 °C | 15.4 | 12.9 | 0.36 | 1.28 | number | 0.27 |
+| Hot test day, −16 °C | 17.2 | 13.5 | 0.91 | 1.49 | number | 0.32 |
+| Hot test day, −14 °C | 19.0 | 14.2 | 2.8 | 1.88 | number | 0.41 |
+| Hot test day, −12 °C | 20.8 | 15.1 | 7.7 | 2.66 | number | 0.63 |
+| Hot test day, −10 °C | 22.6 | 16.1 | 19 | 4.03 | number | 1.19 |
+| Hot test day, −8 °C | 24.4 | 17.3 | 46 | 6.67 | number | 3.13 |
+| Hot test day, −6 °C | 26.3 | 18.6 | 107 | 12.4 | number | 10.8 |
+| Hot test day, −4 °C | 28.1 | 20.9 | 231 | 24.4 | "zeer hoog" | 46.4 |
+| Hot test day | 31.7 | 26.3 | 615 | 97.7 | "zeer hoog" | 337 |
+
+From cool to WBGT 22.6 °C EAC now rises a factor 3 (field: severe collapse varies about a factor 2 between
+years in Göteborg; all encounters a factor 2–5). In the red-flag range (23–28 °C) the model gives 5–25
+per 1000, still above the 5–10 inferred in the analysis; that inference is not a measurement.
+
+Tests: `test_cv_ceiling.py` section 8; `test_individual_engine.py`
+(`test_eac_staan`, legacy tests renamed).
+
 ### 4.4 The collapse-risk endpoints (calibrated, logistic)
 
 `hestia_model.py`'s `COLLAPSE_ENDPOINTS` table holds three **separately
@@ -526,11 +1231,23 @@ calibrated, logistic-model** endpoints — a different mechanism from EHS/
 EHE/EAC above (those are hard conjunctive thresholds; these have a
 calibrated intercept and never floor at exactly zero):
 
-| Key | Label | p_obs | Source | Status |
-|---|---|---|---|---|
-| `ehs` | EHS (clinical, Boston Marathon pooled) | 9/10,000 | Breslow RG et al. (2021) Am J Sports Med 49(10):2696-2703 | PROVISIONAL |
-| `hospitalisation` | Hospital admission (DtD 2024) | 50/35,000 | GHOR Noord-Holland Noord, Dam tot Damloop 2024 | PROVISIONAL |
-| `first_aid` | (renamed from `ehbo`) | — | DtD 2024, same origin as `hospitalisation` | PROVISIONAL |
+| Key | Label | p_obs | Source | Intercept (current) | Status |
+|---|---|---|---|---|---|
+| `ehs` | EHS (clinical, Boston Marathon) | 4.5/10,000 (author's choice; source: 3.7/10,000 pooled 2015–2019) | Breslow RG et al. (2021) Med Sci Sports Exerc 53(9):1818–1825, doi:10.1249/MSS.0000000000002652 | −8.892508 (2026-10-23) | PROVISIONAL |
+| `hospitalisation` | Hospital admission (DtD 2024) | 50/35,000 | Data provided by GHOR Noord-Holland Noord and Le Champion (Dam tot Damloop 2024) | −7.922109 (2026-10-24) | PROVISIONAL |
+| `first_aid` | (renamed from `ehbo`) | 150/35,000 (estimate) | DtD 2024, same origin as `hospitalisation` | −6.771391 (2026-10-24) | PROVISIONAL |
+
+**What is calibrated and what is not.** The collapse score is
+z = intercept + W_T1·max(0, T_rect−39.5) + W_T2·max(0, T_rect−40.5)
++ W_C·max(0, 2.0−CO_reserve) + W_D·max(0, dehydration−3 %), with
+W_T1 = 1.0, W_T2 = 4.0, W_C = 0.8, W_D = 0.5 (`hestia_model.py`,
+`run_monte_carlo_adult`). **These four weights are the author's expert
+judgement, not fitted to data and without a confidence interval.** Only the
+intercept is calibrated, per endpoint, so that the mean probability equals the
+observed rate on one reference event. The level is therefore anchored at one
+point, but how the risk changes with weather, pace or fitness (the shape of
+the dose-response) has not been tested against incidence data. This is the
+main reason why absolute rates in other conditions are provisional.
 
 **Calibration architecture history worth knowing**: all three endpoints
 were, for a period, calibrated against a *single shared reference scenario*
@@ -544,13 +1261,165 @@ event duration and incidence. Fixed via a generalizable per-endpoint
 architecture (`REF_CONDITIONS_BY_KEY`, in `intercept_estimation.py`) so each
 endpoint is now calibrated against its own matching reference conditions.
 
-**All three intercepts in this snapshot were fit at N=200** (a single-core
-feasibility run) rather than the production-scale 10,000–50,000 the model
-is designed for. `intercept_estimation.py` is the standalone recalibration
-workbench for re-deriving these at full N — **see the known gap noted in
-§8**: this suite's current copy of that script predates the
-`REF_CONDITIONS_BY_KEY` architecture and should not be trusted to reproduce
-the current intercepts without reconciliation.
+**Boston target corrected [2026-10-17].** Until 2026-10-17 the `ehs`
+target was 9.0/10,000 with the reference "Breslow RG et al. (2021) Am J
+Sports Med 49(10):2696–2703, Boston 2012–2019 pooled". That reference does
+not exist (Crossref: those pages hold two ankle-surgery papers) and the
+number is not in the real paper. Breslow et al. (2021) Med Sci Sports Exerc
+53(9):1818–1825 report 50 EHS cases in 136,161 starters, Boston 2015–2019 =
+3.7/10,000 (95 % CI 2.7–4.8), all at mean WBGT 17–20 °C; risk higher under
+30 y and in the first two start waves; no sex difference. Because the
+reference scenario is one warm edition (2017, 18→22 °C), the rate under
+those conditions is above the pooled mean: ~6.1/10,000 (95 % CI 4.5–8.1) if
+all cases fell in 3 of the 5 editions (own inference; the per-year table of
+the full paper has not been read). Target now **4.5/10,000, author's
+choice** between both. All absolute ehs-based risks fall by a factor 2
+(9/4.5); relative comparisons are unchanged; the DtD endpoints are not
+affected.
+
+**Current calibration [2026-10-16].** `intercept_estimation.py` now has
+`REF_CONDITIONS_BY_KEY` and runs deterministically (per-participant seed in
+the worker). ehs: Boston reference (4 h, fixed marathon pace, intensity
+ceiling applied), N=5000 (first production-scale ehs run, 2026-10-16 late). hospitalisation and first_aid: Dam tot Damloop
+reference (16.1 km, `sample_pace=True`, widened time window), mean of two
+N=5000 runs (seeds 42 and 43; spread ≤ 0.006), plus the paired seed-42 shift (+0.011) from setting `K_P_NSAID_FACTOR = 1.0`. Environment variables
+`HESTIA_CAL_N`, `HESTIA_CAL_SEED`, `HESTIA_CAL_KEYS`,
+`HESTIA_CAL_NONINTERACTIVE` allow unattended runs. Raw results of the
+current calibration: `intercept_controle_2026-10-24.json` (earlier result
+files are kept in the author's frozen archives, not in this release). The
+reference distributions still contain the open JOS-3 `par`/T_rect choice
+(§8a), so absolute rates remain PROVISIONAL. (Earlier snapshots used N=200
+fits; superseded.)
+
+**DtD reference = real weather, measured radiation [2026-10-24, author's decision].**
+Until 2026-10-24 the Dam tot Damloop reference (`REF_CONDITIONS_DTD`) was a
+synthetic linear ramp (19.5→21.5 °C, RH 68 %, 10-m wind 1.5 m/s, 40 % cloud)
+and carried no radiation, so the engine estimated the sun from cloud cover.
+It now replays the real Data Engine hindcast of 22-09-2024 (Amsterdam,
+`DtD2024_Amsterdam_hindcast.xlsx` in the suite folder) through
+`hestia_bridge.build_interp_data`, the same builder the runner and event
+paths use: T_air_urban 20.2→23.1 °C over 11:30–13:50, RH ~72 %, 10-m wind
+~2.8 m/s, measured global radiation ~490 W/m² with the Data Engine's sun
+elevation, globe temperature and MRT. ERA5 reported 89–99 % cloud over that
+window while 450–550 W/m² was measured (thin high cloud); the cloud-based
+estimate gave only ~145 W/m². Population T_rect max (seed 42): P50 39.46 °C
+(was 39.31), P95 40.32 (was 40.11), >40.5 °C 2.4 % (was 0.7 %).
+Recalibrated, mean of N=5000 seeds 42/43: hospitalisation −7.922109
+(−7.890647/−7.953570; was −7.510106), first_aid −6.771391
+(−6.752007/−6.790776; was −6.402039), `EAC_LN_K` 3.803705
+(3.803608/3.803802; was 3.786865); first_aid sensitivity table refreshed
+entirely. The Boston (ehs) reference is unchanged: still a synthetic ramp
+without a weather file, so its radiation still comes from cloud cover
+(tier 3 below). Raw results: `intercept_controle_2026-10-24.json`.
+*These intercepts were superseded on 2026-10-31 (globe model and humidity), see §4.4.2.*
+
+### 4.4.1 Solar radiation: measured or forecast first [2026-10-24, author's decision]
+
+`hestia_model.radiation_series()` decides the radiation inputs of every
+simulation, in this order:
+1. Data Engine values complete (`ghi`, `solar_elevation`, `globe_temp`,
+   `mrt`): used as they are (unchanged; runner, event and clinic paths).
+2. Measured or forecast global radiation (`ghi`) only: sun position from
+   pvlib, globe temperature and MRT computed from that ghi. Cloud cover is
+   then only an input of the globe model, never an estimate of sunshine.
+   Below the horizon ghi is set to 0.
+3. No radiation at all: the old clear-sky × (1 − cloud) estimate, a last
+   resort.
+Paths changed: the console Excel loader (`load_weather_from_thermopoulos_excel`)
+now carries `solar_radiation`, `solar_elevation`, `T_globe`, `MRT`,
+`T_wetbulb`, `WBGT`, `UTCI`; the Open-Meteo forecast (`get_weather_forecast`)
+requests `shortwave_radiation_instant`; `analyze_met_thresholds` and the
+5-day WBGT export use `radiation_series()`; `interpolate_weather` accepts
+entries without the optional dicts. Test: `test_straling.py`.
+Open point (author decides): the Data Engine stores Open-Meteo
+`shortwave_radiation`, documented as the mean of the PRECEDING hour, at the
+hour stamp; the radiation in the whole suite therefore lags by ~30 min. The
+instantaneous variant exists (`shortwave_radiation_instant`). The Data
+Engine itself is not changed.
+
+### 4.4.2 Globe temperature, MRT and humidity [2026-10-31, author's decision]
+
+**What JOS-3 receives.** JOS-3 gets the mean radiant temperature
+(`jos3_model.tr = MRT`), not the globe temperature. MRT is derived from the
+globe temperature with the ISO 7726 forced-convection conversion
+MRT⁴ = Tg⁴ + h_c/(εσ)·(Tg − Ta), h_c = 6.3·v^0.6/D^0.4, D = 0.15 m, v the
+1.5 m wind (`thermal_env._calculate_mrt_scalar`, `hestia_model.calculate_mrt`).
+Air temperature is `T_air_urban`, wind the relative wind including running
+speed.
+
+**Globe model (daytime).** Until 2026-10-30 the globe absorbed 0.95·GHI/4,
+saw surroundings at air temperature and was clipped at air +15/20 °C. That
+ignores the direct-beam geometry, the ground reflection and the cooler sky,
+and underestimated the globe temperature in strong and low sun. Since
+2026-10-31 the daytime globe follows Liljegren et al. (2008):
+
+εg σ Tg⁴ + h_c (Tg − Ta) = εg σ ½(εa Ta⁴ + εsfc Ts⁴)
+  + ½(1 − αg) S [fdir (1/(2 cos θz) − 1) + 1 + αsfc],  Ts = Ta
+
+i.e. direct beam DNI/4, sky diffuse (1 − fdir)·S/2, ground-reflected
+αsfc·S/2, half the long-wave from the sky (εa = 0.575·e^0.143, e in hPa),
+half from the ground at air temperature. Direct fraction
+fdir = exp(3 − 1.34 s − 1.65/s), s = S/(1367 cos θz) capped at 0.85, fdir
+clipped to 0…0.9; no direct beam below 0.5° sun elevation. Constants as in
+the authors' code: αg 0.05, αsfc 0.45, εsfc 0.999, εg 0.95. Source checked:
+wbgt.c (UChicago Argonne, 2008) as distributed in github.com/mdljts/wbgt;
+re-implemented from the equations, no code copied. The compiled C code and the
+Python version agree to 0.001 °C on six cases (`test_globe_liljegren.py`).
+Deliberate differences: h_c is the ISO 7726 value for the standard 0.15 m
+globe (Liljegren: 0.0508 m globe with a sphere Nusselt correlation), so the
+same h_c converts globe into MRT; the earth–sun distance is not applied
+(≤ 3.4 %); sanity clip air −3 … air +30 °C. Night unchanged. MRT clip in sun
+widened from Tg+15 to Tg+30 and the `calculate_mrt` plausibility limit from
+70 to 90 °C, because desert MRT of 70–80 °C is physical.
+Not modelled: ground hotter than the air (sand, asphalt), cloud in the sky
+emissivity during the day (Liljegren uses clear-sky εa), shade.
+
+**Humidity.** The loaders now pair `T_air_urban` with `RH_urban` (same dew
+point as the rural air). Before, the rural RH was passed with the urban
+temperature, overstating the vapour pressure by about 6–7 % per °C of heat
+island (conservative direction; no effect where there is no population).
+The rural chain in `interpolate_weather` keeps the rural RH
+(`humidity_rural`).
+
+**Older weather files.** The Data Engine writes `globe_model` in Metadata.
+Files without it, written by the Data Engine (`model_version`
+Thermopoulos…), are recomputed on loading by
+`thermal_env.actualiseer_straling` (T_globe, MRT, WBGT, UTCI from the stored
+inputs; a console note says so). Synthetic files keep their values.
+`DtD2024_Amsterdam_hindcast.xlsx` was rewritten with the new values.
+
+**Effect** (hours with GHI > 200 W/m², mean, old → new): DtD 2024 Tg
+27.8 → 38.2, MRT 36.5 → 56.3, WBGT 19.4 → 21.5 °C; Emmen hindcast
+Tg 19.4 → 25.3, MRT 29.0 → 47.0, WBGT 13.9 → 15.1; Singapore forecast
+Tg 35.4 → 45.8, MRT 48.6 → 73.3, WBGT 26.7 → 28.8.
+Emmen clinic, mode B3, ten runners with a valid core measurement (median):
+peak core error +0.47 → +0.41 °C; chest skin temperature against the CORE
+sensor −3.4 → −0.7 °C; fluid loss model 0.87 → 0.98 % against 0.998 %
+measured. Skin temperature was not used to tune anything; its improvement is
+an independent sign that the radiation load is now closer to reality.
+Heart-rate bias of the HESTIA estimate rose slightly, −0.1 → +0.8 bpm.
+
+**Recalibration (N = 5000, mean of seeds 42 and 43).** Both references were
+rerun with the new globe model; the targets are unchanged.
+
+| Endpoint | New | Was | Seeds 42 / 43 |
+|---|---|---|---|
+| ehs (Boston) | −9.567524 | −8.892508 | −9.591405 / −9.543643 |
+| hospitalisation (DtD) | −8.677948 | −7.922109 | −8.616264 / −8.739631 |
+| first_aid (DtD) | −7.471756 | −6.771391 | −7.437290 / −7.506223 |
+| `EAC_LN_K` (DtD) | 3.970524 | 3.803705 | 3.970447 / 3.970601 |
+
+Population T_rect max, DtD: P50 39.75 °C (was 39.46), P95 40.58 (was 40.32),
+> 40.5 °C 6.7–6.9 % (was 2.4 %). Boston: P50 39.41–39.42 °C, P95 40.08,
+> 40.5 °C 0.52–0.54 %. The model now places more heat load on both reference
+days, so the intercepts fall and the calibrated incidence at the reference
+conditions stays the same; on hot, sunny days the predicted risks rise
+relative to cool, overcast ones. The first_aid sensitivity table was
+refreshed. Raw results: `intercept_controle_2026-10-31.json`.
+
+Reference: Liljegren JC, Carhart RA, Lawday P, Tschopp S, Sharp R (2008).
+Modeling the wet bulb globe temperature using standard meteorological
+measurements. J Occup Environ Hyg 5(10):645–655. doi:10.1080/15459620802310770
 
 ### 4.5 The Thermoregulatory Control Failure (TCF) metric
 
@@ -752,6 +1621,14 @@ removing exactly the low-`vo2max`/fast-pace combinations, compounding
 with the copula already in place. Rejection rate: 1,430 attempts for
 1,000 accepted profiles (43%), comfortably inside the existing
 `max_attempts = n_simulations × 30` budget.
+**[2026-10-17] Re-measured with the current code** (intensity ceiling, pace
+from absolute fitness; n=5000, seed 42): r = −0.835 (marathon) and −0.840
+(16.1 km); within sex −0.81 (male) / −0.78 (female); within male age bands
+−0.78 to −0.84. With `PACE_FITNESS_ABSOLUTE = False` −0.821. So the
+selection steps (rejection, ceiling redraw, truncated economy noise) push the
+correlation well past the copula's −0.63. Whether −0.8 is realistic must be
+checked against real participant data (finish times with measured VO2max);
+open, noted after the external review of 2026-10-17.
 
 **Also fixed as part of this investigation**: the pre-existing
 `pct_vo2max=0.95` clip did not only round a displayed statistic — it
@@ -761,6 +1638,56 @@ whatever 95% of their own `vo2max` implies), leaving their recorded
 draw upstream, instead of clipping its consequence downstream, removes
 this inconsistency too: every accepted participant's simulated effort now
 matches their own recorded pace.
+
+#### 4.6.3 Duration-dependent intensity ceiling and demographics-preserving redraw [2026-10-14]
+
+The fixed 0.95 bound of §4.6.2 does not depend on how long a participant
+runs. For a marathon it still let 28.5% of the field run at >=85% VO2max
+for 3-5 hours (Amsterdam 2026-10-18 run), which drove most of that run's
+cardiovascular strain (r=-0.85 between `pct_vo2max` and minimum
+CO_reserve). The bound is now duration-dependent:
+`sustainable_vo2max_fraction(t)` = Daniels & Gilbert (1979) drop-dead
+curve, 0.8 + 0.1894393·e^(-0.012778 t) + 0.2989558·e^(-0.1932605 t)
+(t in min; ~0.86 at 90 min, ~0.81 at 4 h), consistent with the 74-81%
+recreational-marathon range cited in §4.6.2. When a (vo2max, pace) pair
+exceeds the ceiling, only that pair is redrawn for the same person, so the
+documented field composition (58% male, median age ~40) is kept; the
+§4.6.2 whole-draw rejection had shifted it to 62% / 37. Economy noise is
+truncated at the ceiling. Switch: `USE_DURATION_INTENSITY_CEILING`.
+See CHANGELOG.md 2026-10-14 for measurements.
+
+#### 4.6.4 Pace follows absolute fitness, not age-relative fitness [2026-10-16]
+
+The Gaussian copula of §4.6.1 coupled pace to the z-score of VO2max
+*within the runner's own age/sex group* (`(vo2max - vo2max_mu) / vo2max_sigma`,
+where `vo2max_mu` already contains the age correction 0.5·max(0, age−35)).
+A 62-year-old at the top of the 60+ group therefore drew the same pace
+quantile as a 30-year-old at the top of the young group — the age decline of
+VO2max did not reach the finish time (corr(age, finish) = 0.09; 60+ runners
+finished mid-field). A Radboudumc exercise physiologist (pers. comm. 2026-10-16) expected clearly
+fewer 60+ runners among fast finishers.
+
+The z-score is now taken against the *sex-level* distribution before the
+age correction, widened by the spread the age correction itself adds:
+
+```
+mu = vo2max_base_mu - AGE_VO2_CORRECTION_MEAN          # 3.31 mL/kg/min
+sd = sqrt(vo2max_sigma^2 + AGE_VO2_CORRECTION_SD^2)    # 3.62 mL/kg/min
+z  = (vo2max - mu) / sd
+```
+
+`AGE_VO2_CORRECTION_MEAN/SD` are the population mean and SD of
+0.5·max(0, age−35) for the sampled age distribution, so the overall pace
+distribution (male/female medians 4.15/4.76 → 4.13/4.73 h) is essentially
+unchanged; only its allocation over age changes. Measured (marathon, n=5000,
+seed 42): corr(age, finish) 0.09 → 0.22; median finish 18–40 y 4:19 → 4:15,
+40–50 4:28 → 4:26, 50–60 4:31 → 4:43, 60+ 4:18 → 5:00 h; 60+ runners among
+the 2:30–3:30 finishers 4 → 0; share 60+ in the field 1.3 → 2.1 % (fewer
+rejections of older runners);
+median %VO2max 0.734. Dam tot Damloop 16.1 km: corr 0.26.
+Switch: `PACE_FITNESS_ABSOLUTE` (False = previous behaviour). The Boston
+fixed-pace calibration population (ehs) does not use this path. Tested in
+`test_plausibility_2026_10_14.py`.
 
 ---
 
@@ -900,6 +1827,54 @@ transparent fill — edge colour is now set explicitly on the returned
 contour set instead (also fixes a matplotlib ≥3.8 API change: `QuadContourSet`
 no longer exposes `.collections`).
 
+### 5.9 Worst-hour Mmax has a floor; hours per year instead (2026-10-26)
+
+`livability_Mmax()` returns Mmax = Emax_constrain − Ereq + M_rest, with
+M = M_rest (1.8 W/kg). Wherever heat can be compensated, Mmax is therefore
+at least the resting rate, 1.8/1.225 = 1.47 MET (`rest_floor_met()`);
+worse hours are NaN and drop out of the yearly minimum
+(`liveability_year_metrics()` uses `nanmin`). The worst-hour Mmax is thus a
+censored quantity: once a profile sits on the floor (older adults in
+Amsterdam: 13 of 72 years), it cannot show further worsening, and a trend
+fitted through it must not be extrapolated below the floor.
+`plot_liveability_timeseries()` draws the floor and clips the trend and the
+projection at it.
+
+The uncensored measures are the counts already computed per year:
+`hrsBelow_*` (hours with Mmax below `LIVEABILITY_ACTIVITY_MET` = 3 MET,
+NaN counted as below) and `hrsNonLiv_*` (survivable but not compensable,
+"even rest not sustainable"). `liveability_hours_trend()` fits an ordinary
+least-squares line over `EVENT_TREND_PERIOD` (1995–2025), anchored at the
+period mean, and extends it to `LIVEABILITY_HOURS_TARGET_YEARS`
+(2030, 2040) with the 95% CI of the slope, clipped at 0 h;
+`plot_liveability_hours()` draws it. Theil-Sen is not used here because the
+not-liveable counts are zero in most years (Sen's slope 0 despite a
+significant Mann-Kendall increase); a log-linear Poisson fit was rejected
+because it turns a short, noisy record into very large 2040 values. All of
+this is a statistical extrapolation, not a climate scenario; the hours are
+for an outdoor person in full sun at Ta ≥ 25 °C (`LIVEABILITY_SUN`,
+`LIVEABILITY_TA_MIN`).
+
+**Projection by temperature shift (author's decision, 2026-10-26).** The
+hours for 2030 and 2040 are not extended from the counts but recomputed:
+`run_liveability_projection()` warms every hour of each 1995–2025 year by
+b·(T − y), with b the Theil-Sen slope of `T_air_warm_season` (mean daily
+maximum of the 25 % warmest days, rural) and its 95 % CI for the low/high
+variants, reruns `process_weather_data()` (UHI, globe temperature, MRT,
+wet-bulb) and HEAT-Lim, and averages the hours over the years. This is the
+EHS-evolution method applied to the whole warm season. HEAT-Lim uses air
+temperature, vapour pressure, wind and MRT (not the wet-bulb temperature);
+how humidity changes under warming is the setting
+`LIVEABILITY_PROJ_HUMIDITY`: `constant_rh` (default, author's choice
+2026-10-27, as in the EHS module) or `constant_vapour` (water vapour
+unchanged, RH falls; fewer hours, a lower variant). The KNMI'23 scenarios
+(user report, table 1) give a summer RH decrease of only 1-4 percentage
+points for 1.1-5.1 degC warming, i.e. the water-vapour content rises by
+roughly 5-30 %; constant RH is much closer to that than constant vapour
+(which would lower RH by 5-21 points). Raw hours are stored down to
+25 − 6 − `LIVEABILITY_PROJ_STORE_MARGIN` (12) °C; a larger shift prints a
+warning. The least-squares extension of the counts remains as a fallback.
+
 ---
 
 ## 6. Key equations quick-reference
@@ -951,8 +1926,12 @@ no longer exposes `.collections`).
 
 ---
 
-## 8. Known open gaps in this snapshot (2026-09-11)
+## 8. Known open gaps in this snapshot (2026-09-11; partly resolved, see notes)
 
+- **[Resolved 2026-10-15/16]** The two items below on `intercept_estimation.py`
+  and N=200 intercepts are superseded: the script now has
+  `REF_CONDITIONS_BY_KEY`, is deterministic, and the intercepts were re-run
+  at N=5000 with `sample_pace` (see §4.4). Kept for history.
 - **`intercept_estimation.py`** was not updated during the 2026-08-29
   Streamlit-branch merge — no newer version was available in that upload.
   The copy in this suite likely predates the `REF_CONDITIONS_BY_KEY`
@@ -1010,12 +1989,31 @@ no longer exposes `.collections`).
 - **This document itself** should be checked against the codebase again
   after any future merge — it was written from a single snapshot and, like
   every other piece of documentation in this suite, will drift if not
-  actively maintained alongside code changes. See INTEGRATION_CHANGELOG.md
+  actively maintained alongside code changes. See CHANGELOG.md
   for the pattern of keeping a dated, append-only record of what changed
   and why, which is the mechanism that made writing this document possible
   in the first place.
 
 ---
+
+### 8.x Cold-skin limit of JOS-3 (2026-10-27, setting, off by default)
+
+JOS-3's skin blood flow is `(1 + Cdil*sig_dilat)/(1 + Cstr*sig_stric) * bfb * 2**(err_sk/6)`
+and its sweating `skin_sweat * sig_sweat * 2**(err_sk/10)`, with the cold
+skin signal in both drives (`sig_stric = -10.8*(err_cr + wrms - clds)`,
+`sig_sweat = 371.2*err_cr + 33.64*(wrms - clds)`). During running in cool
+weather (activity ratio 10-16, light clothing, 3 m/s relative wind) the mean
+skin falls ~9 K below set point; skin blood flow drops to about a third and
+sweating to about half, and the core settles higher in cold than at 20 degC.
+`jos3_leeftijd.COLD_SKIN_LIMIT_K = x` passes `max(err_sk, -x)` to these two
+functions only (shivering, non-shivering and AVA untouched). Off (None) by
+default; 2.0 K is a diagnostic value. Sweep (man 60 y, VO2max 45, 45 min, no
+sun): the excess core temperature from the cold skin is < 0.1 degC above
+WBGT ~20 (50 % VO2max), ~18 (70 %) and ~16 (90 %), and 0.6-1.3 degC below
+WBGT 12. Clinic variant B4 = B3 with the limit; measure `huid_borst_bias`.
+Decision on the default after a clinic with a reference (pill) measurement.
+The field reference itself (CORE) and its expected error are described in
+`CORE_SENSOR.md`.
 
 ## 8a. Additions September–October 2026 (documented 2026-10-01)
 
@@ -1167,7 +2165,8 @@ Three variants, fixed before the clinic data:
 | B2 | MET × 58.2 / BMR | as B1 |
 | B3 | MET × 58.2 / BMR | pelvis core (segment 4) |
 
-Development check on L01 (18 Sept 2026; age, height and weight uncertain):
+Development check on the first pilot recording (one runner, 18 Sept 2026;
+personal characteristics uncertain):
 over the 43-min main segment B3 bias +0.21 °C, RMSE 0.24 °C, warming
 1.76 vs 1.49 °C measured; B1 bias −0.11 °C but RMSE 0.66 °C, because the
 mean over 17 segments drops to ~34 °C during 110 min of standing at 17 °C
@@ -1184,7 +2183,7 @@ Window: 15 min before to 40 min after the main segment; tau also fitted
 separately for rise and fall (y0, L fixed). Peak = maximum over the main
 segment + 20 min.
 
-L01 (18 Sept 2026):
+Pilot runner (18 Sept 2026):
 
 | | L (min) | tau (min) | K (°C/MET) | tau rise/fall | peak (°C) |
 |---|---|---|---|---|---|
@@ -1204,7 +2203,7 @@ rectal reference.
 ### Heart rate and CO_reserve dynamics (2026-10-10, exploratory)
 
 Same identification with heart rate (chest strap, no algorithm) as output.
-L01: measured K 9.2 /min per MET, tau 5.6 min; CVR model (B3, population
+Pilot runner: measured K 9.2 /min per MET, tau 5.6 min; CVR model (B3, population
 VO2max) K 9.8, tau 0.6 min. The CVR module computes HR and CO_reserve
 algebraically from the current MET and temperatures, so CO_reserve recovers
 almost instantly when effort drops. After the main segment the measured HR
@@ -1216,7 +2215,7 @@ stroke volume). Measures `dyn_hr_*` in `dynamiek.hartslag_dynamiek()`.
 ### Damping: overshoot or not (2026-10-10)
 
 No overshoot was found. JOS-3 step response (9.5 MET, 150 min, 17 and 30 °C):
-monotone, overshoot <= 0.003 °C. Second-order fits with free damping on L01:
+monotone, overshoot <= 0.003 °C. Second-order fits with free damping on the pilot runner:
 CORE zeta ~ 1.9, heart rate zeta at the upper bound (5): both overdamped.
 Thermoregulation behaves as proportional control on a large heat capacity:
 no integrator and little delay, so no overshoot but a steady-state offset
@@ -1281,6 +2280,55 @@ data used to judge it; one runner is too few).
   accounting and should be re-estimated (`intercept_estimation.py`)
   together with the pending post-CVR recalibration. Test: `test_zweet_fix.py`.
 
+### Thermo Clinic results (2026-10-11 and 2026-10-17)
+
+Group-level results only; participants are pseudonymised and their data are
+not part of this release.
+
+*Soestduinen, 11 Oct 2026* (6 runners with valid core data, loose drift sand,
+frozen validation version 2026-10-10): variant B3 bias +0.05 °C and RMSE
+0.18 °C over the main segment; over the whole session B3 was +0.34 °C and B1
+−1.18 °C (issue: T_rect definition). Heart rate ~15 /min too low and VO2max
+from the run 23 % below Garmin's estimate: consistent with the missing
+terrain cost of sand. After-glow 0.23 °C measured.
+
+*Emmen, 17 Oct 2026* (11 runners aged 49–67, ~45 min at 13–14.5 °C, WBGT
+12–13; core temperature usable for 10, heart rate for 10,
+weighing for 11). The suite version of 2026-10-21 (after the clinic, before any change based
+on these data; not a prospective prediction) computed the peak core
+temperature 1.21 °C too high on average. Analysis attributed this to the JOS-3
+rest set point (37.2–37.7 °C instead of ~37.0 °C, Sund-Levander et al. 2002)
+and to the full JOS-3 age decrement applied to trained runners. Both were
+changed (§4.1.2, §4.1.3; author's decision). With the current release (B3,
+real weather, fitness estimated from the run), model minus measurement:
+
+| Quantity | n | Mean | Range | 95 % prediction interval |
+|---|---|---|---|---|
+| Peak core temperature | 10 | +0.46 °C | +0.03 to +0.93 | −0.19 to +1.10 °C |
+| Core, mean during the run | 10 | +0.19 °C | −0.11 to +0.84 | −0.46 to +0.83 °C |
+| Core RMSE per minute | 10 | 0.39 °C | 0.10 to 0.84 | – |
+| Warming during the run | 10 | +0.71 °C | +0.04 to +1.16 | −0.20 to +1.63 °C |
+| Heart rate, mean | 10 | −0.3 /min | −5.5 to +2.7 | −6.3 to +5.7 /min |
+| Heart rate RMSE per minute | 10 | 7.6 /min | 4.1 to 11.6 | – |
+| Fluid loss | 11 | −0.02 %-pt | −0.46 to +0.80 | −0.92 to +0.88 %-pt |
+
+With a population-mean VO2max instead of the runner's own estimate the
+heart-rate error per runner reaches ±35 /min. The warming is inflated
+because the reconstruction keeps the runners outdoors during the indoor
+briefing. The residual is largest for fit runners well within their capacity
+(correlation of the peak error with %VO2max about −0.6); the cause is not
+established. **Emmen is not an independent validation of the current version.** Of the
+two changes, the rest core (§4.1.2) is a literature norm without a free
+parameter, prompted but not tuned by these data; the age-decrement scaling
+(§4.1.3) rests on the literature, but its anchors were chosen after this
+analysis had shown that a weaker decrement fitted better. Decomposition
+(median, 9 runners): +1.02 → +0.80 °C (rest core) → +0.40 °C (age
+scaling). The CORE sensor itself
+has 95 % limits of about −0.4 to +0.7 °C (19 °C) and −0.6 to +0.6 °C (31 °C)
+against a rectal probe in laboratory cycling (Verdel et al. 2021).
+The next test must use new runners, preferably on a warm day, with criteria
+fixed beforehand.
+
 ### Still open (from the 2026-10-01 review)
 
 - **UHI diurnal step function** (`Thermopoulos_Data_Engine.py`): factor 0.6
@@ -1289,13 +2337,15 @@ data used to judge it; one runner is too few).
 - **JOS-3 bias** (+0.18 °C, sport-specific validation) is not corrected in
   headline figures.
 - **PYROX weather-to-load bridge** calibrated on Paris 2003 only; nocturnal
-  recovery (`use_nocturnal_recovery`) is off by default. Amsterdam,
-  18–29 June 2026, is the natural second test.
+  recovery was off by default until 2026-10-17 and is now ON (§3.5).
+  Amsterdam, 18–29 June 2026, is the natural second test.
 - **`PACE_MIN_PER_KM_CEILING = 7.45`** is the Dam tot Damloop course limit and
   is not rescaled for other event distances.
-- [2026-10-06] **Post-finish after-glow**: `PF_DELTA_T_NAGLOED = 0.40` is
-  documented as a peak amplitude (°C) but applied as a rate (°C/min) times
-  exp(-t/2); its integral is 0.8 °C. Affects post-finish doses only.
+- [2026-10-06] **Post-finish after-glow — FIXED 2026-10-14**: `PF_DELTA_T_NAGLOED = 0.40`
+  was documented as a total (°C) but applied as a rate (°C/min) times
+  exp(-t/2), so its integral was 0.8 °C. Now added as the exact per-step
+  integral PF_DELTA_T_NAGLOED·(e^(−t/τ) − e^(−(t+dt)/τ)); total 0.40 °C.
+  Test: `test_plausibility_2026_10_14.py`.
 - [2026-10-06] **Missing weather values** are not caught by the population
   paths; the engine silently produces NaN traces.
 - [2026-10-06] **Last partial 10-min step** of an event is not simulated in
@@ -1304,12 +2354,55 @@ data used to judge it; one runner is too few).
   pythermalcomfort 4.6.0 the core set point drops to ~35.5 C for people with
   a low BMR per m2 (from ~70 y), because the PMV=0 solver hits the ISO 7730
   limit (tdb <= 30 C). Repaired by recomputing with limit_inputs=False.
-  Report upstream.
+  Reported upstream (pythermalcomfort issue #435); **fixed in 4.6.2**, which
+  `requirements.txt` now requires. `maak_jos3()` remains harmless on 4.6.2.
+- [2026-10-16] **JOS-3 age steps — replaced by a gradual ramp** (§4.1.1,
+  `jos3_leeftijd.py`). [2026-10-23] Now also scaled by fitness and heat
+  acclimatisation (§4.1.3): for trained runners the full JOS-3 decrement was
+  too large (Emmen). For unfit older people the effect may still be too small
+  (Larose 2013; Bongers et al. 2014).
 - [2026-10-08] **T_rect definition**: mean of the 17 JOS-3 core segments
   + 0.5 C. In warm conditions this is ~0.4 C above JOS-3's pelvis core.
   Check which definition the sport validation (bias +0.18 C) used.
 - [2026-10-08] `jos3_model.t_core[:] = 37.0` is a no-op (property returns a
   copy).
+- [2026-10-16] **NSAID pacing effect — REMOVED** (`K_P_NSAID_FACTOR` 0.50 → 1.0,
+  author's decision). The old setting halved the thermal pacing gain for the
+  25 % NSAID users ("PGE2 suppression dulls perception"). Literature check:
+  - ibuprofen, naproxen, aspirin alone: no effect on exercise core
+    temperature in 7 of 9 studies (Emerson et al. 2021, J Exerc Sci Fit,
+    systematic review); naproxen 3 × 220 mg at 35.7 °C no effect (Emerson et
+    al. 2021, Sports Med Health Sci 3:243–251); one study with low-dose
+    aspirin for 7–10 days found a *higher* Tc;
+  - lower Tc (~0.3 °C), consistent with a lower set point (suggested by a Radboudumc
+    exercise physiologist), only for rofecoxib (COX-2 selective; Bradford et al. 2007,
+    AJP Regul 292:R143) and ibuprofen 400 mg + paracetamol 1000 mg
+    (Veltmeijer, Bongers et al. 2016, IJSPP, 21 °C; paracetamol alone no
+    effect); paracetamol in the heat −0.15 °C (Mauger et al. 2014, Exp
+    Physiol 99:164);
+  - no difference in RPE or thermal sensation (Veltmeijer 2016; Nieman 2006);
+  - mice: ibuprofen raised Tc,max at collapse (Garcia/Clanton, preliminary).
+  Model check (Amsterdam synthetic, n=1000, seed 42, paired): 0.50 vs 1.0
+  changed NSAID users' peak T_rect by −0.008 °C on average (range −0.24 to
+  +0.17), collapse risk 4.30 → 4.35 per 10,000; the thermal pacing term
+  (0.10 MET/°C above 38.5 °C) is too weak at these temperatures for the
+  factor to matter. The 48 % NSAID share in that run's hottest 2.5 % was
+  chance: among the 25 most intense runners the share is 12–44 % across
+  seeds 42–61 (mean 24 %). Non-thermal NSAID risks — gut barrier injury
+  (van Wijck et al. 2012, MSSE 44:2257) and hyponatraemia (Wharam et al.
+  2006, MSSE 38:618) — are not modelled. The report row "% NSAID-gebruik in
+  deze groep" is removed; the runner report notes these risks.
+- [2026-10-16] **Thermal pacing is weak.** Median pace reduction in the
+  Amsterdam run is ~1 %; the thermal gain K_p = 0.10 MET/°C above 38.5 °C
+  barely acts at peak T_rect ~39.3 °C. Field data show clearly larger
+  slow-downs in warm races. Open model choice.
+- [2026-10-16] **Plausibility gaps (Amsterdam 2026-10-18 analysis).** Share of
+  runners with peak T_rect ≥ 40 °C is ~4–5 % at WBGT ≈ 11, against 15 % at the
+  Zevenheuvelenloop (Veltmeijer 2015, WBGT 11). The model's rise of incidence
+  with WBGT on the cool side is about a factor 2, against ≥ 4.5 in Sewry 2023
+  (Dam tot Damloop 2017–19). Hindcast DtD 2017–19 pending.
+- [2026-10-16] **CO_reserve pacing threshold 2.0 L/min** barely discriminates
+  in practice; **hypothermia** on cold, wet days is not modelled.
 
 ---
 

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+<defs>
+  <linearGradient id="ringgrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#F7B733"/><stop offset="100%" stop-color="#D62828"/></linearGradient>
+  <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+    <feGaussianBlur stdDeviation="34" result="blur"/>
+    <feMerge><feMergeNode in="blur"/><feMergeNode in="blur"/></feMerge>
+  </filter>
+</defs>
+<rect width="1024" height="1024" fill="#2B3541"/>
+<circle cx="512" cy="340" r="130" fill="#F0532A" filter="url(#glow)" opacity="0.55"/>
+<circle cx="512" cy="340" r="192" fill="none" stroke="url(#ringgrad)" stroke-width="13"/>
+
+<path d="M512,206 C478,248 466,290 478,322 C456,310 440,332 446,364
+         C452,406 488,442 512,442 C536,442 572,406 578,364
+         C584,332 568,310 546,322 C558,290 546,248 512,206 Z"
+      fill="url(#ringgrad)"/>
+<path d="M470,392 A52,52 0 1,1 554,392" fill="none" stroke="#FFFFFF" stroke-width="11" stroke-linecap="round"/>
+<polygon points="554,392 538,384 538,402" fill="#FFFFFF"/>
+
+<text x="512" y="680" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="800"
+      font-size="108" letter-spacing="4" fill="#FFFFFF">PYROX</text>
+<text x="512" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="400" font-size="34" fill="#FFFFFF" opacity="0.88"><tspan x="512" y="830">Population-level cumulative</tspan><tspan x="512" y="876">heat-strain dynamics</tspan></text>
+</svg>

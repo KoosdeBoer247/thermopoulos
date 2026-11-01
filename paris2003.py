@@ -35,6 +35,19 @@ PARIS_2003_DATES = list(range(1, 17))
 # --- reconstructed daily maximum temperature (deg C) ------------------------
 PARIS_2003_TMAX = [25, 30, 33, 37, 37, 37, 36, 37, 37, 37, 36, 37, 37, 33, 30, 28]
 
+# --- measured daily minimum temperature (deg C), Paris-Montsouris ----------
+# [2026-10-17] Station values 1..20 August 2003 (Meteo-France station 07156,
+# via meteociel.com climatology table; 25.5 C on 11 and 12 Aug matches the
+# record cited by meteo-paris.com). Meteo-France convention: Tn of day J is the
+# minimum over 18 UTC J-1 .. 18 UTC J, i.e. mostly the night BEFORE day J.
+# So the night AFTER day d is PARIS_2003_TMIN_MEASURED[d] (index d = day d+1).
+PARIS_2003_TMIN_MEASURED = [16.5, 18.3, 19.8, 21.5, 22.3, 23.7, 23.6, 22.6, 22.6, 23.3,
+                            25.5, 25.5, 22.7, 21.6, 16.7, 17.5, 19.3, 17.8, 18.6, 14.8]
+# Measured Tmax for the same days (for comparison only -- the validation keeps
+# the reconstructed PARIS_2003_TMAX above, on which the bridge was calibrated).
+PARIS_2003_TMAX_MEASURED = [30.0, 31.3, 34.8, 36.3, 37.8, 39.4, 38.2, 36.3, 37.3, 38.7,
+                            39.5, 39.3, 33.0, 28.8, 27.0, 29.3, 29.3, 24.7, 24.5, 24.0]
+
 # representative summer values during the heatwave (dry, light wind)
 PARIS_2003_RH = [50] * 16
 PARIS_2003_WIND = [2.0] * 16
@@ -72,3 +85,27 @@ def paris_2003_heat_loads(per_degree: float = 0.10,
         apparent = t + humidity_load - wind_relief
         loads.append(max(0.0, (apparent - reference_temp) * per_degree))
     return loads
+
+
+def paris_2003_night_min(timing: str = "night_after") -> list:
+    """[2026-10-17] Night minimum per day 1..16 August.
+
+    timing='night_after'  : the night following day d (PYROX's convention,
+                            exposure then recovery) = measured Tn of day d+1.
+    timing='same_day'     : the calendar-day Tn of day d (= mostly the night
+                            before; what the loader effectively did before
+                            2026-10-17), for comparison.
+    """
+    n = len(PARIS_2003_DATES)
+    if timing == "night_after":
+        return PARIS_2003_TMIN_MEASURED[1:n + 1]
+    if timing == "same_day":
+        return PARIS_2003_TMIN_MEASURED[:n]
+    raise ValueError("timing must be 'night_after' or 'same_day'")
+
+
+def paris_2003_sleep_quality(timing: str = "night_after") -> list:
+    """Per-day sleep quality for days 1..16 from the measured night minima,
+    via thermopoulos_loader.night_sleep_quality()."""
+    from thermopoulos_loader import night_sleep_quality
+    return [night_sleep_quality(t) for t in paris_2003_night_min(timing)]

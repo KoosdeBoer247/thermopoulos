@@ -3,8 +3,12 @@
 start_thermopoulos.py -- één startmenu voor de hele suite
 =========================================================
 
-Start dit bestand (in Spyder: F5, of `python start_thermopoulos.py`). Je kiest
-dan uit een menu in plaats van zelf het juiste script te zoeken. Het menu:
+Start dit bestand (in Spyder: F5, of `python start_thermopoulos.py`). Het
+hoofdmenu [2026-10-27] biedt vijf onderdelen: HESTIA (evenement of één loper),
+PYROX, Klimatos, FIT-bestanden (één loop narekenen of een Thermo Clinic) en
+het weer ophalen, plus R: een rapport maken van een eerdere berekening
+(rapportpakket.py). Na elke berekening vraagt de suite of er meteen een
+rapport moet komen. Het menu verder:
 
   * laat zien welke weerbestanden (Thermopoulos_*.xlsx) er in de werkmap staan
     en voor welke periode, omdat PYROX, HESTIA en de loperanalyse er een nodig
@@ -14,9 +18,12 @@ dan uit een menu in plaats van zelf het juiste script te zoeken. Het menu:
   * toont voor een Thermo Clinic per stap wat al gedaan is en wat de volgende
     stap is, en laat 'vergelijken' alleen toe na een vastgelegde voorspelling.
 
-De werkmap is de map waar weerbestanden en uitvoer staan. De scripts zelf
-blijven in de suitemap. Werkmap en clinicmap worden onthouden in
-~/.thermopoulos_start.json (alleen paden, geen gegevens).
+De werkmap is de map waar weerbestanden en uitvoer staan: de map van waaruit
+het menu is opgestart (in Spyder: de map van dit script). Met W kies je voor
+deze sessie een andere werkmap; die wordt niet onthouden. Alleen de clinicmap
+wordt onthouden in ~/.thermopoulos_start.json (alleen een pad, geen gegevens).
+[2026-10-28] Eerder werd ook de werkmap onthouden, waardoor uitvoer in een
+oude map belandde.
 """
 from __future__ import annotations
 
@@ -90,7 +97,7 @@ def weerbestanden(map_: Path) -> list[dict]:
 def toon_weer(map_: Path) -> list[dict]:
     w = weerbestanden(map_)
     if not w:
-        print("  Weerbestanden: GEEN. Begin met stap 1 (Data Engine) of kies een andere werkmap.")
+        print("  Weerbestanden: GEEN. Haal eerst het weer op (keuze 5) of kies een andere werkmap.")
         return w
     print(f"  Weerbestanden: {len(w)} (nieuwste eerst)")
     for i in w[:3]:
@@ -104,7 +111,7 @@ def toon_weer(map_: Path) -> list[dict]:
 
 def clinic_status(cmap: Path | None) -> dict:
     s = {"map": cmap, "deelnemers": False, "voorspeld": False, "fit": 0, "vergeleken": False,
-         "volgende": "kies eerst een clinicmap (optie 6)"}
+         "volgende": "kies eerst een clinicmap (K)"}
     if not cmap or not cmap.exists():
         return s
     s["deelnemers"] = (cmap / "deelnemers.xlsx").exists()
@@ -164,13 +171,20 @@ def draai_script(naam: str, werkmap: Path, argv: list[str] | None = None) -> Non
 def clinic_stap(stap: str, cmap: Path | None, werkmap: Path | None = None) -> None:
     try:
         _clinic_stap(stap, cmap, werkmap)
+    except ImportError as e:
+        print(f"\n  ! Een benodigd pakket ontbreekt of heeft de verkeerde versie:\n    {e}")
+        print("    Installeer de geteste versies met:  pip install -r requirements.txt")
+        print("    (in Spyder: %pip install -r requirements.txt, daarna de kernel herstarten)")
+    except Exception:
+        print("\n  ! Er ging iets mis:")
+        traceback.print_exc()
     finally:
         input("\nEnter = terug naar het menu ")
 
 
 def _clinic_stap(stap: str, cmap: Path | None, werkmap: Path | None = None) -> None:
     if not cmap:
-        print("  Kies eerst een clinicmap (optie 6).")
+        print("  Kies eerst een clinicmap (K).")
         return
     import clinic_validatie as cv
     s = clinic_status(cmap)
@@ -256,75 +270,213 @@ def draai_tests() -> None:
 
 
 # -----------------------------------------------------------------------------
-# Menu
+# Rapport later maken
 # -----------------------------------------------------------------------------
-def menu() -> None:
-    inst = _lees_instellingen()
-    werkmap = Path(inst.get("werkmap", Path.cwd()))
-    werkmap = werkmap if werkmap.exists() else Path.cwd()
-    cmap = Path(inst["clinicmap"]) if inst.get("clinicmap") and Path(inst["clinicmap"]).exists() else None
+def rapport_later(werkmap: Path, cmap: Path | None) -> None:
+    """Keuze R: een rapport maken van een eerdere berekening (rapportpakket)."""
+    import rapportpakket as rp
+    mappen = [werkmap, SUITE] + [p for p in werkmap.glob("*") if p.is_dir()]
+    pakketten = rp.vind(*mappen)
+    print(f"\n{LIJN}\n  RAPPORT MAKEN VAN EEN EERDERE BEREKENING\n{LIJN}")
+    if not pakketten:
+        print("  Geen bewaarde berekeningen gevonden in de werkmap of de suitemap.\n"
+              "  Elke berekening (HESTIA, PYROX, Klimatos, FIT-loop) bewaart vanaf nu zijn\n"
+              "  rapportgegevens als *_rapportpakket.pkl; daarna verschijnt hij hier.")
+    else:
+        for i, p in enumerate(pakketten[:20], 1):
+            print(f"    {i:>2}  {rp.omschrijving(p)}")
+    if cmap and (cmap / "validatie_uitvoer").exists():
+        print("\n  Thermo Clinic: het validatierapport maak je opnieuw met keuze 4 -> d.")
+    k = input("\n  Nummer (Enter = terug): ").strip()
+    if k.isdigit() and 1 <= int(k) <= min(20, len(pakketten)):
+        oud = Path.cwd()
+        try:
+            os.chdir(pakketten[int(k) - 1].parent)
+            rp.maak(pakketten[int(k) - 1])
+        except Exception:
+            print("\n  ! Het rapport lukte niet:")
+            traceback.print_exc()
+        finally:
+            os.chdir(oud)
+        input("\nEnter = terug naar het menu ")
+
+
+# -----------------------------------------------------------------------------
+# Menu's
+# -----------------------------------------------------------------------------
+def _weer_nodig(w: list) -> bool:
+    if w:
+        return True
+    return input("  Er staat nog geen weerbestand in de werkmap (eerst keuze 5). Toch starten? (j/N): ") \
+        .strip().lower() in ("j", "ja")
+
+
+def menu_hestia(werkmap: Path, w: list) -> None:
     while True:
-        print(f"\n{LIJN}\n  THERMOPOULOS  -  startmenu\n{LIJN}")
-        print(f"  Werkmap: {werkmap}")
-        w = toon_weer(werkmap)
-        s = clinic_status(cmap)
-        geen_weer = "  (eerst een weerbestand nodig: stap 1)" if not w else ""
         print(f"""
-  STAP 1  WEER
-    1  Weerdata ophalen (Data Engine) -> Thermopoulos_<plaats>.xlsx in de werkmap
+{LIJN}
+  HESTIA  -  hitterisico voor lopers en evenementen
+{LIJN}
+    1  Evenement: alle deelnemers doorrekenen (Monte Carlo)
+         kans op hitte-incidenten, kerntemperatuur en hartreserve van de groep
+    2  Persoonlijke loperanalyse: één loper, eigen gegevens en tempo
+         risicosignaal, kerntemperatuur, hartslag en vochtverlies voor die loper
+    3  Groep bekende lopers door een gekozen loop sturen (wat-als)
+         lijst met lopers (zoals deelnemers.xlsx van een clinic) + plaats, datum,
+         starttijd en afstand; verleden (archiefweer) of komende ~16 dagen
 
-  STAP 2  ANALYSES MET EEN WEERBESTAND{geen_weer}
-    2  PYROX: hittebelasting van de bevolking
-    3  HESTIA: evenement, deelnemers met Monte Carlo
-    4  Persoonlijke loperanalyse (vragenlijst of opgeslagen invoer)
+    Na elke berekening vraagt de suite of er meteen een rapport moet komen.
+    0  Terug naar het hoofdmenu""")
+        k = input("\nKeuze: ").strip().lower()
+        if k in ("0", "", "q"):
+            return
+        if k in ("1", "2") and _weer_nodig(w):
+            draai_script({"1": "run_hestia.py", "2": "run_loper.py"}[k], werkmap)
+        elif k == "3" and _weer_nodig(w):
+            oud = Path.cwd()
+            try:
+                os.chdir(werkmap)
+                import groep_lopers
+                groep_lopers.interactief(werkmap)
+            except Exception:
+                traceback.print_exc()
+            finally:
+                os.chdir(oud)
+            input("\nEnter = terug naar het menu ")
+        elif k not in ("1", "2", "3"):
+            print("  Onbekende keuze.")
 
-  LOS
-    5  Klimatos: klimaattrend (haalt zelf het weer op)
 
-  THERMO CLINIC (validatie, volgorde a -> b -> c -> d)""")
+def menu_fit(werkmap: Path, cmap: Path | None) -> Path | None:
+    while True:
+        s = clinic_status(cmap)
+        print(f"""
+{LIJN}
+  FIT-BESTANDEN  -  metingen van horloge en CORE-sensor met HESTIA verwerken
+{LIJN}
+    1  Eén loop narekenen
+         één FIT-bestand + het weer van die dag; HESTIA rekent de loop na met het
+         gemeten tempo en vergelijkt met de gemeten hartslag en kerntemperatuur
+
+    THERMO CLINIC  (groep lopers, voorspelling vooraf; volgorde a -> b -> c -> d)""")
         toon_clinic(s)
-        print("""    6  Clinicmap kiezen
+        print("""    K  Clinicmap kiezen
     a  Leeg deelnemers.xlsx maken
     b  Voorspellen (modus A)        vóór je de FIT-bestanden bekijkt
     c  FIT-bestanden omzetten       uit <clinicmap>/fit_invoer, met codes, geen namen
-    d  Vergelijken (modus B)        maakt Excel, figuren en Word-rapport
+    d  Vergelijken (modus B)        maakt Excel, figuren en het validatierapport
 
-  HULPMIDDELEN
-    7  Losse FIT-bestanden lezen (controle van sensor en horloge)
-    8  Tests van de suite draaien
-    W  Werkmap wijzigen
-    0  Stoppen""")
+    G  Aanmeldlijst + FIT-bestanden automatisch naar codes (Garmin001 -> G001)
+         herkent de e-mailadressen in de FIT-bestandsnamen; namen en e-mail komen
+         alleen in PRIVE_koppeltabel.xlsx, nooit in een rapport
+    F  Een FIT-bestand controleren (sensor en horloge, zonder model)
+    0  Terug naar het hoofdmenu""")
         k = input("\nKeuze: ").strip().lower()
-        if k == "":
-            continue
-        if k in ("0", "q"):
-            _bewaar_instellingen({"werkmap": str(werkmap), "clinicmap": str(cmap) if cmap else ""})
-            print("Tot ziens.")
-            return
-        if k == "w":
-            werkmap = _vraag_map("Werkmap (map met weerbestanden en uitvoer)", werkmap)
-        elif k == "1":
-            draai_script("Thermopoulos_Data_Engine.py", werkmap)
-        elif k in ("2", "3", "4"):
-            if not w and input("  Er is nog geen weerbestand in de werkmap. Toch starten? (j/N): ") \
-                    .strip().lower() not in ("j", "ja"):
-                continue
-            draai_script({"2": "run_pyrox.py", "3": "run_hestia.py", "4": "run_loper.py"}[k], werkmap)
-        elif k == "5":
-            draai_script("Klimatos_ClimateShift.py", werkmap)
-        elif k == "6":
+        if k in ("0", "", "q"):
+            return cmap
+        if k == "1":
+            oud = Path.cwd()
+            try:
+                os.chdir(werkmap)
+                import fit_loop
+                fit_loop.interactief(werkmap)
+            except Exception:
+                traceback.print_exc()
+            finally:
+                os.chdir(oud)
+            input("\nEnter = terug naar het menu ")
+        elif k == "g":
+            doel = cmap or werkmap
+            print(f"  Map: {doel}  (kies eerst K voor een andere map)")
+            try:
+                import aanmelding
+                uit = aanmelding.interactief(doel)
+                if uit:
+                    cmap = Path(uit).parent
+            except ImportError as e:
+                print(f"\n  ! Een benodigd pakket ontbreekt: {e}")
+            except Exception:
+                traceback.print_exc()
+            input("\nEnter = terug naar het menu ")
+        elif k == "k":
             cmap = _vraag_map("Clinicmap (met deelnemers.xlsx)", cmap or werkmap)
             print("  Zet het weerbestand van de clinicdag in deze map of vul het pad in op het "
                   "tabblad Clinic van deelnemers.xlsx.")
         elif k in ("a", "b", "c", "d"):
             clinic_stap(k, cmap, werkmap)
-        elif k == "7":
+        elif k == "f":
             draai_script("fit_lezer.py", werkmap)
-        elif k == "8":
-            draai_tests()
         else:
             print("  Onbekende keuze.")
-        _bewaar_instellingen({"werkmap": str(werkmap), "clinicmap": str(cmap) if cmap else ""})
+
+
+def _pakket_waarschuwing() -> str | None:
+    """Waarschuwing als pythermalcomfort niet de geteste versie heeft."""
+    try:
+        from importlib.metadata import version
+        v = version("pythermalcomfort")
+    except Exception:
+        return "pythermalcomfort is niet geïnstalleerd"
+    if v != "4.6.2" and not os.environ.get("HESTIA_ALLOW_OTHER_PYTHERMALCOMFORT"):
+        return f"pythermalcomfort {v} gevonden, HESTIA heeft 4.6.2 nodig"
+    return None
+
+
+def menu() -> None:
+    inst = _lees_instellingen()
+    werkmap = Path.cwd().resolve()          # [2026-10-28] altijd de opstartmap
+    cmap = Path(inst["clinicmap"]) if inst.get("clinicmap") and Path(inst["clinicmap"]).exists() else None
+    pw = _pakket_waarschuwing()
+    while True:
+        print(f"\n{LIJN}\n  THERMOPOULOS  -  hoofdmenu\n{LIJN}")
+        print(f"  Werkmap: {werkmap}")
+        if pw:
+            print(f"  LET OP: {pw}.\n          HESTIA, FIT en clinic werken dan niet. Installeer met:"
+                  f" pip install -r requirements.txt\n          (in Spyder: %pip install -r requirements.txt,"
+                  f" daarna de kernel herstarten)")
+        w = toon_weer(werkmap)
+        print("""
+    1  HESTIA         hitterisico voor lopers en evenementen
+                      (evenement met alle deelnemers, één loper, of een groep
+                      bekende lopers in een gekozen loop)
+    2  PYROX          hittebelasting van bevolkingsgroepen tijdens een hittegolf
+    3  KLIMATOS       klimaattrend en toekomst rond een vaste datum of evenement
+                      (haalt zelf het historische weer op)
+    4  FIT-BESTANDEN  metingen van horloge en CORE-sensor inlezen en met HESTIA
+                      narekenen: één loop, of een Thermo Clinic
+
+    5  WEER           weerdata ophalen met de Data Engine (verwachting of archief);
+                      nodig voor 1, 2 en 4
+    R  RAPPORT        een rapport maken van een eerdere berekening
+
+    T  Tests van de suite     W  Werkmap wijzigen     0  Stoppen""")
+        k = input("\nKeuze: ").strip().lower()
+        if k == "":
+            continue
+        if k in ("0", "q"):
+            _bewaar_instellingen({"clinicmap": str(cmap) if cmap else ""})
+            print("Tot ziens.")
+            return
+        if k == "1":
+            menu_hestia(werkmap, w)
+        elif k == "2":
+            if _weer_nodig(w):
+                draai_script("run_pyrox.py", werkmap)
+        elif k == "3":
+            draai_script("Klimatos_ClimateShift.py", werkmap)
+        elif k == "4":
+            cmap = menu_fit(werkmap, cmap)
+        elif k == "5":
+            draai_script("Thermopoulos_Data_Engine.py", werkmap)
+        elif k == "r":
+            rapport_later(werkmap, cmap)
+        elif k == "t":
+            draai_tests()
+        elif k == "w":
+            werkmap = _vraag_map("Werkmap voor deze sessie (map met weerbestanden en uitvoer)", werkmap)
+        else:
+            print("  Onbekende keuze.")
+        _bewaar_instellingen({"clinicmap": str(cmap) if cmap else ""})
 
 
 if __name__ == "__main__":

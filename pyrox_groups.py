@@ -156,7 +156,10 @@ def _register(group: GroupParameters):
 # running is 674.0 per 10,000 athlete-exposures -- the HIGHEST of any sport
 # studied, not the lowest -- and elite-competition EHS/DNF/medical-encounter
 # rates run as high as 118-170 per 1,000 finishers in marathon/race-walk
-# events (Breslow et al., cited above). "Very-low-incidence" was true only
+# events (Breslow et al., cited above). [2026-10-17: this attribution is
+# wrong -- Breslow 2021 (Med Sci Sports Exerc 53:1818) reports Boston EHS,
+# 3.7/10,000 starters, not these rates; the source of the 118-170 figure is
+# still to be identified. No number in this file depends on it.] "Very-low-incidence" was true only
 # for population-level base rates, not for the athlete-exposure or
 # per-finisher rates that actually describe this group's own risk.
 #
@@ -498,7 +501,7 @@ _register(_make_group(
 # [flagged for review] The magnitude of the two changed values is a reasoned,
 # literature-anchored judgement, not a direct unit conversion from the cited
 # %ΔTre figures (PYROX's load/strain units and the cited studies' physical
-# units are not directly interconvertible) -- please review, Koos. Deliberately
+# units are not directly interconvertible) -- author review needed. Deliberately
 # kept level with, not below, cardiovascular_disease/physical_disabilities in
 # this ranking: the cited evidence supports a real but moderate effect from
 # adiposity alone, not one exceeding a diagnosed cardiovascular condition.
@@ -618,7 +621,7 @@ _register(_make_group(
     # SCI and similar autonomic-affecting conditions) with much milder cases.
     # Splitting into at least two groups (autonomic/thermoregulatory-affecting
     # vs. mobility-only) would better reflect the evidence -- a structural
-    # change beyond a single-group recalibration, Koos's call. Pending that,
+    # change beyond a single-group recalibration, the author's call. Pending that,
     # recovery_threshold is nudged down (0.75 -> 0.65), anchoring toward the
     # more severe, better-evidenced end of the spectrum for safety, since a
     # category built to flag risk should not average away its most vulnerable
@@ -716,7 +719,7 @@ _register(_make_group(
 # and drug classes with unproven-but-plausible other-mechanism risk
 # (diuretics, antipsychotics) under one label. Splitting this into separate
 # groups would better reflect the evidence; not done here since that is a
-# structural change beyond a single-group recalibration -- Koos's call.
+# structural change beyond a single-group recalibration -- the author's call.
 #
 # CALIBRATION: recovery_threshold nudged down slightly (0.60 -> 0.55),
 # anchored to the strong-anticholinergic effect size as a conservative

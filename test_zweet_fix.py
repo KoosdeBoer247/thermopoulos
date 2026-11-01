@@ -49,6 +49,10 @@ def main() -> int:
 
     model = gevangen[0]
     wl = np.asarray(model.dict_results()["weight_loss_by_evap_and_res"], dtype=float).ravel()
+    # [2026-10-20] Since PF_JOS3 the same JOS-3 model runs on for 30 min in the
+    # finish zone. res[-1]["water"] is the race total, so count the race records
+    # only: 120 race minutes + 1 record, the same 121 records as before PF_JOS3.
+    wl = wl[:(len(times) - 1) * 10 + 1]
     verwacht = float(wl.sum() * 60.0)                # g, per minuut opgeteld
     oud = 0.0                                        # de oude rekenwijze, ter vergelijking
     for k in range(1, len(times)):

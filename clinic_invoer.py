@@ -3,9 +3,9 @@
 clinic_invoer.py -- deelnemersgegevens van een Thermo Clinic inlezen
 =====================================================================
 
-Leest het bestand ``deelnemers.xlsx`` dat Joost per clinic invult en zet elke
+Leest het bestand ``deelnemers.xlsx`` dat de clinic-organisatie per clinic invult en zet elke
 regel om naar een gecontroleerd ``Deelnemer``-record. Er staan GEEN namen in:
-alleen codes (L01, L02, ...). De sleutellijst code -> persoon blijft bij Joost.
+alleen codes (L01, L02, ...). De sleutellijst code -> persoon blijft bij de clinic-organisatie.
 
 Het bestand heeft twee tabbladen:
 
@@ -300,7 +300,7 @@ def naar_loperinvoer(d: Deelnemer, clinic: Clinic):
 # Sjabloon
 # -----------------------------------------------------------------------------
 def maak_sjabloon(pad: str | Path, voorbeeld: bool = True) -> Path:
-    """Leeg (of met een voorbeeldregel) deelnemers.xlsx voor Joost."""
+    """Leeg (of met een voorbeeldregel) deelnemers.xlsx voor de clinic-organisatie."""
     pad = Path(pad)
     clinic = pd.DataFrame([(v, "", u) for v, u in CLINIC_VELDEN],
                           columns=["veld", "waarde", "uitleg"])

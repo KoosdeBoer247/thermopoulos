@@ -92,7 +92,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # Coastal correction: settings and helper function
 # =============================================================================
-# [fix] See INTEGRATION_CHANGELOG for the full rationale (Falmouth hindcast,
+# [fix] See CHANGELOG for the full rationale (Falmouth hindcast,
 # KFMH station comparison, literature review of ERA5 coastal bias). Thresholds
 # are tuned to the actual resolution of the model in use -- not a single fixed
 # assumption that would be correct for one model but wrong for another.
@@ -195,38 +195,14 @@ def _lokaliseer(index: pd.DatetimeIndex, tz: str) -> pd.DatetimeIndex:
     except Exception:
         return index.tz_localize(tz, nonexistent="shift_forward", ambiguous=True)
 
-def geocode_city_candidates(city: str, max_results: int = 7) -> List[Dict]:
-    """Geocode city name to coordinates."""
-    url = "https://geocoding-api.open-meteo.com/v1/search"
-    params = {"name": city, "count": max_results, "language": "en", "format": "json"}
-    
-    try:
-        response = requests.get(url, params=params, timeout=30)
-        response.raise_for_status()
-        data = response.json()
-    except requests.RequestException as e:
-        logger.error(f"Geocoding failed: {e}")
-        raise
+# [2026-10-25] Shared physics and location helpers now live in thermal_env.py
+# (one implementation for the Data Engine and Klimatos).
+from thermal_env import (geocode_city_candidates, select_city, calculate_solar_parameters,
+                         wind_speed_at_height, calculate_uhi_oke, _calculate_globe_scalar,
+                         _calculate_mrt_scalar, calculate_globe_vectorized, calculate_mrt_vectorized,
+                         GLOBE_MODEL)
 
-    if "results" not in data:
-        raise ValueError(f"No locations found for '{city}'.")
-    return data["results"]
 
-def select_city(candidates: List[Dict]) -> Dict:
-    """Interactive city selection from multiple candidates."""
-    print("\nMultiple locations found:\n")
-    for i, c in enumerate(candidates, start=1):
-        print(f"[{i}] {c['name']}, {c.get('country', 'Unknown')} "
-              f"({c.get('admin1', '')}) — Pop: {c.get('population', 'unknown')}")
-
-    while True:
-        try:
-            choice = int(input(f"\nSelect location [1–{len(candidates)}]: "))
-            if 1 <= choice <= len(candidates):
-                return candidates[choice - 1]
-        except ValueError:
-            pass
-        print("Invalid selection.")
 
 def fetch_hourly_forecast(lat: float, lon: float, tz: str, days: int = 7) -> pd.DataFrame:
     """
@@ -476,57 +452,7 @@ def validate_weather_data(df: pd.DataFrame, data_type: str = "weather") -> pd.Da
 # Solar & Wind Physics
 # =============================================================================
 
-def calculate_solar_parameters(df: pd.DataFrame, lat: float, lon: float, tz: str) -> pd.DataFrame:
-    """Calculate solar elevation angle using pvlib."""
-    location = pvlib.location.Location(lat, lon, tz=tz)
-    try:
-        solar_pos = location.get_solarposition(df.index)
-        df['solar_elevation'] = solar_pos['elevation'].clip(lower=0)
-    except Exception as e:
-        logger.error(f"Solar calculation failed: {e}")
-        logger.warning("Setting solar_elevation to 0 - MRT accuracy will be reduced")
-        df['solar_elevation'] = 0
-    return df
 
-def wind_speed_at_height(v_ref, z_ref, z_target, z0=0.1):
-    """
-    Logarithmic wind profile correction.
-    
-    Parameters
-    ----------
-    v_ref : array-like
-        Reference wind speed [m/s]
-    z_ref : float
-        Reference height [m]
-    z_target : float
-        Target height [m]
-    z0 : float
-        Roughness length [m] (0.1 = rural, 0.8 = urban)
-    
-    Returns
-    -------
-    array-like
-        Wind speed at target height [m/s]
-    
-    Notes
-    -----
-    Simplified logarithmic wind profile. Does not include:
-    - Displacement height (d) for urban canopy
-    - Atmospheric stability corrections (Monin-Obukhov)
-    Valid only in surface layer (<100m) and neutral conditions.
-
-    [2026-09] The log-law is only physically valid for z0 < z_target < z_ref:
-    at z0 == z_target, ln(z_target/z0) == ln(1) == 0, giving exactly 0 m/s
-    regardless of v_ref (previously silently produced by the "Stedelijk /
-    binnenstad" terrain choice, z0=1.5 m == the 1.5 m runner-height target
-    used throughout this suite). At z0 > z_target the log is negative,
-    giving a negative (physically meaningless) wind speed. Both are now
-    guarded below instead of propagating silently into WBGT/MRT.
-    """
-    if z_ref <= 0 or z_target <= 0 or z0 <= 0 or z0 >= z_target or z0 >= z_ref:
-        logger.warning(f"Invalid wind profile parameters: z_ref={z_ref}, z_target={z_target}, z0={z0}. Using reference wind.")
-        return v_ref
-    return v_ref * (np.log(z_target / z0) / np.log(z_ref / z0))
 
 def dew_point_from_rh(t_air, rh):
     """
@@ -567,208 +493,14 @@ def rh_from_dew_point(t_air, dew_point):
     denominator = np.exp((a * t_air) / (b + t_air))
     return np.clip(100.0 * numerator / denominator, 0.0, 100.0)
 
-def calculate_uhi_oke(population: int, index: pd.DatetimeIndex) -> pd.Series:
-    """
-    Oke (1973) population-based UHI model with modern corrections.
-    
-    Parameters
-    ----------
-    population : int
-        City population
-    index : pd.DatetimeIndex
-        Datetime index for output series
-    
-    Returns
-    -------
-    pd.Series
-        UHI temperature increment [°C] with diurnal variation
-    
-    References
-    ----------
-    Oke, T. R. (1973). City size and the urban heat island.
-    Stewart & Oke (2012). Local Climate Zones for Urban Temperature Studies.
-    MDPI (2017). Western Sydney UHI measurements (99th percentile: 5-6°C)
-    
-    Notes
-    -----
-    Original Oke formula overestimates UHI for modern large cities.
-    A 40% reduction is applied for cities > 1M population to account for:
-    - Modern urban planning and green spaces
-    - Better building standards
-    - Empirical validation (Sydney 99th percentile: 5.7°C vs formula 9.4°C)
-    
-    Limitations:
-    - No seasonal variation
-    - No climate zone dependency
-    - No green space factor
-    - Diurnal factors are simplified (step functions)
-    """
-    if not population or population <= 0:
-        return pd.Series(0.0, index=index)
-
-    # Calculate base UHI using Oke formula
-    base_uhi = 2.01 * np.log10(population) - 4.06
-    
-    # Apply modern city correction for large populations
-    if population > 1_000_000:
-        # Large cities: reduce by 40% for modern planning
-        uhi_max = base_uhi * 0.6
-        uhi_max = np.clip(uhi_max, 0.0, 6.0)  # Cap at 6°C (realistic maximum)
-    else:
-        # Smaller cities: original formula with conservative cap
-        uhi_max = np.clip(base_uhi, 0.0, 5.0)
-
-    # Vectorized diurnal factors
-    hours = index.hour
-    factors = np.zeros(len(index))
-    
-    # Apply factors based on hour ranges
-    # Night: maximum UHI (city retains heat)
-    factors[(hours >= 0) & (hours <= 5)] = 1.0
-    # Morning transition
-    factors[(hours >= 6) & (hours <= 9)] = 0.6
-    # Day: minimum UHI (ventilation, solar heating of rural areas)
-    factors[(hours >= 10) & (hours <= 16)] = 0.2
-    # Evening transition
-    factors[(hours >= 17) & (hours <= 20)] = 0.5
-    # Late night buildup
-    factors[(hours >= 21) & (hours <= 23)] = 0.9
-
-    return pd.Series(uhi_max * factors, index=index)
 
 # =============================================================================
 # Thermal Physics (Vectorized Wrappers)
 # =============================================================================
 
-def _calculate_globe_scalar(dry_bulb, ghi, wind, solar_elev, pressure, cloud, aqi=1):
-    """
-    Scalar implementation of ISO 7726 globe temperature.
-    
-    Parameters
-    ----------
-    dry_bulb : float
-        Dry bulb temperature [°C]
-    ghi : float
-        Global horizontal irradiance [W/m²]
-    wind : float
-        Wind speed at measurement height [m/s]
-    solar_elev : float
-        Solar elevation angle [degrees]
-    pressure : float
-        Surface pressure [hPa]
-    cloud : float
-        Cloud cover [%]
-    aqi : int
-        Air quality index (1-5, affects sky temperature)
-    
-    Returns
-    -------
-    float
-        Globe temperature [°C]
-    
-    Notes
-    -----
-    Uses Newton-Raphson iteration to solve thermal equilibrium.
-    Convergence tolerance: 0.1°C energy imbalance.
-    Maximum iterations: 10 (may not converge in extreme conditions).
-    """
-    GLOBE_DIA = 0.15
-    EMISSIVITY = 0.95
-    ABSORPTIVITY = 0.95
-    SIGMA = 5.67e-8
-    
-    t_air_k = dry_bulb + 273.15
-    eff_wind = max(0.1, wind)
-    h_c = 6.3 * (eff_wind**0.6) / (GLOBE_DIA**0.4)
 
-    # NIGHT / NO SUN
-    if ghi <= 0 or solar_elev <= 0:
-        sky_depression = 10 - (cloud / 100) * 6
-        if aqi > 3: sky_depression -= 2
-        sky_temp_k = t_air_k - sky_depression
-        net_rad = EMISSIVITY * SIGMA * (sky_temp_k**4 - t_air_k**4)
-        t_globe = dry_bulb + (net_rad / h_c)
-        return max(dry_bulb - 3, min(dry_bulb + 1, t_globe))
-
-    # DAY
-    solar_input = ABSORPTIVITY * ghi / 4.0
-    amb_rad = EMISSIVITY * SIGMA * (t_air_k**4)
-    total_in = solar_input + amb_rad
-    
-    # Newton-Raphson iteration
-    t_globe_k = t_air_k + (solar_input / (h_c + 4 * EMISSIVITY * SIGMA * t_air_k**3))
-    
-    converged = False
-    for iteration in range(10):
-        rad_out = EMISSIVITY * SIGMA * (t_globe_k**4)
-        conv_out = h_c * (t_globe_k - t_air_k)
-        imbalance = total_in - (rad_out + conv_out)
-        
-        if abs(imbalance) < 0.1:
-            converged = True
-            break
-            
-        deriv = 4 * EMISSIVITY * SIGMA * (t_globe_k**3) + h_c
-        t_globe_k += 0.7 * (imbalance / deriv)
-    
-    # Log convergence issues (only for extreme cases)
-    if not converged and abs(imbalance) > 1.0:
-        logger.debug(f"Globe temp convergence issue: imbalance={imbalance:.2f}°C at T={dry_bulb:.1f}°C, GHI={ghi:.0f} W/m²")
-
-    t_globe_c = t_globe_k - 273.15
-    
-    # Sanity checks
-    limit = 15 if eff_wind > 2 else 20
-    return max(dry_bulb, min(dry_bulb + limit, t_globe_c))
-
-def _calculate_mrt_scalar(tg, ta, v, ghi, elev):
-    """
-    Scalar implementation of ISO 7726 Mean Radiant Temperature.
-    
-    Parameters
-    ----------
-    tg : float
-        Globe temperature [°C]
-    ta : float
-        Air temperature [°C]
-    v : float
-        Wind speed [m/s]
-    ghi : float
-        Global horizontal irradiance [W/m²]
-    elev : float
-        Solar elevation [degrees]
-    
-    Returns
-    -------
-    float
-        Mean Radiant Temperature [°C]
-    """
-    GLOBE_DIA = 0.15
-    EMISSIVITY = 0.95
-    SIGMA = 5.67e-8
-    
-    tg_k = tg + 273.15
-    ta_k = ta + 273.15
-    eff_wind = max(0.1, v)
-    h_c = 6.3 * (eff_wind**0.6) / (GLOBE_DIA**0.4)
-    
-    conv_term = (h_c / (EMISSIVITY * SIGMA)) * (tg_k - ta_k)
-    mrt_k4 = (tg_k**4) + conv_term
-    
-    if mrt_k4 < 0: 
-        return tg
-    
-    mrt_c = (mrt_k4**0.25) - 273.15
-    
-    # Validation logic
-    if ghi > 0 and elev > 0:
-        return np.clip(mrt_c, tg - 2, tg + 15)
-    else:
-        return np.clip(mrt_c, ta - 15, ta + 3)
 
 # Create vectorized versions for DataFrame application
-calculate_globe_vectorized = np.vectorize(_calculate_globe_scalar)
-calculate_mrt_vectorized = np.vectorize(_calculate_mrt_scalar)
 
 # =============================================================================
 # Unified Processing Pipeline
@@ -885,7 +617,9 @@ def process_weather_data(df: pd.DataFrame, city: Dict, lat: float, lon: float, t
         df["wind_1.5m"].values,
         df["solar_elevation"].values,
         df["pressure"].values,
-        df["cloud_cover"].values
+        df["cloud_cover"].values,
+        1,
+        rh=df["RH_urban"].values,      # [2026-10-31] sky emissivity (Liljegren globe)
     )
     
     df["MRT"] = calculate_mrt_vectorized(
@@ -1316,6 +1050,7 @@ def main():
         "roughness_z0": roughness_z0,
         "terrain_type": terrain_label,
         "model_version": "Thermopoulos v3.0",
+        "globe_model": GLOBE_MODEL,    # [2026-10-31] loaders recompute radiation for older files
         "processing_timestamp": datetime.now().isoformat(),
         "forecast_period": f"{forecast_df.index[0]} to {forecast_df.index[-1]}",
         "hindcast_period": f"{hindcast_df.index[0]} to {hindcast_df.index[-1]}",

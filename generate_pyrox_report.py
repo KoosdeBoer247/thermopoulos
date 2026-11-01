@@ -168,6 +168,9 @@ def generate_pyrox_report(event_name: str,
     A(f"| Aantal dagen | {len(heat_loads)} |")
     A(f"| Aantal populatiegroepen | {n_groups_total} |")
     A(f"| Hitteblootstelling per dag | {', '.join(f'{x:.2f}' for x in heat_loads)} |")
+    _nr = pyrox_report.get("nocturnal_recovery", False)
+    A(f"| Nachtelijk herstel | "
+      f"{'telt mee: herstel volgens het minimum van de nacht na elke dag (zie sectie 2b)' if _nr else 'NIET meegeteld (volledig herstel elke nacht; alleen voor vergelijking met de paper)'} |")
     if documented_reference:
         A(f"| Gedocumenteerd referentiecijfer | {documented_reference} |")
     A("")
@@ -188,17 +191,35 @@ def generate_pyrox_report(event_name: str,
           f"{res['emergency_day'] if res['emergency_day'] is not None else '-'} |")
     A("")
     A("Waarschuwing/gevaar/noodgeval: de dag waarop de cumulatieve belasting van "
-      "die groep respectievelijk 50%, 75% en 95% van haar eigen kritieke grens "
+      "die groep respectievelijk 50%, 75% en 90% van haar eigen kritieke grens "
       "overschrijdt (zie sectie 3 voor wat 'kritieke grens' hier concreet betekent). "
       "'-' betekent: deze grens werd in de gesimuleerde periode niet bereikt.")
     A("")
 
     # ------------------------------------------------------------------ #
+    A("## 2b. Nachten")
+    A("")
+    A("Het herstel na elke dag hangt af van het minimum van de nacht erna "
+      "(18:00–08:00 lokale tijd): slaapkwaliteit 1,0 bij 18 °C of koeler, lineair "
+      "dalend tot 0,4 bij 26 °C of warmer (thermopoulos_loader.night_sleep_quality). "
+      "Warme nachten remmen dus het herstel; dit telt in alle resultaten en grafieken mee.")
+    A("")
+    _tn = pyrox_report.get("t_night_min") or [None] * len(heat_loads)
+    _q = pyrox_report.get("sleep_quality") or [1.0] * len(heat_loads)
+    _days = dates if dates else [str(i + 1) for i in range(len(heat_loads))]
+    A("| Dag | Nachtminimum erna (°C) | Slaapkwaliteit |")
+    A("|---|---|---|")
+    for d, tn, q in zip(_days, _tn, _q):
+        A(f"| {d} | {_fmt(tn, 1) if tn is not None and tn == tn else 'n.b. (laatste dag: eigen dagminimum)'} | {_fmt(q, 2)} |")
+    A("")
+
+    # ------------------------------------------------------------------ #
     A("## 3. Divergentie tussen groepen")
     A("")
+    _sq = pyrox_report.get("sleep_quality")
     fig = plot_strain_trajectories(heat_loads, selected,
                                    f"PYROX — {event_name}",
-                                   dates=dates, forecast_start=forecast_start)
+                                   dates=dates, forecast_start=forecast_start, sleep_quality=_sq)
     path = os.path.join(plot_dir, "pyrox_1_trajectories.png")
     fig.savefig(path, dpi=140, bbox_inches="tight")
     plt.close(fig)
@@ -216,7 +237,7 @@ def generate_pyrox_report(event_name: str,
     A(f"## 4. Kwetsbaarste traject in detail — {groups[most_vulnerable]['group'].display_name}")
     A("")
     fig = plot_feedback_race(heat_loads, most_vulnerable, f"PYROX — {event_name}",
-                             dates=dates, forecast_start=forecast_start)
+                             dates=dates, forecast_start=forecast_start, sleep_quality=_sq)
     path = os.path.join(plot_dir, "pyrox_2_feedback_race.png")
     fig.savefig(path, dpi=140, bbox_inches="tight")
     plt.close(fig)
@@ -237,7 +258,7 @@ def generate_pyrox_report(event_name: str,
     A("## 5. Risico-overzicht per dag")
     A("")
     fig = plot_risk_heatmap(heat_loads, selected, f"PYROX — {event_name}",
-                            dates=dates, forecast_start=forecast_start)
+                            dates=dates, forecast_start=forecast_start, sleep_quality=_sq)
     path = os.path.join(plot_dir, "pyrox_3_heatmap.png")
     fig.savefig(path, dpi=140, bbox_inches="tight")
     plt.close(fig)
@@ -256,7 +277,7 @@ def generate_pyrox_report(event_name: str,
         A("## 6. Onzekerheid in de voorspelling")
         A("")
         fig = plot_forecast_uncertainty(heat_loads, selected, f"PYROX — {event_name}",
-                                        dates=dates, forecast_start=forecast_start)
+                                        dates=dates, forecast_start=forecast_start, sleep_quality=_sq)
         path = os.path.join(plot_dir, "pyrox_4_uncertainty.png")
         fig.savefig(path, dpi=140, bbox_inches="tight")
         plt.close(fig)
@@ -306,7 +327,13 @@ def generate_pyrox_report(event_name: str,
       "zich verhoudt tot de daadwerkelijk waargenomen, dagelijkse oversterfte "
       "tijdens de Franse hittegolf van augustus 2003 (Fouillet et al. 2006). "
       "Volgt de vorm en timing van de opbouw de waargenomen curve, dan reproduceert "
-      "het model dat concrete, historische evenement.*")
+      "het model dat concrete, historische evenement. Doorgetrokken lijnen: met "
+      "nachtelijk herstel volgens de gemeten nachtminima van Paris-Montsouris (nacht na "
+      "elke dag), zoals in alle resultaten van de suite; gestippeld: zonder, de aanname "
+      "van de oorspronkelijke paper. Met nachtelijk herstel bereikt de groep 65-85 jaar "
+      "de kritieke grens op dag 9 in plaats van 10; de groep 85+ blijft op dag 5. De vorm "
+      "van de opbouw verandert nauwelijks (correlatie met de oversterfte 0,83 in beide "
+      "gevallen).*")
     A("")
 
     # ------------------------------------------------------------------ #

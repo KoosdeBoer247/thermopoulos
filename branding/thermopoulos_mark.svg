@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="300 128 424 424">
+<defs>
+  <linearGradient id="ringgrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#1E7FD8"/><stop offset="33%" stop-color="#2FA66B"/><stop offset="66%" stop-color="#F7B733"/><stop offset="100%" stop-color="#D62828"/></linearGradient>
+</defs>
+
+<circle cx="512" cy="340" r="192" fill="none" stroke="url(#ringgrad)" stroke-width="13"/>
+
+<ellipse cx="512" cy="340" rx="70" ry="90" fill="none" stroke="#FFFFFF" stroke-width="20"/>
+<line x1="432" y1="340" x2="592" y2="340" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round"/>
+
+</svg>

@@ -388,6 +388,13 @@ def _zoek_blad(xl, start, eind):
         if venster.isna().any().any():
             continue
         df = df.copy()
+        # [2026-10-31] Bestand van een oudere Data Engine: straling (globe,
+        # MRT, WBGT, UTCI) opnieuw berekend met het huidige globemodel.
+        from thermal_env import actualiseer_straling
+        df, herberekend = actualiseer_straling(df, meta)
+        if herberekend:
+            print(f"  Let op: {sheet} is gemaakt met een oudere Data Engine; globetemperatuur, "
+                  "MRT, WBGT en UTCI zijn opnieuw berekend met het huidige globemodel.")
         df.index = df.index.tz_localize(tz, nonexistent="shift_forward", ambiguous="infer")
         return (df, city, lat, lon, tz, sheet), gezien
     return None, gezien
@@ -518,6 +525,7 @@ def run_maten(res: list, gewicht: float, vo2_tempo: float, afstand_km: float) ->
                                        strict=True, window="race")),
         "ehe_dosis": ie.ehe_dose(res),
         "eac": bool(ie.eac_hit(res)),
+        "eac_kans": ie.eac_probability_of(res),   # [2026-10-20] EAC-staan
         "eac_dosis": ie.eac_dose(res),
         # Race-maximum, net als run_monte_carlo_adult() (t_rect_sims bevat
         # alleen de race-stappen). De na-finish piek telt daar niet mee.
@@ -814,7 +822,43 @@ def exporteer_excel(r: LoperResultaat, pad: str | Path) -> Path:
         ts.to_excel(xw, sheet_name="Tijdreeks", index=False)
         if r.gevoeligheid is not None:
             r.gevoeligheid.to_excel(xw, sheet_name="Tempo_watals", index=False)
+        # [2026-10-31] weer tijdens de loop en over de hele dag
+        wl, wd = weer_tabellen(r)
+        if wl is not None:
+            wl.to_excel(xw, sheet_name="Weer_loop", index=False)
+        if wd is not None:
+            wd.to_excel(xw, sheet_name="Weer_dag", index=False)
     return pad
+
+
+WEER_TABEL_KOLOMMEN = [  # (sleutel loop, kolom dag, kop)
+    ("t_air", "T_air_urban", "Lucht (°C)"), ("t_air_rural", "T_air_rural", "Lucht buiten de stad (°C)"),
+    ("rh", "RH_urban", "RV (%)"), ("wind", "wind_1.5m", "Wind 1,5 m (m/s)"), ("wind10", "wind_10m", "Wind 10 m (m/s)"),
+    ("ghi", "solar_radiation", "Zon (W/m²)"), ("cloud", "cloud_cover", "Bewolking (%)"),
+    ("t_wet", "T_wetbulb", "Natte bol (°C)"), ("t_globe", "T_globe", "Bolthermometer (°C)"),
+    ("mrt", "MRT", "MRT (°C)"), ("wbgt", "WBGT", "WBGT (°C)"), ("utci", "UTCI", "UTCI (°C)"),
+    ("pressure", "pressure", "Luchtdruk (hPa)")]
+
+
+def weer_tabellen(r: "LoperResultaat"):
+    """[2026-10-31] Weer tijdens de loop (per 10 min) en over de hele dag (per uur) als tabellen."""
+    m = r.assessment.meteo
+    def _tijd(ts):
+        return [t.tz_localize(None) if getattr(t, "tzinfo", None) else t for t in ts]
+    wl = pd.DataFrame({"tijd": _tijd(m["time"])})
+    for k, _, kop in WEER_TABEL_KOLOMMEN:
+        if k in m and np.isfinite(np.asarray(m[k], float)).any():
+            wl[kop] = np.round(np.asarray(m[k], float), 1)
+    d = m.get("dag")
+    wd = None
+    if d:
+        wd = pd.DataFrame({"tijd": _tijd(d["time"])})
+        for _, c, kop in WEER_TABEL_KOLOMMEN:
+            if c in d:
+                wd[kop] = np.round(np.asarray(d[c], float), 1)
+        if "RH_urban" not in d and "RH" in d:
+            wd["RV (%)"] = np.round(np.asarray(d["RH"], float), 1)
+    return wl, wd
 
 
 if __name__ == "__main__":

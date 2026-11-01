@@ -24,6 +24,8 @@ Drie varianten, vooraf vastgelegd (zie het validatieschema):
   B2  JOS-3 par = MET x 58,2 / BMR (JOS-3 verwacht een veelvoud van de
       eigen rustverbranding, niet van 1 MET); T_rect als B1
   B3  par als B2; T_rect = JOS-3-bekkenkern (segment 4), zonder correctie
+  B4  [2026-10-27, verkennend] als B3, met het koude-huidsignaal van JOS-3
+      begrensd op 2 K (jos3_leeftijd.COLD_SKIN_LIMIT_K); achteraf toegevoegd
 De CVR-module krijgt in alle varianten de echte MET (Lloyd 2022 rekent in MET).
 
 Onzekerheid (ensemble, per variant dezelfde trekkingen):
@@ -57,6 +59,10 @@ VARIANTEN = {
     "B1": {"par": "met", "t_rect": "gem17", "label": "B1 zoals nu (par = MET, gem. 17 seg. + 0,5)"},
     "B2": {"par": "omgerekend", "t_rect": "gem17", "label": "B2 omgerekend, gem. 17 seg. + 0,5"},
     "B3": {"par": "omgerekend", "t_rect": "bekken", "label": "B3 omgerekend, bekkenkern"},
+    # [2026-10-27] B4 = B3 met begrensd koude-huidsignaal (jos3_leeftijd.
+    # COLD_SKIN_LIMIT_K); verkennend, achteraf toegevoegd, niet vooraf vastgelegd.
+    "B4": {"par": "omgerekend", "t_rect": "bekken", "koude_huid_k": 2.0,
+           "label": "B4 als B3, koude-huidsignaal begrensd (2 K)"},
 }
 
 KLEDING_CLO = {"licht": 0.2, "normaal": 0.3, "lang": 0.5}
@@ -240,20 +246,33 @@ def reconstrueer_varianten(p: Persoon, minuten: pd.DataFrame, weer: pd.DataFrame
     w = weer_per_minuut(weer, start, len(met))
     trk = trekkingen(n_ensemble, seed, p.hitte_gewend)
     centr = Trekking(zweetfactor=0.8 + (0.3 if p.hitte_gewend else 0.0))
+    # [2026-10-23] age decrement scaled by fitness and heat acclimatisation
+    # (jos3_leeftijd.set_person). Fitness: the HESTIA estimate from heart rate
+    # and speed, else Garmin, else the population mean (= factor 0 by definition).
+    import jos3_leeftijd as _jl
+    _vo2 = vo2max.get("hestia") or vo2max.get("garmin") or vo2max.get("populatie")
+    _jl.set_person(_vo2, p.leeftijd, p.sex, 1.0 if p.hitte_gewend else 0.0)
     uit = {}
     groepen = {}
     for var in varianten:
-        groepen.setdefault(VARIANTEN[var]["par"], []).append(var)
-    for par_modus, vs in groepen.items():
+        sleutel = (VARIANTEN[var]["par"], VARIANTEN[var].get("koude_huid_k"))
+        groepen.setdefault(sleutel, []).append(var)
+    vorige_grens = _jl.cold_skin_limit()
+    for (par_modus, koude), vs in groepen.items():
         basis = vs[0]
-        df, snaps = _jos3_run(p, met, v, w, basis, centr)
-        hr = {bron: hartslag(p, snaps, x) for bron, x in vo2max.items() if x}
-        runs = []
-        for k, tr in enumerate(trk):
-            d, _ = _jos3_run(p, met, v, w, basis, tr)
-            runs.append(d)
-            if progress:
-                progress((k + 1) / n_ensemble, f"{par_modus}: run {k + 1}/{n_ensemble}")
+        # B4: koude-huidgrens alleen tijdens deze runs; daarna de oude instelling terug
+        _jl.set_cold_skin_limit(koude if koude is not None else vorige_grens)
+        try:
+            df, snaps = _jos3_run(p, met, v, w, basis, centr)
+            hr = {bron: hartslag(p, snaps, x) for bron, x in vo2max.items() if x}
+            runs = []
+            for k, tr in enumerate(trk):
+                d, _ = _jos3_run(p, met, v, w, basis, tr)
+                runs.append(d)
+                if progress:
+                    progress((k + 1) / n_ensemble, f"{par_modus}: run {k + 1}/{n_ensemble}")
+        finally:
+            _jl.set_cold_skin_limit(vorige_grens)
         H = np.array([d["huid_borst"].to_numpy() for d in runs])
         vocht = np.array([float(d["vocht_pct_cum"].iat[-1]) for d in runs])
         for var in vs:

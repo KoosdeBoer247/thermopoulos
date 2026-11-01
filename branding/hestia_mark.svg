@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="300 128 424 424">
+<defs>
+  <linearGradient id="ringgrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#1E7FD8"/><stop offset="50%" stop-color="#3FAE6B"/><stop offset="100%" stop-color="#F2611D"/></linearGradient>
+</defs>
+
+<circle cx="512" cy="340" r="192" fill="none" stroke="url(#ringgrad)" stroke-width="13"/>
+
+<circle cx="512" cy="255" r="46" fill="#FFFFFF"/>
+<path d="M457,300 C457,294 463,290 470,290 L554,290 C561,290 567,294 567,300
+         L578,418 C580,432 568,440 556,440 L468,440 C456,440 444,432 446,418 Z"
+      fill="url(#ringgrad)"/>
+<path d="M438,368 L460,368 L472,353 L486,392 L499,336 L512,396 L525,368 L546,368 L557,380 L568,368 L586,368"
+      fill="none" stroke="#EAF6FF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>
+
+</svg>

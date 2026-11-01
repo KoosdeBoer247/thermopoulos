@@ -86,7 +86,7 @@ def assess_population(data: ThermopoulosData,
                       group_names: Optional[List[str]] = None,
                       pre_heatwave_heat_load: Optional[float] = None,
                       sleep_quality_series: Optional[List[float]] = None,
-                      use_nocturnal_recovery: bool = False) -> Dict:
+                      use_nocturnal_recovery: bool = True) -> Dict:
     """Run PYROX for a set of population groups on one Thermopoulos sheet.
 
     Parameters
@@ -103,9 +103,11 @@ def assess_population(data: ThermopoulosData,
     sleep_quality_series : list of float, optional
         Per-day sleep quality in (0, 1]. Defaults to ideal (1.0) every day.
     use_nocturnal_recovery : bool, optional
-        If True and no explicit sleep_quality_series is given, derive one from
-        the night's minimum temperature (warm nights blunt recovery). OFF by
-        default, so the baseline calibration/validation is unchanged.
+        If True (the DEFAULT since 2026-10-17, author's decision: "the night
+        always counts") and no explicit sleep_quality_series is given, derive
+        one from the minimum of the night after each day (warm nights blunt
+        recovery). False reproduces the paper's full-recovery assumption and
+        is kept only for verification against the paper.
 
     Returns
     -------
@@ -122,7 +124,7 @@ def assess_population(data: ThermopoulosData,
     heat_loads = daily["baseline_heat_load"].tolist()
     dates = [str(d) for d in daily["date"].tolist()]
 
-    # optional nocturnal-recovery refinement (off by default)
+    # nocturnal recovery from the night after each day (default ON, 2026-10-17)
     if sleep_quality_series is None and use_nocturnal_recovery:
         sleep_quality_series = data.sleep_quality_series(daily)
 
@@ -138,12 +140,18 @@ def assess_population(data: ThermopoulosData,
             pre_heatwave_heat_load=pre_heatwave_heat_load,
         )
 
+    night_min = daily["t_night_min"].tolist() if "t_night_min" in daily.columns else None
     return {
         "city": data.city,
         "sheet": sheet,
         "dates": dates,
         "heat_loads": heat_loads,
         "groups": results,
+        # [2026-10-17] so a report can say which recovery variant it shows
+        "nocturnal_recovery": sleep_quality_series is not None,
+        "sleep_quality": (list(sleep_quality_series) if sleep_quality_series is not None
+                          else [1.0] * len(heat_loads)),
+        "t_night_min": night_min,
     }
 
 
@@ -214,6 +222,15 @@ def _select_groups() -> List[str]:
     return selected
 
 
+def print_nights(report: Dict) -> None:
+    """[2026-10-17] Night minimum (night after each day) and sleep quality."""
+    tn = report.get("t_night_min") or [None] * len(report["heat_loads"])
+    print("\nNachten (herstel telt altijd mee): minimum van de nacht na elke dag")
+    for d, t, q in zip(report["dates"], tn, report["sleep_quality"]):
+        ts = f"{t:5.1f} °C" if t is not None and t == t else "  n.b. (eigen dagminimum)"
+        print(f"  {d}: {ts}  slaapkwaliteit {q:.2f}")
+
+
 def main():
     latest = find_latest_thermopoulos_file()
     if latest is None:
@@ -224,6 +241,7 @@ def main():
     selected_groups = _select_groups()
     report = assess_population(data, sheet=sheet, group_names=selected_groups)
     print_report(report)
+    print_nights(report)
 
     # [2026-08-30] Optional Markdown + Word report, same prompt pattern
     # already used by run_hestia.py and Klimatos_ClimateShift.py's main() --
@@ -231,34 +249,22 @@ def main():
     # (all six of pyrox_plots.py's own plots, each with a plain-language
     # caption) and report_to_docx.py's docstring for the shared styling
     # layer all four of this suite's report generators now use.
+    # [2026-10-27] Report data kept as a rapportpakket (start menu R = later).
+    from datetime import datetime
+    import rapportpakket
+    safe_city = "".join(ch for ch in data.city if ch.isalnum() or ch in (" ", "_", "-")).strip()
+    report_stam = f"PYROX_Rapport_{safe_city}_{datetime.now().strftime('%Y%m%d_%H%M')}"
+    pakket_gegevens = dict(event_name=f"{data.city} ({sheet})", pyrox_report=report)
+    pk = rapportpakket.bewaar("pyrox", pakket_gegevens, report_stam)
+    if pk:
+        print(f"Report data kept: {pk.name} (start menu R = make the report later)")
     try:
-        report_answer = input("\nGenerate event report (Markdown)? [y/n, default y]: ").strip().lower()
+        report_answer = input("\nGenerate report now? [y/n, default y]: ").strip().lower()
     except EOFError:
         report_answer = "y"
     if report_answer != "n":
-        from datetime import datetime
-        from generate_pyrox_report import generate_pyrox_report
-        safe_city = "".join(ch for ch in data.city if ch.isalnum() or ch in (" ", "_", "-")).strip()
-        report_path = f"PYROX_Rapport_{safe_city}_{datetime.now().strftime('%Y%m%d_%H%M')}.md"
-        report_text = generate_pyrox_report(
-            event_name=f"{data.city} ({sheet})", pyrox_report=report,
-            output_path=report_path,
-        )
-        print(f"Report written to: {report_path}")
-
-        try:
-            docx_answer = input("Also export as Word (.docx)? [y/n, default y]: ").strip().lower()
-        except EOFError:
-            docx_answer = "y"
-        if docx_answer != "n":
-            try:
-                from report_to_docx import export_report_docx
-                docx_path = report_path[:-3] + ".docx"
-                export_report_docx(report_text, docx_path, report_kind="facts",
-                                   event_name=f"{data.city} ({sheet})")
-                print(f"Word report written to: {docx_path}")
-            except Exception as e:
-                print(f"Word export failed ({e}) -- the Markdown report above is unaffected.")
+        rapportpakket.maak({"soort": "pyrox", "rapport_stam": report_stam,
+                            "gegevens": pakket_gegevens}, vraag_word=True)
 
     return 0
 

@@ -99,9 +99,20 @@ def daily_weather_to_heat_load(t_air_max: float, relative_humidity: float,
 # minimum temperature into a sleep-quality factor, so the recovery term reflects
 # how warm the night actually was rather than assuming full recovery.
 #
-# This is OPTIONAL and OFF by default: the baseline behaviour (sleep_quality=1.0)
-# is unchanged, so the Paris-2003 calibration and validation are untouched. Pass
-# the resulting series to PyroxModel.simulate(sleep_quality_series=...).
+# [2026-10-17] ON by default in run_pyrox.assess_population (author's
+# decision: "the night always counts"); before it was optional and off.
+# Paris 2003 re-checked with measured night minima (TECHNICAL_REFERENCE §3.5).
+# Pass the resulting series to PyroxModel.simulate(sleep_quality_series=...).
+
+# [2026-10-17] TIMING. PYROX's day d = that day's exposure followed by that
+# night's recovery (advance_one_day: strain += input(d) - recovery(q[d])). So
+# q[d] must come from the night AFTER day d. The calendar-day minimum used
+# before falls mostly in the early morning of day d, i.e. the night BEFORE --
+# one day too early. Now the minimum over [d 18:00, d+1 08:00] local time
+# (`t_night_min`); the last day falls back to its own calendar minimum when the
+# next morning is not in the sheet.
+NIGHT_WINDOW_START_H = 18   # local hour on day d
+NIGHT_WINDOW_HOURS = 14     # until 08:00 local on day d+1
 
 NIGHT_COMFORT_TEMP = 18.0   # °C — at/below this, overnight recovery is full
 NIGHT_SEVERE_TEMP = 26.0    # °C — at/above this (tropical night), recovery floored
@@ -155,6 +166,7 @@ class ThermopoulosData:
             )
 
         meta = pd.read_excel(self.excel_path, sheet_name="Metadata")
+        self._meta = meta.iloc[0].to_dict()
         self.city = meta["city"].iloc[0]
         self.latitude = float(meta["latitude"].iloc[0])
         self.longitude = float(meta["longitude"].iloc[0])
@@ -172,6 +184,14 @@ class ThermopoulosData:
             )
         df = pd.read_excel(self.excel_path, sheet_name=sheet, index_col=0)
         df.index = pd.to_datetime(df.index)
+        # [2026-10-31] Older Data Engine file: recompute globe/MRT/WBGT/UTCI
+        # with the current globe model (thermal_env.actualiseer_straling).
+        from thermal_env import actualiseer_straling
+        df, herberekend = actualiseer_straling(df, getattr(self, "_meta", None))
+        if herberekend and sheet not in getattr(self, "_gemeld", set()):
+            self._gemeld = getattr(self, "_gemeld", set()) | {sheet}
+            print(f"Note: {self.excel_path.name}/{sheet} was made by an older Data Engine; "
+                  "globe temperature, MRT, WBGT and UTCI recomputed with the current globe model.")
         return df
 
     # ---- metadata -----------------------------------------------------------
@@ -197,7 +217,8 @@ class ThermopoulosData:
         baseline_heat_load that PYROX consumes.
 
         Columns: date, t_air_mean, t_air_max, t_air_min, rh_mean,
-                 wind_mean, solar_mean, baseline_heat_load
+                 wind_mean, solar_mean, t_night_min (night after the day,
+                 18:00-08:00 local; NaN if incomplete), baseline_heat_load
         """
         hourly = self._load_sheet(sheet)
         grouped = hourly.groupby(hourly.index.date).agg(
@@ -209,6 +230,19 @@ class ThermopoulosData:
             solar_mean=("solar_radiation", "mean"),
         )
         daily = grouped.reset_index(names="date")
+        # [2026-10-17] minimum of the night FOLLOWING each day (see the
+        # NIGHT_WINDOW comment above); NaN when that night is not fully in the
+        # sheet. sleep_quality_series() then falls back to t_air_min.
+        idx = hourly.index
+        t_urban = hourly["T_air_urban"]
+        nights = []
+        for d in daily["date"]:
+            start = pd.Timestamp(d) + pd.Timedelta(hours=NIGHT_WINDOW_START_H)
+            end = start + pd.Timedelta(hours=NIGHT_WINDOW_HOURS)
+            w = t_urban[(idx >= start) & (idx <= end)]
+            complete = len(w) >= NIGHT_WINDOW_HOURS * 0.7 and idx.max() >= end - pd.Timedelta(hours=1)
+            nights.append(float(w.min()) if complete else float("nan"))
+        daily["t_night_min"] = nights
         daily["baseline_heat_load"] = daily.apply(
             lambda r: daily_weather_to_heat_load(
                 r["t_air_max"], r["rh_mean"], r["wind_mean"]
@@ -271,10 +305,18 @@ class ThermopoulosData:
         overnight recovery.
 
         If 't_air_min' is absent, returns all-1.0 (the unchanged baseline).
+
+        [2026-10-17] Uses 't_night_min' (the night AFTER each day) where
+        available; a day whose following night is not in the sheet (normally
+        only the last one) falls back to its own calendar minimum.
         """
         if "t_air_min" not in daily.columns:
             return [1.0] * len(daily)
-        return [night_sleep_quality(float(tm)) for tm in daily["t_air_min"]]
+        out = []
+        for i, tm in enumerate(daily["t_air_min"]):
+            tn = daily["t_night_min"].iloc[i] if "t_night_min" in daily.columns else float("nan")
+            out.append(night_sleep_quality(float(tn) if np.isfinite(tn) else float(tm)))
+        return out
 
     # ---- HESTIA: hourly weather --------------------------------------------
     def get_hourly_weather(self, sheet: str = "Forecast_7d",
@@ -348,7 +390,10 @@ class ThermopoulosData:
                     "temp": float(row["T_air_urban"]),
                     "temp_rural": float(row["T_air_rural"]) if "T_air_rural" in row and pd.notna(row["T_air_rural"]) else None,
                     "humidity_urban": float(row["RH_urban"]) if "RH_urban" in row and pd.notna(row["RH_urban"]) else None,
-                    "humidity": float(row["RH"]),
+                    # [2026-10-31] RH_urban belongs to T_air_urban (same dew
+                    # point); the rural RH stays available as humidity_rural.
+                    "humidity": float(row["RH_urban"]) if "RH_urban" in row and pd.notna(row["RH_urban"]) else float(row["RH"]),
+                    "humidity_rural": float(row["RH"]),
                     "pressure": float(row.get("pressure", 1013.25)),
                 },
                 "wind": {"speed": float(row["wind_10m"])},

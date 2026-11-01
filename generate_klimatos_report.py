@@ -101,6 +101,8 @@ def generate_klimatos_report(event_name: str,
                               ehs_df: pd.DataFrame = None,
                               admissions_df: pd.DataFrame = None,
                               liveability_df: pd.DataFrame = None,
+                              liveability_hours_df: pd.DataFrame = None,
+                              liveability_proj_df: pd.DataFrame = None,
                               accel_df: pd.DataFrame = None,
                               ehs_evolution_res: dict = None,
                               documented_reference: str = None,
@@ -355,7 +357,7 @@ def generate_klimatos_report(event_name: str,
         A("Anders dan EHE heeft dit een gekalibreerde basiswaarde: ook een "
           "scenario waarin niemand in de steekproef een fysiologische "
           "drempel overschrijdt, geeft het geijkte achtergrondniveau, niet "
-          "nul. Status: **PROVISIONAL** (geijkt op gereduceerde N; zie "
+          "nul. Status: **PROVISIONAL** (geijkt op één referentie-evenement, N=5000; zie "
           "hestia_model.py's COLLAPSE_ENDPOINTS-tabel).")
         A("")
         A("| Doeljaar | per 1.000 | x referentie | Vroege start |")
@@ -475,6 +477,73 @@ def generate_klimatos_report(event_name: str,
                 "leeftijdsprofielen naast elkaar -- een dalende balk betekent minder "
                 "fysiologische marge over tijdens het heetste uur van een gemiddelde "
                 "dag in dat venster.")
+        A("")
+        A("**Let op bij het slechtste-uur-Mmax:** Mmax kan niet onder het "
+          "rustniveau komen (ongeveer 1,5 MET). Een uur dat nog zwaarder is, "
+          "telt als 'niet leefbaar' en valt buiten dit minimum. Zodra een "
+          "profiel tegen die bodem zit, toont deze maat geen verdere "
+          "verslechtering meer; daarvoor dient het aantal uren hieronder.")
+        A("")
+        cols = ("hrsBelow_young", "hrsNonLiv_young", "hrsBelow_old", "hrsNonLiv_old")
+        if all(c in latest_liv.index for c in cols):
+            A("| Uren per jaar | Referentie | Recent |")
+            A("|---|---|---|")
+            for c, lab in (("hrsBelow_young", "Jongvolwassene: onder 3 MET"),
+                           ("hrsNonLiv_young", "Jongvolwassene: zelfs rust niet volhoudbaar"),
+                           ("hrsBelow_old", "Oudere: onder 3 MET"),
+                           ("hrsNonLiv_old", "Oudere: zelfs rust niet volhoudbaar")):
+                A(f"| {lab} | {_fmt(ref_liv[c], 1)} | {_fmt(latest_liv[c], 1)} |")
+            A("")
+        names = {"hrsBelow": "onder 3 MET", "hrsNonLiv": "zelfs rust niet volhoudbaar"}
+        profs = {"young": "Jongvolwassene", "old": "Oudere"}
+        if liveability_proj_df is not None and len(liveability_proj_df):
+            P = liveability_proj_df
+            tys = sorted(int(c) for c in P.columns if str(c).isdigit())
+            a = P.iloc[0]
+            hum = {"constant_rh": "de relatieve vochtigheid blijft gelijk (de hoeveelheid "
+                                  "waterdamp stijgt mee)",
+                   "constant_vapour": "de hoeveelheid waterdamp blijft gelijk (de relatieve "
+                                      "vochtigheid daalt)"}.get(a["humidity"], a["humidity"])
+            A(f"**Vooruitblik.** Elk jaar uit {a['trend_period']} is opgewarmd naar het doeljaar "
+              f"met de trend van de zomerse dagmaximumtemperatuur ({a['shift_var']}: "
+              f"{a['slope'] * 10:+.2f} °C per tien jaar, 95%-band {a['slope_lo'] * 10:+.2f} tot "
+              f"{a['slope_hi'] * 10:+.2f}; Mann-Kendall p = {_fmt(a['mk_p'], 3)}); daarbij {hum}. "
+              "Daarna zijn de uren met HEAT-Lim opnieuw berekend en over de jaren gemiddeld. "
+              "Rechte voortzetting van de waargenomen opwarming, geen klimaatscenario. Tussen "
+              "haakjes: lage en hoge helling.")
+            A("")
+            A("| Profiel en maat | Gemiddeld " + str(a["trend_period"]) + " | "
+              + " | ".join(str(t) for t in tys) + " |")
+            A("|---|---|" + "---|" * len(tys))
+            for _, r in P.iterrows():
+                cells = [f"{r[str(t)]:.1f} ({r[f'{t}_lo']:.1f}-{r[f'{t}_hi']:.1f})" for t in tys]
+                A(f"| {profs.get(r.profile, r.profile)}: {names.get(r.metric, r.metric)} | "
+                  f"{r.reference_mean:.1f} | " + " | ".join(cells) + " |")
+            A("")
+        elif liveability_hours_df is not None and len(liveability_hours_df):
+            tys = sorted(int(c.split("_")[1]) for c in liveability_hours_df.columns
+                         if c.startswith("proj_") and c.count("_") == 1)
+            tp = liveability_hours_df["trend_period"].iloc[0]
+            A(f"Doorgetrokken trend {tp}: kleinste-kwadratenlijn door het gemiddelde "
+              "van die periode, rechte lijn, geen klimaatscenario; tussen haakjes de "
+              "95%-band van de helling. (Theil-Sen is hier niet bruikbaar: de uren "
+              "'niet leefbaar' zijn de meeste jaren nul.)")
+            A("")
+            A("| Profiel en maat | Trend (uur/jaar per jaar) | Mann-Kendall p | "
+              + " | ".join(str(t) for t in tys) + " |")
+            A("|---|---|---|" + "---|" * len(tys))
+            for _, r in liveability_hours_df.iterrows():
+                cells = [f"{r[f'proj_{t}']:.1f} ({r[f'proj_{t}_lo']:.1f}-{r[f'proj_{t}_hi']:.1f})"
+                         for t in tys]
+                A(f"| {profs.get(r.profile, r.profile)}: {names.get(r.metric, r.metric)} | "
+                  f"{r.slope_hours_per_yr:+.2f} | {_fmt(r.mk_p, 3)} | " + " | ".join(cells) + " |")
+            A("")
+        if plot_paths:
+            _embed_plot(
+                A, plot_paths, "plot_liveability_hours.png",
+                "Aantal uren per jaar waarin lichte activiteit (boven) of zelfs rust "
+                "(onder) in de zon niet volhoudbaar is, per leeftijdsprofiel, met de "
+                "trend en de doorgetrokken lijn naar de doeljaren.")
     else:
         A("Niet beschikbaar voor deze run.")
     A("")
@@ -493,8 +562,8 @@ def generate_klimatos_report(event_name: str,
     A("")
     A("**Beperkingen, expliciet:** projecties zijn een lineaire "
       "extrapolatie van de waargenomen trend, geen fysisch klimaatmodel. "
-      "Het `hospitalisation`-eindpunt is PROVISIONAL (gereduceerde N, "
-      "wachtend op nadere klinische onderbouwing). Geen onafhankelijke, "
+      "Het `hospitalisation`-eindpunt is PROVISIONAL (geijkt op één referentie-evenement, "
+      "de Dam tot Damloop 2024; wachtend op nadere klinische onderbouwing). Geen onafhankelijke, "
       "externe peer review van dit specifieke traject.")
     A("")
     A("*Einde rapport.*")

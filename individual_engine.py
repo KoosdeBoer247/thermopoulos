@@ -88,6 +88,8 @@ from hestia_model import (
     K_P_NSAID_FACTOR,
     _daniels_gilbert_vo2_at_pace,
     calculate_indices_jos3_adult,
+    CO_RESERVE_CEILING_TOL,
+    ceiling_depth,
 )
 from Thermopoulos_Data_Engine import (
     ROUGHNESS_Z0_TERRAIN,
@@ -347,13 +349,37 @@ def meteo_timeseries(weather_df, start_aware: pd.Timestamp, finish_aware: pd.Tim
             return np.full(len(times), np.nan)
         return np.interp(q_num, idx_num, weather_df[col].to_numpy())
 
-    return {
+    uit = {
         "time": list(times),
         "t_air": _interp("T_air_urban"),
         "wbgt": _interp("WBGT"),
         "utci": _interp("UTCI"),
         "mrt": _interp("MRT"),
     }
+    # [2026-10-31] Extra weather for display in the runner report (author's
+    # request): humidity, wind, radiation, clouds, globe and wet-bulb
+    # temperature, pressure, and the whole day around the run. Display only;
+    # the physiology still takes its inputs from build_interp_data().
+    for key, cols in (("t_air_rural", ("T_air_rural",)), ("rh", ("RH_urban", "RH")),
+                      ("wind", ("wind_1.5m",)), ("wind10", ("wind_10m",)),
+                      ("ghi", ("solar_radiation",)), ("cloud", ("cloud_cover",)),
+                      ("t_globe", ("T_globe",)), ("t_wet", ("T_wetbulb",)),
+                      ("pressure", ("pressure",)), ("sun_elev", ("solar_elevation",))):
+        col = next((c for c in cols if c in weather_df.columns), None)
+        uit[key] = _interp(col) if col else np.full(len(times), np.nan)
+    try:
+        d0 = start_aware.normalize()
+        dag = weather_df[(weather_df.index >= d0) & (weather_df.index < d0 + pd.Timedelta(days=1))]
+        if len(dag) < 6:   # run near midnight or a short file: take +-12 h around the start
+            dag = weather_df[(weather_df.index >= start_aware - pd.Timedelta(hours=12))
+                             & (weather_df.index <= finish_aware + pd.Timedelta(hours=12))]
+        kolommen = [c for c in ("T_air_urban", "T_air_rural", "RH_urban", "RH", "wind_1.5m", "wind_10m",
+                                "solar_radiation", "cloud_cover", "T_globe", "MRT", "T_wetbulb",
+                                "WBGT", "UTCI", "pressure") if c in dag.columns]
+        uit["dag"] = {"time": list(dag.index), **{c: dag[c].to_numpy(dtype=float) for c in kolommen}}
+    except Exception:
+        uit["dag"] = None
+    return uit
 
 
 def _extended_bands(all_traces: list, lo_pct: float = 2.5, hi_pct: float = 97.5) -> dict:
@@ -455,8 +481,8 @@ class IndividualAssessment:
                                         # construction and hides the signal.
     ehe_dose_among_hits: float         # median EHE dose among QUALIFYING members
                                         # only -- "how bad is it when it happens"
-    eac_fraction: float                # share meeting EAC (CO_reserve<0
-                                        # post-finish, no temperature condition)
+    eac_fraction: float                # [2026-10-20] mean EAC-staan probability
+                                        # (collapse on standing after the finish)
     ehs_hits: int                      # [phase 1, 2026-08-19] raw counts kept
     ehe_hits: int                      # alongside the fractions: '8%' and '3 of
     eac_hits: int                      # 40' are the same number but not the same
@@ -594,6 +620,7 @@ def run_individual_assessment(
     conj_hits = 0
     ehe_hits = 0
     eac_hits = 0
+    eac_probs = []
     doses = []
     ehe_doses = []
     eac_doses = []
@@ -601,7 +628,7 @@ def run_individual_assessment(
         during_race = any(
             (r.get("t_rect") is not None and r.get("co_reserve") is not None
              and not np.isnan(r.get("t_rect")) and not np.isnan(r.get("co_reserve"))
-             and r["t_rect"] >= 40.5 and r["co_reserve"] <= 0)
+             and r["t_rect"] >= 40.5 and r["co_reserve"] <= CO_RESERVE_CEILING_TOL)
             for r in res
         )
         post_finish = bool(res[-1].get("ehs_postfinish", False))
@@ -610,8 +637,7 @@ def run_individual_assessment(
         if conjunctive_hit(res, EHE_T_THRESHOLD, EHE_CO_THRESHOLD,
                            strict=True, window="race"):
             ehe_hits += 1
-        if eac_hit(res):
-            eac_hits += 1
+        eac_probs.append(eac_probability_of(res))
         doses.append(cumulative_deficit_dose(res))
         ehe_doses.append(ehe_dose(res))
         eac_doses.append(eac_dose(res))
@@ -630,12 +656,12 @@ def run_individual_assessment(
         conjunction_fraction=conj_hits / n_ensemble,
         ehs_hits=conj_hits,
         ehe_hits=ehe_hits,
-        eac_hits=eac_hits,
+        eac_hits=int(round(float(np.sum(eac_probs)))),   # [2026-10-20] expected number of EAC
         ehe_fraction=ehe_hits / n_ensemble,
         ehe_dose_mean=float(np.mean(ehe_doses)) if ehe_doses else 0.0,
         ehe_dose_among_hits=(float(np.median([d for d in ehe_doses if d > 0]))
                               if any(d > 0 for d in ehe_doses) else 0.0),
-        eac_fraction=eac_hits / n_ensemble,
+        eac_fraction=float(np.mean(eac_probs)) if eac_probs else 0.0,   # [2026-10-20] mean EAC probability
         eac_dose_mean=float(np.mean(eac_doses)) if eac_doses else 0.0,
         eac_dose_among_hits=(float(np.median([d for d in eac_doses if d > 0]))
                               if any(d > 0 for d in eac_doses) else 0.0),
@@ -718,7 +744,10 @@ EHS_CO_THRESHOLD = 0.0
 #: exists for it, so this module reports it as a FRACTION OF THE
 #: ENSEMBLE and never converts it to a rate per 1000.
 EHE_T_THRESHOLD  = 39.5
-EHE_CO_THRESHOLD = 0.0
+#: [2026-10-19] 'below 0' now reads as 'at the cardiovascular ceiling'
+#: (hestia_model.CO_RESERVE_CEILING_TOL): with the forced ceiling the race-
+#: window reserve settles at ~0 and a literal '< 0' would almost never fire.
+EHE_CO_THRESHOLD = CO_RESERVE_CEILING_TOL
 
 #: --- EAC: Exercise-Associated Collapse ------------------------------------
 #: CO_reserve < 0 in the POST-FINISH window only. No temperature
@@ -808,12 +837,24 @@ def conjunctive_hit(res: list, t_threshold: float, co_threshold: float,
     return False
 
 
+def eac_probability_of(res: list) -> float:
+    """[2026-10-20] EAC-staan: probability of exercise-associated collapse
+    on standing after the finish (hestia_model.eac_probability)."""
+    return float(res[-1].get("eac_kans", 0.0) or 0.0)
+
+
 def eac_hit(res: list) -> bool:
-    """EAC: a SUSTAINED post-finish cardiac-output deficit, with no
-    temperature condition. See EAC_CO_THRESHOLD for why imposing one
-    would be wrong rather than merely conservative, and
-    EAC_DOSE_THRESHOLD for why a single zero-crossing is not enough."""
-    return eac_dose(res) > EAC_DOSE_THRESHOLD
+    """[2026-10-20] EAC-staan replaces the old criterion (sustained
+    CO_reserve deficit, kept as eac_hit_legacy). True when the collapse
+    probability on standing is 50 % or more."""
+    return eac_probability_of(res) >= 0.5
+
+
+def eac_hit_legacy(res: list) -> bool:
+    """Old EAC (before 2026-10-20): a SUSTAINED post-finish cardiac-output
+    deficit. Replaced -- it measured pump capacity, not filling/blood
+    pressure. Kept for comparison only."""
+    return eac_dose_legacy(res) > EAC_DOSE_THRESHOLD
 
 
 def ehe_dose(res: list) -> float:
@@ -832,13 +873,19 @@ def ehe_dose(res: list) -> float:
         t, c = r.get("t_rect"), r.get("co_reserve")
         if t is not None and c is not None and not np.isnan(t) and not np.isnan(c):
             if t > EHE_T_THRESHOLD and c < EHE_CO_THRESHOLD:
-                dose += abs(c) * 10.0          # 10-min race timesteps
+                dose += ceiling_depth(c) * 10.0          # 10-min race timesteps
     return dose
 
 
 def eac_dose(res: list) -> float:
-    """Cumulative CO_reserve deficit-minutes in the post-finish window
-    (no temperature condition), i.e. the EAC analogue of ehe_dose()."""
+    """[2026-10-20] EAC-staan load R: standing minutes divided by the
+    orthostatic tolerance (hestia_model.eac_tolerance)."""
+    return float(res[-1].get("eac_staanbelasting", 0.0) or 0.0)
+
+
+def eac_dose_legacy(res: list) -> float:
+    """Old EAC dose (before 2026-10-20): cumulative CO_reserve deficit-minutes
+    in the post-finish window. Kept for comparison only."""
     dose = 0.0
     pf_c = res[-1].get("co_reserve_series_postfinish") or []
     for c in pf_c:
@@ -939,7 +986,7 @@ def zone_episode(tr: dict) -> dict | None:
         'entered_only_postfinish'-- zone reached ONLY after finishing, never during the race
         'exited_during_race'     -- left the zone before finishing, while still exerting
     """
-    in_zone = [(t >= 40.5 and c <= 0) for t, c in zip(tr["t"], tr["c"])]
+    in_zone = [(t >= 40.5 and c <= CO_RESERVE_CEILING_TOL) for t, c in zip(tr["t"], tr["c"])]
     if not any(in_zone):
         return None
     stopped_at = tr["stopped_at"]

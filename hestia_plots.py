@@ -96,12 +96,22 @@ def plot_collapse_risk_distribution(stats: Dict, title: str) -> Optional[plt.Fig
         # just above.
         return None
     fig, ax = plt.subplots(figsize=(10, 6))
-    ax.hist(p, bins=30, color='firebrick', alpha=0.75, edgecolor='white')
+    # [2026-10-14] Log-spaced bins on a log x-axis. With linear bins
+    # (0-100% in 30 bins) ~99% of a typical field fell into the first
+    # bin (0-3%), so the plot showed nothing about the bulk of the
+    # distribution. Probabilities span 0.01%-100%; log bins resolve both.
+    _pf = p[np.isfinite(p) & (p > 0)]
+    _lo = max(1e-3, float(np.nanmin(_pf))) if _pf.size else 1e-3
+    _hi = max(_lo * 10, float(np.nanmax(_pf))) if _pf.size else 100.0
+    ax.hist(_pf, bins=np.logspace(np.log10(_lo), np.log10(_hi), 40),
+            color='firebrick', alpha=0.75, edgecolor='white')
+    ax.set_xscale('log')
+    ax.set_yscale('log')
     ax.axvline(np.nanmean(p), color='black', linestyle='-', linewidth=2,
                label=f"Mean: {np.nanmean(p):.2f}%")
     ax.axvline(np.nanpercentile(p, 95), color='darkorange', linestyle='--', linewidth=2,
                label=f"P95: {np.nanpercentile(p, 95):.2f}%")
-    ax.set_xlabel("Individual collapse probability (%)")
+    ax.set_xlabel("Individual collapse probability (%, log scale)")
     ax.set_ylabel("Number of participants")
     ep_label = stats.get('active_endpoint_label', '')
     ax.set_title(f"Collapse-risk distribution — {title}\n"
@@ -146,7 +156,7 @@ def plot_conjunctive_risk_scatter(results_df: pd.DataFrame, title: str) -> plt.F
     # thermal-only pathway) and would otherwise overlap the weight_text
     # box beneath it. Verified by direct render (no overlap at 12.5in,
     # confirmed against 9.6in which did overlap).
-    fig, ax = plt.subplots(figsize=(10, 12.5))
+    fig, ax = plt.subplots(figsize=(10, 13.5))   # [2026-10-15] was 12.5; room for the moved text box
     c = results_df.get('cvr_p_collapse_pct', pd.Series(np.zeros(len(results_df))))
     sc = ax.scatter(results_df['cvr_co_reserve_min'], results_df['max_t_rect'],
                      c=c, cmap='RdYlGn_r', s=60, alpha=0.85, edgecolor='black', linewidth=0.4,
@@ -161,7 +171,9 @@ def plot_conjunctive_risk_scatter(results_df: pd.DataFrame, title: str) -> plt.F
                label='Klinische zone')
     ax.axhspan(39.5, 40.5, xmin=0, xmax=0.5, color='darkorange', alpha=0.08, zorder=1,
                label='EHE-zone (niet ook klinisch)')
-    ax.legend(loc='lower right', fontsize=9, framealpha=0.9)
+    # [2026-10-15] upper right: the high-T/positive-reserve corner is normally
+    # empty; 'lower right' covered the bulk of the cloud.
+    ax.legend(loc='upper right', fontsize=9, framealpha=0.9)
     ax.set_xlabel("Minimum CO_reserve (L/min)")
     ax.set_ylabel("Peak T_rect (°C)")
     ax.set_title(f"Conjunctive risk zones — {title}\n"
@@ -182,7 +194,7 @@ def plot_conjunctive_risk_scatter(results_df: pd.DataFrame, title: str) -> plt.F
     # text run past the canvas edge instead (confirmed by direct visual
     # check), so every line here is deliberately kept short instead of
     # relying on it.
-    fig.subplots_adjust(bottom=0.58)
+    fig.subplots_adjust(bottom=0.60)
     medical_text = (
         "Wat betekenen deze twee criteria medisch?\n"
         "\n"
@@ -210,10 +222,16 @@ def plot_conjunctive_risk_scatter(results_df: pd.DataFrame, title: str) -> plt.F
         "voorkomen met de aparte Falmouth-EHS-schatting elders in de suite\n"
         "-- medisch is dit wél de EHS-definitie.)"
     )
-    fig.text(0.5, 0.565, medical_text, ha='center', va='top', fontsize=8.5,
-             linespacing=1.5,
-             bbox=dict(boxstyle='round,pad=0.5', facecolor='#FFF7ED', edgecolor='#C97A2B'))
-
+    # [2026-10-15] Layout measured in inches instead of fixed figure
+    # fractions. The fixed positions (axes bottom 0.58, text at 0.565 and
+    # 0.01) let the explanation box cover the x tick labels / x-axis label,
+    # and the two boxes overlap each other whenever the line spacing differs
+    # (it does between matplotlib styles). Now: draw both boxes, measure
+    # their real heights, then size the figure so the axes, the medical box
+    # and the weight box are stacked without overlap.
+    t_med = fig.text(0.5, 0.5, medical_text, ha='center', va='top', fontsize=8.5,
+                     linespacing=1.5,
+                     bbox=dict(boxstyle='round,pad=0.5', facecolor='#FFF7ED', edgecolor='#C97A2B'))
     weight_text = (
         "Waarom een groen punt tóch in de oranje of rode zone kan liggen\n"
         "De zones (positie) zijn JA/NEE-grenzen: wel of niet overschreden.\n"
@@ -228,9 +246,21 @@ def plot_conjunctive_risk_scatter(results_df: pd.DataFrame, title: str) -> plt.F
         "Een lichte overschrijding (bv. 40,6 degC) draagt weinig bij aan deze score --\n"
         "vandaar een lage (groene) kans, ook al ligt het punt binnen een zone."
     )
-    fig.text(0.5, 0.01, weight_text, ha='center', va='bottom', fontsize=8.5,
-             family='monospace', linespacing=1.5,
-             bbox=dict(boxstyle='round,pad=0.5', facecolor='#F7F7FA', edgecolor='#999999'))
+    t_wt = fig.text(0.5, 0.01, weight_text, ha='center', va='bottom', fontsize=8.5,
+                    family='monospace', linespacing=1.5,
+                    bbox=dict(boxstyle='round,pad=0.5', facecolor='#F7F7FA', edgecolor='#999999'))
+    fig.canvas.draw()
+    _r = fig.canvas.get_renderer()
+    _dpi = fig.dpi
+    h_med = t_med.get_bbox_patch().get_window_extent(_r).height / _dpi
+    h_wt = t_wt.get_bbox_patch().get_window_extent(_r).height / _dpi
+    AX_IN, TOP_IN, XLAB_IN, GAP_IN, MARGIN_IN = 5.0, 0.9, 0.75, 0.3, 0.15
+    H = TOP_IN + AX_IN + XLAB_IN + h_med + GAP_IN + h_wt + MARGIN_IN
+    fig.set_size_inches(fig.get_size_inches()[0], H)
+    ax_bottom = (MARGIN_IN + h_wt + GAP_IN + h_med + XLAB_IN) / H
+    fig.subplots_adjust(bottom=ax_bottom, top=1.0 - TOP_IN / H)
+    t_med.set_y((MARGIN_IN + h_wt + GAP_IN + h_med) / H)
+    t_wt.set_y(MARGIN_IN / H)
     return fig
 
 
@@ -688,7 +718,7 @@ def plot_extreme_cohorts_timeseries(all_results: List[List[Dict]], results_df: p
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 12), gridspec_kw={'hspace': 0.35})
     fig.suptitle(f"Extreme-cohort time course — {title}", fontsize=15, weight='bold')
 
-    # [2026-09-19, fix requested by Koos] race_end_time used to be set once,
+    # [2026-09-19, fix requested by the author] race_end_time used to be set once,
     # from the FIRST participant encountered in the sorted top-N loop, then
     # reused as a single shared vline for every other line in BOTH panels --
     # meaningless once sample_pace=True gives each participant their own
@@ -777,13 +807,14 @@ def generate_population_plots(all_results, results_df, stats, city, start_time,
     label = f"{city}_{pd.to_datetime(start_time).date()}_n{len(all_results)}"
     saved = []
 
-    fig1 = hestia.plot_adult_results(all_results, stats, city, start_time, duration_hours)
+    import hestia_model_plots as _hmp
+    fig1 = _hmp.plot_adult_results(all_results, stats, city, start_time, duration_hours)
     p = os.path.join(out_dir, f"HESTIA_plot1_timeseries_tailplot_{label}.png")
     fig1.savefig(p, dpi=140, bbox_inches="tight")
     plt.close(fig1)
     saved.append(p)
 
-    fig2 = hestia.plot_adult_boxplots(results_df)
+    fig2 = _hmp.plot_adult_boxplots(results_df)
     p = os.path.join(out_dir, f"HESTIA_plot2_boxplots_age_gender_{label}.png")
     fig2.savefig(p, dpi=140, bbox_inches="tight")
     plt.close(fig2)

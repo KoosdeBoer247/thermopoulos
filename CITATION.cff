@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below, together with the PYROX preprint."
+title: "Thermopoulos: HESTIA, PYROX and Klimatos heat-risk modelling suite"
+version: "2026.10.27"
+date-released: "2026-10-27"
+license: MIT
+authors:
+  - family-names: "de Boer"
+    given-names: "Koos"
+type: software
+keywords:
+  - heat stress
+  - thermoregulation
+  - JOS-3
+  - mass-participation events
+  - heatwave
+  - WBGT
+references:
+  - type: generic
+    title: "PYROX preprint (Research Square)"
+    doi: "10.21203/rs.3.rs-8626369/v1"
+    authors:
+      - name: "see the preprint"

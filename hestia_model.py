@@ -31,7 +31,7 @@ ADULT MODE
 - CVR module (Lloyd et al. 2022, J Appl Physiol):
   cardiac output, heart rate (CO/SV), CO reserve, decompensation flag.
 - Collapse risk model: two-phase logistic function calibrated on observed
-    Boston Marathon EHS incidence (Breslow et al. 2021, Am J Sports Med).
+    Boston Marathon EHS incidence (Breslow et al. 2021, Med Sci Sports Exerc).
     DtD 2024 (50 / 35,000 participants) serves as prospective validation.
 
 =============================================================================
@@ -66,6 +66,8 @@ rev06  2026-03     Collapse risk model added (two-phase logistic function):
                    observed Dam tot Damloop 2024 hospital admission rate
                    (50/35,000). [Superseded by rev11: Boston Marathon pooled
                    2012-2019 (Breslow 2021) is now the calibration reference;
+                   [2026-10-17: Breslow 2021 covers 2015-2019, see correction
+                   under rev11 A]
                    DtD 2024 is a prospective validation target.]
                    Calibration constants moved to module level.
                    Individual collapse probability added to Excel export.
@@ -209,6 +211,14 @@ rev11  2026-04     BOSTON MARATHON REFERENCE CONSOLIDATION
                    reference because it is the best-documented mass running
                    event in the peer-reviewed literature for EHS incidence.
 
+                   [2026-10-17 CORRECTION] The reference and numbers in this
+                   block are wrong. The real paper is Breslow et al. (2021)
+                   Med Sci Sports Exerc 53(9):1818-1825 (doi:10.1249/MSS.
+                   0000000000002652): Boston 2015-2019 (5 editions), 50 EHS
+                   in 136,161 starters = 3.7/10,000; no 2012 data. "Am J
+                   Sports Med 49(10):2696-2703" does not exist (Crossref).
+                   The 9.0/10,000 has no source. Target now 4.5/10,000
+                   (author's choice) -- see COLLAPSE_ENDPOINTS['ehs'].
                    Reference: Breslow RG et al. (2021) Am J Sports Med 49(10).
                    Dataset: Boston Marathon 2012--2019 (8 editions).
                    Observed EHS rate: approximately 9.0 per 10,000 finishers
@@ -228,7 +238,7 @@ rev11  2026-04     BOSTON MARATHON REFERENCE CONSOLIDATION
                    All DtD 2024 references in module-level comments have been
                    updated. DtD 2024 (50 / 35,000 = 0.00143) will serve as a
                    prospective validation point once the training_offset
-                   calibration is settled (Bongers data needed).
+                   calibration is settled (clinical data needed).
 
                    B) TRAINING_FACTOR DOUBLE-CORRECTION -- RESOLVED
                    -------------------------------------------------
@@ -259,7 +269,7 @@ rev11  2026-04     BOSTON MARATHON REFERENCE CONSOLIDATION
 
                    These values are physiologically defensible for a
                    recreational mass-event population. Clinical calibration
-                   from Bongers remains needed for precise coefficient values.
+                   from clinical data remains needed for precise coefficient values.
                    The coefficient value (0.05) and its rationale are now
                    explicitly documented at the point of use.
 
@@ -296,7 +306,7 @@ rev11  2026-04     BOSTON MARATHON REFERENCE CONSOLIDATION
 
                    KNOWN REMAINING ISSUES (to be addressed in rev12):
                    - training_offset coefficient (0.05) requires clinical
-                     calibration. Bongers (Radboudumc) data needed.
+                     calibration. Radboudumc clinical data needed.
                    - intercept_kal = -10.071 requires recalibration against
                      DtD 2024 after training_offset is clinically settled.
                    - scipy.truncnorm not yet used for pct_vo2max (np.clip
@@ -305,6 +315,8 @@ rev11  2026-04     BOSTON MARATHON REFERENCE CONSOLIDATION
 MODULE_CALIBRATION_NOTES (rev11)
 =================================
 Boston Marathon pooled EHS rate: 9.0 / 10,000 = 0.00090 (Breslow 2021).
+[2026-10-17] Wrong -- Breslow 2021 reports 3.7/10,000 (2015-2019); target is
+now 4.5/10,000, see COLLAPSE_ENDPOINTS['ehs'].
 Collapse risk model:
   Z = intercept_kal
       + 1.0 * max(0, T_rect - 39.5)
@@ -338,6 +350,8 @@ rev12  2026-04     THREE-ENDPOINT CALIBRATION ARCHITECTURE
                    heat-related medical incidents" than to "EHS alone".
                    EHS is empirically ~10-20% of all heat incidents at
                    marathons (Ronneberg et al. 2021, Br J Sports Med).
+                   [2026-10-17: reference NOT verified -- not found in a
+                   literature search; no number in the code depends on it.]
 
                    B) THREE-TIER INTERCEPT TABLE
                    --------------------------------
@@ -350,6 +364,8 @@ rev12  2026-04     THREE-ENDPOINT CALIBRATION ARCHITECTURE
                      Source     : Breslow RG et al. (2021) Am J Sports Med
                                   Boston Marathon 2012-2019, pooled
                      P_obs      : 9.0 / 10,000 = 0.00090
+                     [2026-10-17] Corrected: Med Sci Sports Exerc 53(9):
+                     1818-1825, 2015-2019, 3.7/10,000; target 4.5/10,000.
                      intercept  : -10.071  (Newton, JOS-3 calibrated, rev11)
 
                    Endpoint 2 -- Hospital admission
@@ -360,14 +376,14 @@ rev12  2026-04     THREE-ENDPOINT CALIBRATION ARCHITECTURE
                      P_obs      : 50 / 35,000 = 0.00143 (14.3 / 10,000)
                      intercept  : -9.569  (see INTERCEPT_DERIVATION_NOTES rev12)
                      Status     : PROVISIONAL -- requires recalibration after
-                                  clinical validation of training_offset (Bongers)
+                                  clinical validation of training_offset (Radboudumc)
 
                    Endpoint 3 -- First-aid contact (all incidents)
                      Definition : Any contact with on-site medical staff,
                                   including mild hyperthermia, exhaustion,
                                   cramps, hyponatremia
-                     Source     : Estimate based on DtD 2024 GHOR data
-                                  (unpublished); assumes ~3x hospital admission
+                     Source     : Estimate based on DtD 2024 data provided by
+                                  GHOR NHN and Le Champion; assumes ~3x hospital admission
                      P_obs      : ~150 / 35,000 = 0.00429 (42.9 / 10,000)
                      intercept  : -8.364  (see INTERCEPT_DERIVATION_NOTES rev12)
                      Status     : PROVISIONAL -- wide uncertainty on P_obs
@@ -395,11 +411,12 @@ rev12  2026-04     THREE-ENDPOINT CALIBRATION ARCHITECTURE
                      EP3 sensitivity range:    -8.81 to -7.81
 
                    VALIDATION STATUS:
-                     EP1: validated against Boston (Breslow 2021)
+                     EP1: calibrated on Boston (Breslow 2021) -- a calibration
+                          target, not an independent validation
                      EP2: provisional -- DtD 2024 is the validation target
-                          once training_offset is clinically calibrated (Bongers)
-                     EP3: provisional -- P_obs requires unpublished DtD data
-                          (to be requested from Connie van der Lee / GHOR NHN)
+                          once training_offset is clinically calibrated (Radboudumc)
+                     EP3: provisional -- P_obs from DtD 2024 data provided by GHOR NHN and Le Champion
+                          (to be requested from GHOR NHN)
 
                    D) ACTIVE_ENDPOINT CONFIGURATION
                    ----------------------------------
@@ -417,7 +434,7 @@ rev12  2026-04     THREE-ENDPOINT CALIBRATION ARCHITECTURE
 
                    KNOWN REMAINING ISSUES (rev13):
                    - the training_offset coefficient (0.05) requires clinical
-                     calibration. Bongers (Radboudumc) data needed.
+                     calibration. Radboudumc clinical data needed.
                    - EP2 and EP3 intercepts require recalibration via direct
                      JOS-3 Newton iteration (instead of the analytical
                      correction) once DtD first-aid counts are available.
@@ -444,9 +461,14 @@ Joyner MJ (1991) J Appl Physiol 70:683-687.
 Jones AM & Carter H (2000) Sports Med 29:373-386.
 Daniels J & Gilbert J (1979) Oxygen Power. Tempe, AZ: published by authors.
 Barnes KR & Kilding AE (2015) Sports Med 45:1419-1432.
-Breslow RG et al. (2021) Am J Sports Med 49(10):2696-2703.
-  [Primary calibration reference: Boston Marathon EHS incidence 2012-2019]
-Ronneberg K et al. (2021) Br J Sports Med 55(1):9-16.
+Breslow RG, Collins JE, Troyanos C, Cohen MC, d'Hemecourt P, Dyer KS,
+  Baggish A (2021) Med Sci Sports Exerc 53(9):1818-1825.
+  doi:10.1249/MSS.0000000000002652
+  [Primary calibration reference: Boston Marathon EHS 2015-2019, 50 cases in
+   136,161 starters = 3.7/10,000; all cases at mean WBGT 17-20 degC.
+   2026-10-17: was cited as Am J Sports Med 49(10):2696-2703, 2012-2019,
+   9.0/10,000 -- that reference does not exist.]
+Ronneberg K et al. (2021) Br J Sports Med 55(1):9-16.  [2026-10-17: NOT verified; not found]
   [EHS vs. all heat illness ratio at mass running events]
 
 Author  : HESTIA project / Koos de Boer Apr-2026  (rev14)
@@ -507,7 +529,7 @@ rev15  2026-05     CALIBRATION UNCERTAINTY BANDS
                    2. The Z-function coefficients (W_T1=1.0, W_T2=4.0,
                       W_C=0.8, W_D=0.5) are expert judgement values, not
                       regression estimates. No confidence interval exists for
-                      these parameters pending Bongers (Radboudumc) clinical
+                      these parameters pending Radboudumc clinical
                       calibration data.
 
                    SOLUTION (rev15):
@@ -538,11 +560,11 @@ rev15  2026-05     CALIBRATION UNCERTAINTY BANDS
                       These are available for downstream reporting and Excel
                       export without requiring a re-run.
 
-                   EPISTEMOLOGICAL NOTE (for GHOR and Bongers reports):
+                   EPISTEMOLOGICAL NOTE (for GHOR and clinical reports):
                    The band "~Y–Z%" does NOT imply a 95% CI.  It means:
                    "if the calibration intercept shifts by ±0.5 log-odds
                    (a plausible range given the Boston→DtD transfer), the
-                   model output moves between Y% and Z%."  The Bongers
+                   model output moves between Y% and Z%."  The clinical
                    clinical dataset will reduce this band by constraining the
                    Z-function coefficients directly.
 
@@ -566,13 +588,15 @@ rev14  2026-04     THREE OPERATIONAL RELIABILITY IMPROVEMENTS
                    Additionally, NSAID use (~25% prevalence in recreational
                    runners) further reduces effective K_p via PGE2 suppression
                    in the brain (Garcia et al. 2019).
+                   [2026-10-16] Withdrawn: K_P_NSAID_FACTOR = 1.0 (no thermal
+                   effect); mechanism not supported in humans.
 
                    SOLUTION (rev14):
                    kp_pacing is now a per-participant field in
                    AdultParticipantProfile, sampled from:
                      kp_base ~ N(0.10, 0.04), clipped [0.00, 0.25]
                    NSAID modifier applied to 25% of population:
-                     kp_pacing = kp_base * 0.5  (PGE2 suppression)
+                     kp_pacing = kp_base * K_P_NSAID_FACTOR  (1.0 since 2026-10-16)
                    nsaid_gebruik (bool) stored in profile for export.
                    kp_pacing replaces the module constant K_P_PACING in
                    calculate_indices_jos3_adult().
@@ -671,6 +695,11 @@ except ImportError:
 import pvlib
 import math
 from pythermalcomfort.models import JOS3
+# [2026-10-16] Gradual age decrement for JOS-3 (variant C) instead of its
+# step at exactly 60 y (+1.0 degC for one birthday at marathon effort).
+# See jos3_leeftijd.py for sources, method and the known limitation.
+import jos3_leeftijd
+JOS3_AGE_GRADUAL = jos3_leeftijd.is_active()
 from pythermalcomfort.models import pmv_ppd_iso as _pmv_ppd_iso
 from pythermalcomfort.utilities import met_to_w_m2 as _MET_TO_W_M2
 
@@ -686,9 +715,9 @@ from pythermalcomfort.utilities import met_to_w_m2 as _MET_TO_W_M2
 #  JOS3._calculate_operative_temp_when_pmv_is_zero() falls back to a wrong
 #  value, and the core set point collapses to ~35.5 C (or NaN from ~86 y).
 #  The whole simulation then regulates around a core ~2 C too low.
-#  Found 2026-10-08 with Koos' own test runs (75 y, 1.94 m, 82 kg: T_rect
-#  37.0 C after 1:45 at 81% VO2max). Threshold for 1.94 m / 82 kg: 73 y;
-#  1.75 m / 70 kg: ~70 y. Population runs (age clipped 18-65) are hardly
+#  Found 2026-10-08 in test runs for an older, tall, light runner profile
+#  (T_rect stayed at 37.0 C during a 1:45 run). Threshold roughly 73 y for a
+#  tall, light profile and ~70 y for 1.75 m / 70 kg. Population runs (age clipped 18-65) are hardly
 #  affected (only tall, light 65-year-old men in a grid check).
 #
 #  Repair: if the core set point of the pelvis is implausible (< 36.5 C or
@@ -698,11 +727,153 @@ from pythermalcomfort.utilities import met_to_w_m2 as _MET_TO_W_M2
 #  already correct). Uses JOS3._run (private API) -- recheck on a
 #  pythermalcomfort upgrade.
 #
-#  NB: the lines 'jos3_model.t_core[:] = 37.0' elsewhere are a no-op:
-#  JOS3.t_core returns a copy. The initial state is JOS-3's own set-point
-#  state (core ~37.1-37.6 C). Left in place; behaviour unchanged.
+#  NB: the lines 'jos3_model.t_core[:] = 37.0' were a no-op (JOS3.t_core
+#  returns a copy); removed from the adult engine 2026-10-19. The initial
+#  state is JOS-3's own set-point state (pelvis core ~37.1-37.6 C).
 # =============================================================================
 JOS3_SETPOINT_MIN = 36.5   # degC -- plausibility floor for the pelvis core set point
+
+# =============================================================================
+#  [2026-10-19, night] FOUNDATION REPAIR (author's decision)
+#
+#  Three linked faults that partly cancelled each other (README issues 1-2):
+#  1. MET was passed as JOS-3's `par`. JOS-3 computes heat production as
+#     par x its own BMR (~40-45 W/m2), not par x 1 MET (58.2 W/m2), so heat
+#     production during exercise was 24-33 % too low.
+#  2. T_rect was the mean of the 17 JOS-3 core segments + 0.5 degC. The mean
+#     includes the hand and foot cores (34-35 degC at rest) and falls far
+#     below the real core during standing; the +0.5 offset partly hid fault 1.
+#  3. 'jos3_model.t_core[:] = 37.0' never did anything (JOS3.t_core returns a
+#     copy). Removed.
+#  Repair = the pre-registered clinic variant B3 (hestia_reconstructie.py),
+#  the best of the three on both data sets: pilot 18 Sept bias +0.21 degC /
+#  RMSE 0.24; Thermo Clinic 11 Oct (6 runners) bias +0.05 / RMSE 0.18 degC
+#  (B1, the old definition: -1.18 degC over the whole session).
+#      par    = MET x 58.2 / BMR_JOS3          (JOS3_PAR_FROM_BMR)
+#      T_rect = JOS-3 pelvis core, segment 4  (T_RECT_FROM_PELVIS)
+#  The CVR module's core temperature (CHSI, Lloyd 2022 Eq. 22) uses the same
+#  pelvis core instead of the 17-segment mean (CHSI_CORE_FROM_PELVIS): Lloyd's
+#  T_core is a rectal/oesophageal core temperature, not a limb average. This
+#  last part goes beyond B3 (the clinic reconstruction used the mean) and is
+#  flagged as such. The starting state is JOS-3's own set-point state (pelvis
+#  core ~37.1 degC).
+#  Not changed: the pediatric path (simulate_child_participant), which has
+#  its own RPE/OMNI scale and no validation data.
+# =============================================================================
+JOS3_PAR_FROM_BMR     = True
+T_RECT_FROM_PELVIS    = True
+CHSI_CORE_FROM_PELVIS = True
+JOS3_SEG_PELVIS       = 4
+# [2026-10-23] REST CORE 37.0 degC (author's decision, ThermoClinic Emmen
+# 17-10). JOS-3's set points are the passive steady state of a nude person at
+# PMV = 0 (models/jos3.py _reset_setpt); for the clinic runners that put the
+# pelvis core at rest at 37.2-37.7 degC, against 36.8-37.0 measured (CORE) and
+# rectal norms of 36.7-37.5 (men) / 36.8-37.1 (women) (Sund-Levander et al.
+# 2002, Scand J Caring Sci 16:122). maak_jos3() now shifts every deep node
+# (artery, vein, core, muscle, fat) AND the core set points by the same amount
+# so that the pelvis core at rest is JOS3_REST_CORE_C. Shifting only the
+# initial state does not work: the regulator steers back to its own set
+# point (clinic test: peak +0.99 vs +1.02 degC; with the set points moved
+# along +0.80). Skin nodes and skin set points are unchanged.
+JOS3_REST_CORE_SHIFT  = True
+JOS3_REST_CORE_C      = 37.0
+DRINK_EVERY_STEP_WHEN_THIRSTY = True   # [2026-10-19] drinking bug fix, see the engine loop
+RPE_FROM_CVR_HR       = True   # [2026-10-19] RPE from CVR heart rate, see calculate_adult_rpe_from_hr()
+# [2026-10-19] Motivation-dependent stop limit (author's decision; DOMAIN
+# CHOICE for the span). Perceived effort near the cardiovascular ceiling goes
+# to RPE 19.5-20, so a fixed limit made EVERY runner who approached the
+# ceiling stop before the forced slowing could act. Now the limit is
+#     19.5 + RPE_STOP_MOTIVATION_SPAN x max(0, mf_score - 0.5)
+# i.e. 19.5 up to mf 0.5 (as before), rising to 20.5 at mf 1: runners with
+# mf_score above 0.75 never quit on effort alone and are slowed by the
+# ceiling instead. (A symmetric version that LOWERED the limit to 18.5 for
+# unmotivated runners was tried: 11 % stopped in Amsterdam, rejected.)
+# [2026-10-20] HEART-RATE / CARDIAC-OUTPUT DYNAMICS (author's decision;
+# README issue 3, plan in TECHNICAL_REFERENCE 'Planned after the clinic').
+# The CVR module (Lloyd 2022) is algebraic: HR and CO_demand follow the MET
+# of the same step instantly, so CO_reserve recovered almost at once when a
+# runner slowed or stopped. Measured: heart-rate time constant 5.6 min
+# (pilot 18 Sept) and about 3 min (Thermo Clinic 11 Oct, 6 runners) against
+# 0.3-0.6 min in the model; after the main segment measured HR stayed
+# 22 /min above the model. Now the MET that drives the CVR module is a
+# first-order lag of the real MET:
+#     MET_cv(t+dt) = MET + (MET_cv(t) - MET) * exp(-dt / tau)
+# with tau = CV_TAU_RISE_MIN when the load rises and CV_TAU_FALL_MIN when it
+# falls (exact discretisation, valid at 10-min race steps and 0.5-min
+# post-finish steps). Start: MET_cv = PF_MET_RUST (standing at the start).
+# Post-finish: MET_cv decays from its value at the finish (or RPE stop)
+# towards PF_MET_RUST instead of jumping to rest. HR (and so RPE) lags too.
+# The forced ceiling still compares the REAL MET with met_at_ceiling(): the
+# lag is in the heart's response, not in the oxygen the muscles need.
+# Both taus = 3.0 min (clinic median, 6 runners); 5.6 min (pilot) is the
+# sensitivity value. Rise and fall are kept separate for when the clinic
+# data allow them to be estimated apart.
+CV_LAG_ENABLED   = True
+CV_TAU_RISE_MIN  = 3.0
+CV_TAU_FALL_MIN  = 3.0
+
+
+def cv_met_lag(met_cv_prev: float, met_now: float, dt_min: float) -> float:
+    """First-order lag of the MET seen by the cardiovascular module."""
+    if not CV_LAG_ENABLED or met_cv_prev is None or dt_min <= 0:
+        return float(met_now)
+    tau = CV_TAU_RISE_MIN if met_now > met_cv_prev else CV_TAU_FALL_MIN
+    return float(met_now + (met_cv_prev - met_now) * np.exp(-dt_min / max(1e-6, tau)))
+
+
+# [2026-10-20] Collapse risk also counts the finish zone (author's decision).
+# The two-phase logistic read the maximum T_rect and the minimum CO_reserve
+# of the RACE only, so the finish-zone dynamics (after-glow, venous pooling,
+# the lagged cardiac recovery of CV_LAG_ENABLED) never reached the collapse
+# probability -- only the conjunctive criteria. Now both extremes are taken
+# over race + post-finish window (collapse_extremes()). Used identically by
+# the engine statistics and by intercept_estimation.py.
+COLLAPSE_INCLUDES_POSTFINISH = True
+
+
+def collapse_extremes(res: list) -> tuple:
+    """(max T_rect, min CO_reserve) for the collapse logistic: race steps
+    plus, when COLLAPSE_INCLUDES_POSTFINISH, the post-finish series."""
+    t_vals = [r.get('t_rect') for r in res]
+    c_vals = [r.get('co_reserve') for r in res]
+    if COLLAPSE_INCLUDES_POSTFINISH and res:
+        t_vals += list(res[-1].get('t_rect_series_postfinish') or [])
+        c_vals += list(res[-1].get('co_reserve_series_postfinish') or [])
+    t_arr = np.array([v for v in t_vals if v is not None], dtype=float)
+    c_arr = np.array([v for v in c_vals if v is not None], dtype=float)
+    t_max = float(np.nanmax(t_arr)) if t_arr.size and np.any(~np.isnan(t_arr)) else float('nan')
+    c_min = float(np.nanmin(c_arr)) if c_arr.size and np.any(~np.isnan(c_arr)) else float('nan')
+    return t_max, c_min
+
+
+RPE_STOP_THRESHOLD       = 19.5
+RPE_STOP_MOTIVATION_SPAN = 2.0
+
+
+def rpe_stop_threshold(mf_score: float) -> float:
+    return RPE_STOP_THRESHOLD + RPE_STOP_MOTIVATION_SPAN * max(0.0, float(mf_score) - 0.5)
+MET_W_M2              = 58.2    # W/m2 per MET, as in hestia_reconstructie.py
+
+
+def jos3_par(model, met: float) -> float:
+    """JOS-3 activity ratio for a metabolic rate in MET."""
+    if JOS3_PAR_FROM_BMR:
+        return max(1.0, float(met) * MET_W_M2 / float(model.bmr))
+    return float(met)
+
+
+def jos3_t_rect(model) -> float:
+    """Rectal temperature from a JOS-3 model."""
+    tc = model.t_core
+    if T_RECT_FROM_PELVIS:
+        return float(tc[JOS3_SEG_PELVIS])
+    return float(tc.mean()) + 0.5
+
+
+def jos3_core_for_chsi(model) -> float:
+    """Core temperature handed to the CVR module (CHSI)."""
+    tc = model.t_core
+    return float(tc[JOS3_SEG_PELVIS]) if CHSI_CORE_FROM_PELVIS else float(tc.mean())
 
 
 _PMV_MODEL = None   # '7730-2025' (pythermalcomfort >= 4) of '7730-2005' (3.x)
@@ -711,8 +882,8 @@ _PMV_MODEL = None   # '7730-2025' (pythermalcomfort >= 4) of '7730-2005' (3.x)
 def _pmv_onbegrensd(t, v, rh, met, clo):
     """PMV zonder ISO-domeingrens, met hetzelfde ISO 7730-model dat de
     geinstalleerde JOS-3 zelf gebruikt: pythermalcomfort 4.x rekent met
-    7730-2025, 3.x kent alleen 7730-2005 (gevonden 2026-10-08 op Koos'
-    Windows-installatie: 'PMV calculations can only be performed in
+    7730-2025, 3.x kent alleen 7730-2005 (gevonden 2026-10-08 op de
+    Windows-installatie van de auteur: 'PMV calculations can only be performed in
     compliance with ISO 7730-2005')."""
     global _PMV_MODEL
     kandidaten = [_PMV_MODEL] if _PMV_MODEL else ["7730-2025", "7730-2005"]
@@ -755,7 +926,23 @@ def maak_jos3(**kwargs) -> JOS3:
         model.cr_set_point = model.t_core
         model.sk_set_point = model.t_skin
         model.options["ava_zero"] = False
+    if JOS3_REST_CORE_SHIFT:
+        _shift_rest_core(model, JOS3_REST_CORE_C)
     return model
+
+
+def _shift_rest_core(model, target_c: float) -> float:
+    """Move the deep nodes and the core set points so that the pelvis core
+    at rest equals target_c. Returns the applied shift (degC)."""
+    from pythermalcomfort.jos3_functions.matrix import INDEX as _IDX
+    d = float(target_c) - float(model.t_core[JOS3_SEG_PELVIS])
+    deep = [i for k in ("artery", "vein", "core", "muscle", "fat")
+            for i in np.atleast_1d(_IDX[k])]
+    tb = model._t_body.copy()
+    tb[deep] += d
+    model._t_body = tb
+    model.cr_set_point = np.asarray(model.cr_set_point, dtype=float) + d
+    return d
 from pythermalcomfort.models import utci, wbgt
 from pythermalcomfort.utilities import wet_bulb_tmp
 from Thermopoulos_Data_Engine import calculate_globe_vectorized, calculate_mrt_vectorized, wind_speed_at_height
@@ -830,7 +1017,7 @@ class AdultParticipantProfile:
     thirst_threshold:  float   # body mass loss (%) triggering drinking
     # [rev14-A] Individual pacing gain and NSAID status
     kp_pacing:         float   # MET/°C pacing gain -- population variable (rev14)
-    nsaid_gebruik:     bool    # NSAID use flag -- reduces kp_pacing via PGE2
+    nsaid_gebruik:     bool    # NSAID use flag (export only; no thermal effect since 2026-10-16)
     # [2026-07] Relative wind angle (individual, unknown-direction proxy)
     wind_angle_rad:    float   # radians [0, 2*pi); see compute_relative_wind()
     # [2026-09] Per-person pace and exposure duration -- only meaningfully
@@ -944,6 +1131,77 @@ PACE_VO2MAX_CORRELATION = -0.63
 # turns up.
 SUSTAINABLE_VO2MAX_FRACTION_LONG_EVENT = 0.72
 
+# [2026-10-14] Duration-dependent sustainable-intensity ceiling.
+# -----------------------------------------------------------------------------
+# PROBLEM (found reviewing the Amsterdam 2026-10-18 marathon run, n=5000,
+# seed 42): with sample_pace=True the only upper bound on pct_vo2max was a
+# fixed 0.95, independent of how LONG the participant runs. For a marathon
+# that let 28.5% of the population run at >=85% VO2max and 13.8% at >=90%
+# for 3-5 hours -- not sustainable even for elite marathoners (~80-85%),
+# let alone recreational runners. pct_vo2max correlated r=-0.85 with the
+# minimum CO_reserve (the strongest single driver in that run), so this one
+# unrealistic tail produced most of the "76.9% decompensation risk", the
+# 8.3% EHE and the 3.8x-above-target collapse rate at WBGT ~10 degC.
+#
+# FIX: the maximum fraction of VO2max that can be sustained for a given race
+# duration follows the Daniels & Gilbert (1979) "drop-dead" curve -- the
+# SAME source this module already uses for the VO2-pace relation
+# (_daniels_gilbert_vo2_at_pace):
+#     f(t) = 0.8 + 0.1894393*exp(-0.012778*t) + 0.2989558*exp(-0.1932605*t)
+#     (t in minutes; ~0.86 at 90 min, ~0.83 at 3 h, ~0.81 at 4 h)
+# This curve describes an ALL-OUT race effort of a trained runner, so it is
+# used as an upper bound (ceiling), not as a target: recreational runners
+# typically sit below it. A draw whose required intensity exceeds the
+# ceiling is rejected and redrawn (same rejection mechanism as the existing
+# >0.95 check), so the accepted vo2max/pace distributions keep a smooth shape.
+# Only applied where the participant's own duration is known
+# (sample_pace=True). Set USE_DURATION_INTENSITY_CEILING = False to restore
+# the previous fixed-0.95 behaviour for comparison.
+# [flagged for author review] Domain choice: Daniels-Gilbert as the ceiling.
+USE_DURATION_INTENSITY_CEILING = True
+
+# [2026-10-16] Pace follows ABSOLUTE fitness, not fitness relative to peers.
+# -----------------------------------------------------------------------------
+# PROBLEM: the pace-vo2max copula (PACE_VO2MAX_CORRELATION) used each runner's
+# vo2max z-score WITHIN their own age group (vo2max_mu already includes the
+# Tanaka age correction). A fit 61-year-old therefore got the same pace as an
+# equally "fit-for-their-age" 31-year-old. Measured in the Amsterdam
+# 2026-10-18 run: corr(age, finish time) = 0.10; 60+ were OVER-represented
+# among the 2:30-3:30 finishers (2.2% vs 1.2% of the field). a Radboudumc exercise physiologist
+# (Radboudumc, 2026-10-16) expects the opposite: fewer 60+ in that group.
+#
+# FIX: the z-score is taken against the field's overall vo2max distribution
+# for that sex -- mean = base mean minus the population-average age
+# correction, sd = sqrt(sigma^2 + var(age correction)) -- so an older runner
+# with a lower absolute vo2max gets a slower pace, while the field's overall
+# pace distribution (calibrated to real finish times) stays the same.
+# Constants derived from the age distribution in generate_base_population
+# (N(40, 10) clipped 18-65, correction 0.5 mL/kg/min per year after 35):
+# mean 3.31, sd 3.62 mL/kg/min. Set PACE_FITNESS_ABSOLUTE = False for the
+# previous (age-relative) behaviour.
+PACE_FITNESS_ABSOLUTE = True
+AGE_VO2_CORRECTION_MEAN = 3.31   # mL/kg/min, population mean of 0.5*max(0, age-35)
+AGE_VO2_CORRECTION_SD = 3.62     # mL/kg/min, its standard deviation
+
+
+def _pace_fitness_z(vo2max: float, vo2max_base_mu: float, vo2max_mu: float,
+                    vo2max_sigma: float) -> float:
+    """z-score that drives the pace copula (see PACE_FITNESS_ABSOLUTE)."""
+    if PACE_FITNESS_ABSOLUTE:
+        mu = vo2max_base_mu - AGE_VO2_CORRECTION_MEAN
+        sd = float(np.sqrt(vo2max_sigma ** 2 + AGE_VO2_CORRECTION_SD ** 2))
+        return (vo2max - mu) / sd
+    return (vo2max - vo2max_mu) / vo2max_sigma
+
+
+def sustainable_vo2max_fraction(duration_min: float) -> float:
+    """Daniels & Gilbert (1979) maximum sustainable fraction of VO2max for an
+    all-out effort lasting `duration_min` minutes, capped at 0.95."""
+    t = max(1.0, float(duration_min))
+    f = (0.8 + 0.1894393 * np.exp(-0.012778 * t)
+             + 0.2989558 * np.exp(-0.1932605 * t))
+    return float(min(0.95, f))
+
 
 def sample_recreational_pace_min_per_km(gender: str,
                                         event_dist_km: float = PACE_REFERENCE_DIST_KM,
@@ -1045,17 +1303,19 @@ except ImportError as _tcf_err:
 #  ENDPOINT DEFINITIONS
 #  --------------------
 #  'ehs'          : Clinical EHS (T_rect >= 40°C + CNS dysfunction)
-#                   Source: Breslow et al. 2021, Boston Marathon 2012-2019
-#                   Status: VALIDATED
+#                   Source: Breslow et al. 2021, Med Sci Sports Exerc 53(9):
+#                   1818-1825, Boston Marathon 2015-2019 (3.7/10,000 pooled)
+#                   Target: 4.5/10,000, author's choice (2026-10-17)
+#                   Status: PROVISIONAL
 #
 #  'hospitalisation': Hospital admission after event (EHS + severe exhaustion
 #                   + cardiovascular incidents requiring overnight care)
 #                   Source: GHOR Noord-Holland Noord, DtD 2024
-#                   Status: PROVISIONAL -- pending Bongers calibration
+#                   Status: PROVISIONAL -- pending clinical calibration
 #
 #  'first_aid'         : Any on-site medical contact (incl. mild hyperthermia,
 #                   exhaustion, cramps, hyponatraemia)
-#                   Source: Estimated from DtD 2024 GHOR data (unpublished)
+#                   Source: Estimated from DtD 2024 data provided by GHOR Noord-Holland Noord and Le Champion
 #                   P_obs range: 100-250/35.000; central estimate 150/35.000
 #                   Status: PROVISIONAL -- P_obs requires GHOR NHN data
 #
@@ -1071,14 +1331,32 @@ except ImportError as _tcf_err:
 
 COLLAPSE_ENDPOINTS = {
     'ehs': {
-        'label':        'EHS (clinical, Boston Marathon pooled)',
-        'p_obs':        9.0 / 10_000,           # 0.00090
-        'n_obs':        9.0,
+        'label':        'Model risk calibrated on clinical EHS (Boston Marathon, Breslow 2021)',
+        # [2026-10-17] Author's choice 4.5/10,000 (was 9.0/10,000, which had no
+        # source). Breslow 2021: 50 EHS / 136,161 starters = 3.7/10,000 pooled
+        # over 2015-2019 (95% CI 2.7-4.8); all cases at mean WBGT 17-20 degC.
+        # The reference scenario is ONE warm edition (2017), so the rate under
+        # those conditions is above the pooled mean: ~6/10,000 if all cases
+        # fell in 3 of 5 editions (95% CI 4.5-8.1). 4.5 lies between both.
+        # Replace by the 2017 rate when the per-year table is available.
+        'p_obs':        4.5 / 10_000,           # 0.00045
+        'n_obs':        4.5,
         'n_participants': 10_000,
-        'intercept_kal': -8.803572,  # re-calibrated 2026-07-27 (N=200, seed=42 -- see note)
-        'source':       'Breslow RG et al. (2021) Am J Sports Med 49(10):2696-2703',
+        'intercept_kal': -9.567524,  # [2026-10-31] Liljegren globe + RH_urban; mean of N=5000 seeds 42/43 (-9.591405/-9.543643; was -8.892508)
+                                       # [2026-10-23]: -8.892508; rest core 37.0 + fitness/heat age curve; N=5000 seed 42 (was -9.210416)
+                                       # [2026-10-20 evening]: -9.210416; JOS-3 finish zone (5 min walk + 5 min standing), no standing deficit; N=5000 seed 42 (was -9.428980)
+                                       # [2026-10-20] + heart lag, collapse extremes over race + finish zone; N=5000 seed 42: -9.428980 (was -9.151532)
+                                       # [2026-10-16 late] K_P_NSAID_FACTOR=1.0, N=5000 seed 42: -8.795967; was -8.790142 (N=1000)
+                                       # [2026-10-16] with gradual JOS-3 age decrement (jos3_leeftijd), N=1000 seed 42: -8.790142; was -8.809350
+                                       # [2026-10-15] control run, final code, N=1000 seed 42 (2026-10-14: -8.808083;
+                                       # seeds 43/44: -8.778/-8.784). [2026-10-14] re-calibrated N=1000, seed=42 (was -8.803572,
+                                       # 2026-07-27, N=200) -- see the 2026-10-14 note at the end
+        'source':       "Breslow RG, Collins JE, Troyanos C, Cohen MC, d'Hemecourt P, Dyer KS, Baggish A (2021) Med Sci Sports Exerc 53(9):1818-1825, doi:10.1249/MSS.0000000000002652",
         'status':       'PROVISIONAL',   # [2026-07] see note -- needs production-scale reconfirmation
-        'notes':        ('Boston Marathon 2012-2019 pooled. Clinical EHS: '
+        'notes':        ('[2026-10-17] Target 4.5/10,000 (author\'s choice); Breslow 2021 '
+                         'reports 3.7/10,000 for Boston 2015-2019. Earlier text below says '
+                         '"2012-2019 pooled" and 9/10,000: both wrong, kept for history. '
+                         'Boston Marathon 2012-2019 pooled. Clinical EHS: '
                          'T_rect >= 40 degC + CNS dysfunction. Narrowest endpoint. '
                          '[2026-07] Recalibrated after rebuilding HESTIA_CVR_Module_v2.py '
                          'to implement Lloyd et al. (2022) Eq. 12-31 (workload response + '
@@ -1089,7 +1367,7 @@ COLLAPSE_ENDPOINTS = {
                          'Fig. 2D: -3% to +15% during exercise in heat; JOS-3 own '
                          'cardiac_output: +80% at fixed MET, tdb 20->38 degC). See '
                          'HESTIA_CVR_Module_v2.py compute_step() docstring and '
-                         'INTEGRATION_CHANGELOG.md for the full trace, including two '
+                         'CHANGELOG.md for the full trace, including two '
                          'same-day dead ends (intensity-dependent a-vO2diff; a MET-only '
                          'VO2 calculation that silently discarded the heat-driven CO signal) '
                          'that were tried, diagnosed as wrong, and reverted before this fix. '
@@ -1105,22 +1383,69 @@ COLLAPSE_ENDPOINTS = {
                          'to ~1.5x (still the reverse direction of the documented EHS-specific '
                          'figures, plausibly attributable to EHS/EHI definitional differences '
                          'and non-overlapping source studies for the two years -- see '
-                         'INTEGRATION_CHANGELOG.md). '
+                         'CHANGELOG.md). '
                          'THIS VALUE WAS FIT AT A REDUCED N=200 (single-core '
                          'feasibility run, not the usual 10,000-50,000) -- re-run '
                          'intercept_estimation.py at full production N before treating '
-                         'this as final.'),
+                         'this as final. '
+                         '[2026-10-14] Re-calibrated all three endpoints with '
+                         'intercept_estimation.py at N=1000, seed=42. Step 1 (snapshot '
+                         '2026-10-10 model, unchanged): ehs -9.554, hospitalisation '
+                         '-8.061, first_aid -6.909 -- i.e. the stored values were already '
+                         'stale (the CVR below-zero change of 2026-10-04 and the sweat fix '
+                         'of 2026-10-09 post-date them); the old ehs value overstated risk '
+                         'by ~2x in odds (exp(0.75)). Step 2 (current model: Daniels-Gilbert '
+                         'duration ceiling also in the fixed-pace calibration path, '
+                         'integral pacing term K_I_PACING_CV=0.02, post-finish after-glow '
+                         'fix -- the last does not enter z): ehs -8.808, hospitalisation '
+                         '-7.482, first_aid -6.317. The ehs value landing next to the old '
+                         '-8.804 is a coincidence of two opposite shifts, not confirmation. '
+                         'Also fixed: intercept_estimation.py did not pass sample_pace / '
+                         'event_dist_km for the DtD block although the 2026-09 values were '
+                         'documented as sample_pace=True. Still PROVISIONAL: N=1000 is not '
+                         'production scale (10,000-50,000), and the ehs calibration '
+                         'population still uses the fixed 5:00/6:00 min/km marathon pace, '
+                         'not a Boston-specific pace model. '
+                         '[2026-10-15] Control round. (1) Reproducibility: two identical '
+                         'seed-42 runs differed by 0.001 because drink sizes were drawn '
+                         'from the worker processes\' inherited RNG in scheduling order; '
+                         'fixed in worker_monte_carlo_adult (per-participant seed), now '
+                         'bit-identical. (2) Seed spread at N=1000 (seeds 42/43/44): ehs '
+                         '-8.809/-8.778/-8.784 (range 0.03 -- stable); hospitalisation '
+                         '-7.483/-7.257/-7.929 (range 0.67, factor ~2 in odds); first_aid '
+                         '-6.318/-6.152/-6.502 (range 0.35). The DtD endpoints rest on the '
+                         'few participants above 40.5 degC (0.3-1.1% of N), hence unstable '
+                         'at N=1000. (3) DtD at N=5000, seeds 42/43: hospitalisation '
+                         '-7.557/-7.339, first_aid -6.370/-6.219; stored value = mean of '
+                         'the two logits (approximation of a pooled N=10,000 fit). Residual '
+                         'uncertainty of the DtD intercepts ~+/-0.1-0.2 (odds factor '
+                         '~1.1-1.25); ehs final-code value -8.809350. '
+                         '[2026-10-16] Recalibrated after replacing JOS-3\'s age step at '
+                         '60 y by a gradual decrement (jos3_leeftijd.py, variant C). ehs '
+                         '-8.809 -> -8.790 (within seed spread); hospitalisation -7.448 -> '
+                         '-7.280; first_aid -6.295 -> -6.176. Notably the two DtD seeds now '
+                         'agree within 0.012 (were 0.22 apart): much of the earlier seed '
+                         'spread came from the few 60-65-year-olds that the step pushed '
+                         'into the tail.'),
     },
     'hospitalisation': {
         'label':        'Hospital admission (DtD 2024)',
         'p_obs':        50.0 / 35_000,          # 0.00143
         'n_obs':        50.0,
         'n_participants': 35_000,
-        'intercept_kal': -7.829262,  # [2026-09] sample_pace=True recalibration
+        'intercept_kal': -8.677948,  # [2026-10-31] Liljegren globe + RH_urban; mean of N=5000 seeds 42/43 (-8.616264/-8.739631; was -7.922109)
+                                       # [2026-10-23] rest core 37.0 + fitness/heat age curve; mean of N=5000 seeds 42/43 (-7.506197/-7.514014; was -8.080096)
+                                       # [2026-10-20 evening]: -8.080096; JOS-3 finish zone + EAC-staan; fresh mean of N=5000 seeds 42/43 (was -8.553130)
+                                       # [2026-10-16 evening] -7.266031, PACE_FITNESS_ABSOLUTE + jos3_leeftijd, mean of N=5000 seeds 42/43 (-7.2688/-7.2632); was -7.279916
+                                       # [2026-10-15] mean of two N=5000 runs (seeds 42/43: -7.557/-7.339),
+                                       # ~N=10,000. Seed spread at N=1000 was 0.67 -- see ehs note 2026-10-15.
+                                       # [2026-10-14] re-calibrated N=1000, seed=42, sample_pace=True
+                                       # (was -7.829262, 2026-09, N=800) -- see ehs note 2026-10-14.
+                                       # [2026-09] sample_pace=True recalibration
                                        # (N=800, seed=42) -- see note. Previous
                                        # value -7.282445 (N=200, sample_pace=False,
                                        # 2026-07-28) is kept below for reference.
-        'source':       'GHOR Noord-Holland Noord, Dam tot Damloop 2024',
+        'source':       'Data provided by GHOR Noord-Holland Noord and Le Champion (Dam tot Damloop 2024)',
         'status':       'PROVISIONAL',
         'notes':        ('50 hospital admissions / 35,000 Dam tot Damloop 2024 '
                          'participants. [2026-07, third recalibration] Previously '
@@ -1180,7 +1505,7 @@ COLLAPSE_ENDPOINTS = {
                          'DtD\'s own recreational field and should not be silently '
                          'reused for Boston\'s BQ-qualified, narrower field -- ehs '
                          'would need its own pace-sampling model built first. Still '
-                         'pending recalibration against Bongers clinical data '
+                         'pending recalibration against clinical data '
                          '(Radboudumc), and at production-scale N.'),
     },
     'first_aid': {
@@ -1188,7 +1513,14 @@ COLLAPSE_ENDPOINTS = {
         'p_obs':        150.0 / 35_000,         # 0.00429; central estimate
         'n_obs':        150.0,                   # uncertain: range 100-250
         'n_participants': 35_000,
-        'intercept_kal': -6.707273,  # [2026-09] sample_pace=True recalibration
+        'intercept_kal': -7.471756,  # [2026-10-31] Liljegren globe + RH_urban; mean of N=5000 seeds 42/43 (-7.437290/-7.506223; was -6.771391)
+                                       # [2026-10-23] rest core 37.0 + fitness/heat age curve; mean of N=5000 seeds 42/43 (-6.398324/-6.405754; was -6.926663)
+                                       # [2026-10-20 evening]: -6.926663; JOS-3 finish zone + EAC-staan; fresh mean of N=5000 seeds 42/43 (was -7.355230)
+                                       # [2026-10-16 evening] -6.162057, PACE_FITNESS_ABSOLUTE + jos3_leeftijd, mean of N=5000 seeds 42/43 (-6.1643/-6.1598); was -6.175971
+                                       # [2026-10-15] mean of two N=5000 runs (seeds 42/43: -6.370/-6.219).
+                                       # [2026-10-14] re-calibrated N=1000, seed=42, sample_pace=True
+                                       # (was -6.707273, 2026-09, N=800) -- see ehs note 2026-10-14.
+                                       # [2026-09] sample_pace=True recalibration
                                        # (N=800, seed=42) -- see note. Previous
                                        # value -6.179056 (N=200, sample_pace=False,
                                        # 2026-07-28) kept below for reference; the
@@ -1196,7 +1528,7 @@ COLLAPSE_ENDPOINTS = {
                                        # computed under that old sample_pace=False
                                        # regime and is now stale -- needs its own
                                        # sample_pace=True re-run before it's used.
-        'source':       'GHOR NHN / DtD 2024 estimate (unpublished)',
+        'source':       'Data provided by GHOR Noord-Holland Noord and Le Champion (Dam tot Damloop 2024; first-aid count is an estimate)',
         'status':       'PROVISIONAL',
         'notes':        ('Central estimate: ~150 first-aid contacts / 35,000. '
                          '[2026-07, third recalibration] Same fix as the '
@@ -1207,7 +1539,7 @@ COLLAPSE_ENDPOINTS = {
                          'the full rationale and verification. Sensitivity table '
                          'below is likewise reduced-N (N=200) and needs a '
                          'production-scale re-run. P_obs itself still requires '
-                         'confirmation from Connie van der Lee (GHOR NHN). '
+                         'confirmation from GHOR NHN. '
                          '[2026-09, fourth recalibration] Same sample_pace=True fix '
                          'as hospitalisation above, same DtD reference conditions and '
                          'N=800/seed=42 run -- see that endpoint\'s notes for the '
@@ -1221,14 +1553,14 @@ COLLAPSE_ENDPOINTS = {
                          '(N=800). The sensitivity table below has NOT been '
                          're-run under sample_pace=True and should not be trusted '
                          'until it is.'),
-        'sensitivity': {
-            100: -6.586910,
-            125: -6.362572,
-            150: -6.179056,
-            175: -6.023710,
-            200: -5.888983,
-            225: -5.770003,
-            250: -5.663446,
+        'sensitivity': {   # [2026-10-31] Liljegren globe + RH_urban: mean of N=5000 seeds 42/43, sample_pace=True (whole table refreshed)
+            100: -7.919479,
+            125: -7.673452,
+            150: -7.471756,
+            175: -7.300697,
+            200: -7.152082,
+            225: -7.020624,
+            250: -6.902710,
         },
     },
 }
@@ -1290,7 +1622,7 @@ K_P_PACING_CV            = 0.10   # MET/(L/min) -- [NOT VALIDATED, see docstring
                                    # journal (2011, 96(4):476-8, with authors' reply) argues the
                                    # data instead support anticipatory/central regulation, not a
                                    # hard cardiovascular ceiling. Given that dispute, and per
-                                   # Koos's explicit preference (control-engineering framing: a
+                                   # the author's explicit preference (control-engineering framing: a
                                    # proportional response is the more natural choice than a
                                    # discrete on/off switch), this term was changed from a hard
                                    # zero-crossing gate to a gradual overshoot below
@@ -1300,9 +1632,140 @@ K_P_PACING_CV            = 0.10   # MET/(L/min) -- [NOT VALIDATED, see docstring
                                    # choice consistent with one side of it, matching how the
                                    # thermal term already works.
 K_P_SIGMA                = 0.04   # std dev of K_p population distribution
-K_P_NSAID_FACTOR         = 0.50   # NSAID halves effective K_p (PGE2 suppression)
+K_P_NSAID_FACTOR         = 1.00   # [2026-10-16] was 0.50 ("NSAID halves K_p via PGE2"). Set to 1.0 =
+                                   # no thermal effect, by decision of the author. Literature review:
+                                   # ibuprofen/naproxen/aspirin alone do not change core temperature
+                                   # during exercise (Emerson et al. 2021, J Exerc Sci Fit, systematic
+                                   # review, 7 of 9 studies; Emerson et al. 2021, Sports Med Health Sci,
+                                   # naproxen at 35.7 degC); no RPE or thermal-sensation difference
+                                   # (Veltmeijer et al. 2016, IJSPP; Nieman 2006). A lower core
+                                   # temperature (~0.3 degC, consistent with a lower set point) is only
+                                   # shown for a COX-2 selective drug (Bradford 2007) and ibuprofen +
+                                   # paracetamol combined (Veltmeijer 2016). The real NSAID risks are
+                                   # non-thermal and not modelled: gut barrier (van Wijck 2012) and
+                                   # hyponatraemia (Wharam 2006). In the Amsterdam run the old 0.50
+                                   # changed peak T_rect of NSAID users by only 0.008 degC on average.
+                                   # Keep 0.50 only as a sensitivity scenario.
 NSAID_PREVALENTIE        = 0.25   # 25% of recreational runners use NSAID (estimate)
 T_RECT_PACING_THRESHOLD  = 38.5   # °C -- onset of voluntary pacing reduction
+# [2026-10-14] Integral (I) action on the cardiovascular pacing loop
+# (ON since 2026-10-14; set 0.0 for the previous P-only behaviour).
+# Background: the existing CV term is proportional on met_initial only
+# (MET reduction = kp_cv * (2.0 - CO_reserve)), recomputed from scratch
+# every step. With the model's own sensitivity dCO/dMET ~1.1-1.2 L/min per
+# MET (Lloyd 2022 g0 x 0.245 L O2/min per MET for 70 kg), kp_cv = 0.10
+# gives a loop gain of only ~0.12: a runner starting at CO_reserve -3 L/min
+# settles at about -2.5 L/min and keeps running at VO2 above their own
+# heat-reduced VO2max. A pure P-loop always leaves a steady-state error;
+# an I-term removes it. When CO_reserve < 0 the integral grows by
+# K_I_PACING_CV * |CO_reserve| per minute; above CO_RESERVE_PACING_THRESHOLD
+# it decays with PACING_CV_INTEGRAL_RELEASE_MIN (runner may pick up pace
+# again); capped at PACING_CV_INTEGRAL_MAX_FRAC of met_initial (anti-windup).
+# [2026-10-14] Switched ON at the author's decision (0.02 MET/(L/min)/min, the
+# value tested in CHANGELOG.md 2026-10-14). Not validated
+# against field data; 0.0 restores the previous P-only behaviour.
+K_I_PACING_CV                 = 0.02   # MET per (L/min * min); 0.0 = off
+PACING_CV_INTEGRAL_RELEASE_MIN = 30.0  # min -- decay of the integral when reserve recovers
+PACING_CV_INTEGRAL_MAX_FRAC   = 0.40   # max. integral reduction as fraction of met_initial
+# [2026-10-19] FORCED pace reduction at the cardiovascular ceiling (author's
+# decision). CO_reserve has a hard physical limit at 0: delivered cardiac
+# output cannot exceed the heat-reduced maximum, so a runner whose voluntary
+# pace would demand more slows down whether he wants to or not (Gonzalez-
+# Alonso & Calbet 2003, Circulation 107:824: CO, leg blood flow and O2 delivery
+# fall 5-11% before exhaustion; Periard et al. 2011, Exp Physiol 96:134:
+# self-paced power -13% in 35 vs 20 degC). Each step the MET is capped at
+# CVRModel.met_at_ceiling() of the previous step's state; the voluntary P/I
+# pacing terms above act on top. Within one 10-min step the heat can still
+# push CO_reserve slightly below 0 (the step in which the ceiling was hit);
+# the next step is then forced down. The conjunctive criterion
+# (T_rect > 40.5 AND CO_reserve <= 0) therefore now means "hot AND at the
+# cardiovascular ceiling". Switch off only for comparison with earlier runs.
+CV_CEILING_FORCED = True
+CV_CEILING_ANTICIPATE = True   # feed-forward: anticipate the ceiling's fall during the next step
+# [2026-10-19] "At the ceiling" tolerance (DOMAIN CHOICE, flagged to the author).
+# With the forced ceiling the race-window CO_reserve settles at ~0 (+/- a few
+# hundredths of a L/min of numerical noise) instead of going clearly negative.
+# A literal "<= 0" test then fires at random and a strict "< 0" test hardly
+# ever. Every conjunctive criterion (EHS, EHE, the 'already flagged' check,
+# Klimatos) therefore reads CO_reserve <= CO_RESERVE_CEILING_TOL as "at the
+# cardiovascular ceiling". 0.05 L/min is ~0.25% of a typical CO_max (20 L/min):
+# below the resolution of any cardiac-output measurement, so it cannot be told
+# apart from 0 physiologically. The deficit doses measure depth from this same
+# line (ceiling_depth), so a runner held at the ceiling while hot accumulates
+# dose in proportion to the TIME spent there. EAC (post-finish, postural) and
+# the post-finish TCF dose are NOT changed: the ceiling is not applied after
+# the finish. Set to 0.0 to restore the literal test.
+CO_RESERVE_CEILING_TOL = 0.05   # L/min
+
+# [2026-10-19, evening] Three follow-ups to the forced ceiling (author's
+# decision: "alles bij elkaar een realistische modellering").
+#
+# 1. RACE_DISTANCE_MODE -- the race is a DISTANCE, not a duration. When the
+#    profile carries a planned pace and duration (sample_pace runs), speed
+#    follows the current MET through Daniels & Gilbert (1979), anchored so
+#    that the planned MET gives exactly the planned pace. A runner who slows
+#    (voluntarily or forced) covers less ground per step and stays out longer
+#    in the weather. The last step is shortened to the minutes actually
+#    needed. The race can last until the end of the weather window the caller
+#    supplies (run_monte_carlo_adult: the course limit,
+#    PACE_MIN_PER_KM_CEILING x distance); a runner still short of the
+#    distance then is flagged dnf_cutoff (swept from the course). Runs without
+#    a planned pace (individual engine, bridge, fixed-pace calibration) keep
+#    the fixed duration.
+#
+# 2. RPE_STOP_ENDS_RACE -- a runner who stops on RPE >= 19.5 was frozen
+#    (state copied unchanged to the end of the race). Now the race ends at
+#    the stop and the post-finish module follows him/her from that moment:
+#    after-glow, venous pooling and recovery of CO_reserve, exactly as after
+#    a finish. The stop time and the distance covered are exported.
+#
+# 3. SLOWDOWN_AFTERGLOW -- T_rect overshoot after slowing (the author's
+#    "delicaat evenwicht"). JOS-3 switches heat production to the new MET
+#    instantly. In reality heat already produced in the working muscles is
+#    still carried to the core, while heat loss falls (less self-generated
+#    air flow, less skin blood flow). After a full stop the suite already
+#    adds an after-glow of PF_DELTA_T_NAGLOED (0.40 degC, author's choice;
+#    clinic 11 Oct measured 0.23 degC). The same after-glow is now applied to
+#    every MET DROP during the race, scaled to the size of the drop:
+#        dT = PF_DELTA_T_NAGLOED * dMET / (MET_initial - PF_MET_RUST)
+#    so a drop from race pace to rest gives the full 0.40 degC and a 1-MET
+#    drop of a 10-MET runner about 0.05 degC. The heat is added to the JOS-3
+#    core compartments at the start of the step, so JOS-3's own
+#    thermoregulation removes it again and the CVR module sees it in CHSI.
+#    Only drops count (no undershoot when speeding up). MODEL CHOICE, NOT
+#    VALIDATED: the evidence is for stopping (Kenny & Niedre 2002; Journeay,
+#    Carter & Kenny 2006), the scaling to partial slowing is an assumption.
+RACE_DISTANCE_MODE = True
+RPE_STOP_ENDS_RACE = True
+SLOWDOWN_AFTERGLOW = True
+# Sweep ("bezemwagen") for RACE_DISTANCE_MODE -- DOMAIN CHOICE, flagged to the
+# author. The pace sampler's slowest runner (PACE_MIN_PER_KM_CEILING) needs
+# exactly the course limit; without extra room every runner at that limit
+# (138 of 1000 in Amsterdam, a clipping pile-up) was swept as soon as he
+# slowed at all. The weather window and therefore the sweep is set at 1.25 x
+# the slowest planned time (Dam tot Damloop 2.0 -> 2.5 h, marathon 5.2 ->
+# 6.6 h). Real closing times differ per event.
+RACE_SWEEP_FACTOR = 1.25
+
+
+def race_window_hours(event_dist_km: float) -> float:
+    """Weather window a sample_pace run needs: the slowest planned runner
+    plus room to slow down (RACE_SWEEP_FACTOR) when RACE_DISTANCE_MODE."""
+    base = PACE_MIN_PER_KM_CEILING * event_dist_km / 60.0
+    return base * (RACE_SWEEP_FACTOR if RACE_DISTANCE_MODE else 1.0)
+
+
+def at_cv_ceiling(co_reserve) -> bool:
+    """True when CO_reserve is at (or below) the cardiovascular ceiling."""
+    return co_reserve is not None and not np.isnan(co_reserve) and co_reserve <= CO_RESERVE_CEILING_TOL
+
+
+def ceiling_depth(co_reserve) -> float:
+    """Depth below the 'at ceiling' line in L/min (0 when above it)."""
+    if co_reserve is None or np.isnan(co_reserve):
+        return 0.0
+    return max(0.0, CO_RESERVE_CEILING_TOL - co_reserve)
+
 CO_RESERVE_PACING_THRESHOLD = 2.0  # L/min -- [2026-09-28] onset of cardiovascular-driven pacing
                                     # reduction. Reuses the same 2.0 L/min 'decompensation risk'
                                     # reference already used elsewhere in this model (the
@@ -1370,6 +1833,103 @@ PF_DT_MIN                = 0.5    # min -- time step post-finish
 # are rarely fully motionless in the finish zone (walking, being assisted,
 # mild residual movement).
 PF_MET_RUST              = 1.5
+# [2026-10-20] FINISH ZONE WITH JOS-3 (author's decision). The simple
+# post-finish model above let everything settle within ~5 min (after-glow
+# tau 2 min, pooling tau 1.5 min, early stop once T_rect < 39 degC), so a
+# longer window changed nothing -- while most endurance-event collapses
+# happen AFTER the finish. simulate_post_finish_jos3() continues the runner's
+# own JOS-3 model in the finish-zone weather instead:
+#   * Heat: JOS-3 keeps exchanging heat with the real air temperature, sun
+#     (MRT) and the ambient wind only (no running air flow). In a hot, sunny,
+#     windless finish zone T_rect can keep rising; in cool weather it falls.
+#   * After-glow: the same rule as SLOWDOWN_AFTERGLOW -- 0.40 degC x dMET /
+#     (MET_start - PF_MET_RUST) per drop in load, released into the core with
+#     tau PF_TAU_NAGLOED -- for the drop at the finish and again when walking
+#     stops.
+#   * Activity: PF_WALK_MIN minutes of slow walking through the finish zone
+#     (PF_MET_WALK), then standing (PF_MET_RUST). A runner who stopped on RPE
+#     does not walk.
+#   * Standing: the acute venous-pooling dip (PF_POOLING_FRAC_OF_COMAX, tau
+#     PF_TAU_POOLING) starts when the muscle pump stops (end of walking).
+#     [2026-10-20, author's decision] Standing lasts PF_STAND_MIN, then the
+#     runner sits or lies down. The sustained 3 % standing deficit on
+#     CO_reserve was removed: CO_reserve measures pump capacity, while
+#     collapse on standing is a filling/blood-pressure problem. That is now
+#     the EAC-staan endpoint below.
+#   * Heart: lagged MET (CV_LAG_ENABLED) and the CVR module on the JOS-3 core
+#     and skin temperatures and the running dehydration (sweat continues,
+#     drinking as in the race).
+#   * Window PF_JOS3_DUUR_MIN (30 min), no early stop.
+# PF_JOS3 = False restores simulate_post_finish().
+PF_JOS3                  = True
+PF_JOS3_DUUR_MIN         = 30.0   # min
+PF_JOS3_DT_MIN           = 0.5    # min
+PF_WALK_MIN              = 5.0    # min walking through the finish zone
+PF_MET_WALK              = 2.8    # MET, slow walking (~3 km/h; Ainsworth Compendium)
+PF_STAND_MIN             = 5.0    # min standing after the walk, then sitting/lying (author's decision)
+
+# [2026-10-20] EAC-STAAN: exercise-associated collapse on standing (author's
+# decision, option B of the finish-zone study "Collaps na de finish").
+# Replaces the old EAC endpoint (sustained CO_reserve deficit), which measured
+# pump capacity where collapse after the finish is a filling / blood-pressure
+# problem (Asplund, O'Connor & Noakes 2011, Br J Sports Med 45:1157).
+# Orthostatic tolerance relative to normal, each minute while standing:
+#     tol = exp(-K_SKIN*(Tskin-34.3)+) * exp(-K_CORE*(Trect-36.8)+) * exp(-K_DEHY*dehy%)
+#   K_SKIN, K_CORE from Pearson e.a. 2017 (Exp Physiol 102:255): skin +3.3 degC
+#     and core +1.5 degC each left ~56 % of LBNP tolerance; together (skin
+#     +4.5, core +1.3) 25 % measured vs 27 % predicted by the product.
+#   K_DEHY from Schlader e.a. 2015 (Exp Physiol 100:926): 0.9 % and 1.9 % body
+#     mass loss left 81 % and 69 % of tolerance (0.23 and 0.20 per %).
+# Standing load: R = integral over standing minutes of 1/tol (min). Walking
+# (muscle pump) and sitting/lying add nothing.
+# Individual tolerance varies: LBNP tolerance CV 0.24 (Pearson 2017, n=9) and
+# ~0.43 (Keller e.a. 2009, SD from s.e.m., n=7). A runner collapses when R
+# exceeds his own limit, lognormal with spread EAC_SIGMA = 0.35 (midpoint;
+# model choice) around exp(EAC_LN_K):
+#     P(EAC) = Phi((ln R - EAC_LN_K) / EAC_SIGMA)
+# EAC_LN_K is the one calibrated value: 1.5 EAC per 1000 starters (Naidoo,
+# Sewry e.a. 2022, Two Oceans 21/56 km, cool), on the Dam tot Damloop
+# reference population (intercept_estimation.py, key dtd -> intercept_estimation_eac.json). Not modelled: the post-exercise
+# vasodilation and weaker baroreflex as a separate factor (folded into
+# EAC_LN_K), sex differences (women 2.25x on 21 km in Naidoo 2022).
+EAC_STAND_ENABLED = True
+EAC_K_SKIN   = 0.176   # per degC mean skin temperature above 34.3
+EAC_K_CORE   = 0.387   # per degC T_rect above 36.8
+EAC_K_DEHY   = 0.20    # per % body-mass loss
+EAC_SIGMA    = 0.35    # spread of individual tolerance (log units), model choice (0.24-0.43 in LBNP studies)
+# [2026-10-20 late] Author's decision after the second EAC analysis:
+#  - The core term counts only up to 38.3 degC, the highest core temperature
+#    tested by Pearson 2017 (passive heating at rest). Runners stand at
+#    39-41 degC, far outside that range; extrapolating the exponential made
+#    the EAC curve 5-10x too steep against field data.
+#  - A heat-independent base share: EAC is principally postural hypotension
+#    after the muscle pump stops (Asplund 2011); heat aggravates it. Naidoo
+#    2022 found no WBGT effect within 12-18. Of the 1.5/1000 at the DtD
+#    reference, EAC_BASE_P (1.0/1000, model choice) does not depend on heat.
+EAC_CORE_CAP = 38.3    # degC, upper end of the tested core range (Pearson 2017)
+EAC_BASE_P   = 0.0010  # heat-independent EAC probability per standing runner (model choice)
+EAC_WBGT_VALID_MAX = 28.0  # degC; above this (ACSM black flag, no field data) EAC is reported as "zeer hoog", not as a number. Name kept for compatibility: nothing below it is validated either.
+EAC_LN_K     = 3.970524  # [2026-10-31] Liljegren globe + RH_urban, seeds 42 (3.970447) / 43 (3.970601); was 3.803705
+# [2026-10-23] was 3.786865 = rest core 37.0 + fitness/heat age curve, seeds 42 (3.786517) / 43 (3.787212); was 3.808518
+# previous: 3.808518 calibrated 2026-10-20 late (core cap 38.3, base 1.0/1000): 1.5/1000 on the DtD reference, N=5000, mean of seeds 42 (3.808401) and 43 (3.808634); was 4.234274 without cap/base
+
+
+def eac_tolerance(t_skin: float, t_rect: float, dehy_pct: float) -> float:
+    """Orthostatic tolerance relative to normal (1.0 = normothermic, hydrated)."""
+    t_core = min(t_rect, EAC_CORE_CAP) if EAC_CORE_CAP is not None else t_rect
+    return float(np.exp(-EAC_K_SKIN * max(0.0, t_skin - 34.3)
+                        - EAC_K_CORE * max(0.0, t_core - 36.8)
+                        - EAC_K_DEHY * max(0.0, dehy_pct)))
+
+
+def eac_probability(stand_load_min: float) -> float:
+    """P(exercise-associated collapse) for a standing load R (min)."""
+    if not EAC_STAND_ENABLED or stand_load_min is None or stand_load_min <= 0:
+        return 0.0
+    from math import erf, sqrt, log
+    zz = (log(stand_load_min) - EAC_LN_K) / EAC_SIGMA
+    p_heat = 0.5 * (1.0 + erf(zz / sqrt(2.0)))
+    return float(EAC_BASE_P + (1.0 - EAC_BASE_P) * p_heat)
 
 
 # =============================================================================
@@ -1381,6 +1941,23 @@ def wind_speed_at_height(v_ref, z_ref, z_target, z0=0.1):
     if z_ref <= 0 or z_target <= 0 or z0 <= 0:
         raise ValueError("Heights and roughness length must be positive.")
     return v_ref * (np.log(z_target / z0) / np.log(z_ref / z0))
+
+
+# [2026-10-19, night] Heading-averaged relative wind (found during the
+# foundation repair; MODEL CHOICE, flagged to the author). Each runner had ONE
+# fixed wind angle for the whole race. A runner with a near-perfect tailwind
+# equal to his own speed then had ~0.1 m/s air flow for hours. With the
+# repaired heat production this gave runaway core temperatures in COOL
+# weather (Amsterdam 2026-10-18, 13 degC: one runner 40.1 -> 42.9 degC in
+# 70 min at constant pace, air flow 0.82 -> 0.10 m/s), and made Amsterdam's
+# hot tail four times larger than Boston's at 18-22 degC. Real courses turn;
+# and runners on one course share its heading, so a per-runner random angle
+# never represented anything real. Now the convective effect is averaged over
+# all headings: v_eff = (mean over angles of v_rel^0.62)^(1/0.62), with
+# JOS-3's exponent 0.62. The per-runner angle is kept for WIND_ANGLE_AVERAGED
+# = False (e.g. a straight point-to-point course with known heading).
+WIND_ANGLE_AVERAGED = True
+_WIND_ANGLES = np.linspace(0.0, 2.0 * np.pi, 72, endpoint=False)
 
 
 def compute_relative_wind(v_ambient: float, v_running: float, angle_rad: float) -> float:
@@ -1451,6 +2028,15 @@ def compute_relative_wind(v_ambient: float, v_running: float, angle_rad: float) 
         Relative (apparent) wind speed (m/s), floored at 0.1 for
         numerical safety (matches the previous minimum floor).
     """
+    if WIND_ANGLE_AVERAGED:
+        # [2026-10-19, night] Course heading is not constant: average JOS-3's
+        # convective effect (h_c ~ v^0.62) over all headings instead of using
+        # one fixed angle per runner for the whole race. See
+        # WIND_ANGLE_AVERAGED for why.
+        th = _WIND_ANGLES
+        v = np.sqrt(np.maximum(0.0, v_running**2 + v_ambient**2 - 2 * v_running * v_ambient * np.cos(th)))
+        v_eff = float(np.mean(v ** 0.62)) ** (1.0 / 0.62)
+        return max(0.1, v_eff)
     v_rel_sq = v_running**2 + v_ambient**2 - 2 * v_running * v_ambient * np.cos(angle_rad)
     return max(0.1, float(np.sqrt(max(0.0, v_rel_sq))))
 
@@ -1682,7 +2268,7 @@ def generate_base_population(
         floored into a marathon-race effort band. This widening is an
         engineering consequence of generalising the same mechanism beyond
         running, not an independently validated number -- please review it,
-        Koos, especially the lower bound.
+        the author, especially the lower bound.
     sample_pace : bool
         [2026-09] When True, each participant gets their OWN pace (via
         sample_recreational_pace_min_per_km(), gender-conditioned) instead
@@ -1887,7 +2473,38 @@ def generate_base_population(
         #vo2_at_event_pace     = _daniels_gilbert_vo2_at_pace(EVENT_PACE_MIN_PER_KM)
         #pct_vo2max_det        = vo2_at_event_pace / vo2max   # physiologically conditioned
 
-        if sample_pace:
+        if sample_pace and USE_DURATION_INTENSITY_CEILING:
+            # [2026-10-14] Demographics-preserving redraw. Previously any
+            # (vo2max, pace) combination that was too hard for this person
+            # rejected the WHOLE draw (gender, age, height, weight too).
+            # Because older and female participants are rejected more
+            # often, that silently shifted the field's demographics
+            # (verified, marathon n=5000 seed 42: male share 58% -> 62%,
+            # median age 40 -> 37; with the new duration ceiling it would
+            # have become 68% / 36). Here only the fitness/pace pair is
+            # redrawn for the SAME person (same gender/age/body), so the
+            # field composition stays at its documented targets; the
+            # accepted runners simply pair with a fitness that can sustain
+            # their pace. Whole-draw rejection remains as fallback only.
+            _ok = False
+            for _try in range(50):
+                if _try > 0:
+                    vo2max = float(np.clip(
+                        np.random.normal(loc=vo2max_mu, scale=vo2max_sigma),
+                        vo2max_clip[0], vo2max_clip[1]))
+                vo2max_z = _pace_fitness_z(vo2max, vo2max_base_mu, vo2max_mu, vo2max_sigma)
+                pace_this_runner = sample_recreational_pace_min_per_km(
+                    gender, event_dist_km, vo2max_z=vo2max_z)
+                individual_met = _acsm_met_from_pace(pace_this_runner)
+                duration_hours_this_runner = pace_this_runner * event_dist_km / 60.0
+                vo2_at_event_pace = individual_met * VO2MAX_TO_MET_FACTOR
+                if (vo2_at_event_pace / vo2max) <= min(
+                        0.95, sustainable_vo2max_fraction(duration_hours_this_runner * 60.0)):
+                    _ok = True
+                    break
+            if not _ok:
+                continue
+        elif sample_pace:
             # [2026-09] Full per-person pace: own MET AND own exposure
             # duration, instead of a shared met_value that only let
             # pct_vo2max (perceived relative effort) vary by person while
@@ -1898,7 +2515,7 @@ def generate_base_population(
             # the vo2max_clip bounds), accepted because clipping is rare
             # here and preserving the pre-clip draw across this function
             # would need a larger restructure for a negligible gain.
-            vo2max_z = (vo2max - vo2max_mu) / vo2max_sigma
+            vo2max_z = _pace_fitness_z(vo2max, vo2max_base_mu, vo2max_mu, vo2max_sigma)
             pace_this_runner = sample_recreational_pace_min_per_km(
                 gender, event_dist_km, vo2max_z=vo2max_z)
             individual_met = _acsm_met_from_pace(pace_this_runner)
@@ -1924,6 +2541,23 @@ def generate_base_population(
             pace_this_runner = EVENT_PACE_M if gender == "male" else EVENT_PACE_F
             vo2_at_event_pace = _daniels_gilbert_vo2_at_pace(pace_this_runner)
             duration_hours_this_runner = None
+            if USE_DURATION_INTENSITY_CEILING:
+                # [2026-10-14] Same duration ceiling for this fixed-marathon-
+                # pace path, which is the one intercept_estimation.py uses for
+                # the Boston (ehs) calibration population. Without it that
+                # population still had 13.5% of runners at >=85% VO2max for
+                # 3.5-4.2 h. Duration = this runner's fixed pace over a
+                # marathon; only vo2max is redrawn (same person).
+                _fixed_dur_h = pace_this_runner * _MARATHON_DIST_KM / 60.0
+                _ceil_fixed = sustainable_vo2max_fraction(_fixed_dur_h * 60.0)
+                for _try in range(50):
+                    if vo2_at_event_pace / vo2max <= _ceil_fixed:
+                        break
+                    vo2max = float(np.clip(
+                        np.random.normal(loc=vo2max_mu, scale=vo2max_sigma),
+                        vo2max_clip[0], vo2max_clip[1]))
+                else:
+                    continue
         pct_vo2max_det = vo2_at_event_pace / vo2max
 
         # [2026-09] Reject rather than clip: a deterministic requirement
@@ -1950,11 +2584,30 @@ def generate_base_population(
         if pct_vo2max_det > 0.95:
             continue
 
+        # [2026-10-14] Duration-dependent ceiling (see
+        # sustainable_vo2max_fraction()). Only when this participant's own
+        # duration is known (sample_pace=True).
+        pct_ceiling = 0.95
+        if (USE_DURATION_INTENSITY_CEILING and sample_pace
+                and duration_hours_this_runner):
+            pct_ceiling = sustainable_vo2max_fraction(duration_hours_this_runner * 60.0)
+            if pct_vo2max_det > pct_ceiling:
+                continue
+        elif (USE_DURATION_INTENSITY_CEILING and not sample_pace
+                and met_value is None):
+            pct_ceiling = _ceil_fixed   # fixed-marathon-pace path (see above)
+
         pct_vo2max_sigma      = 0.04   # economy variability (narrower than rev12's 0.05)
-        pct_vo2max = float(np.clip(
-            np.random.normal(loc=pct_vo2max_det, scale=pct_vo2max_sigma),
-            0.15, 0.95
-        ))
+        pct_vo2max = float(np.random.normal(loc=pct_vo2max_det, scale=pct_vo2max_sigma))
+        if pct_ceiling < 0.95:
+            # [2026-10-14] Truncated (not clipped) noise: redraw the economy
+            # noise when it pushes the effective intensity above the
+            # ceiling, so no artificial pile-up forms at the ceiling value.
+            for _ in range(20):
+                if pct_vo2max <= pct_ceiling:
+                    break
+                pct_vo2max = float(np.random.normal(loc=pct_vo2max_det, scale=pct_vo2max_sigma))
+        pct_vo2max = float(np.clip(pct_vo2max, 0.15, pct_ceiling))
 
         # ------------------------------------------------------------------
         # STEP 7: Sweat factor -- conditioned on acclimatization_factor
@@ -1999,12 +2652,14 @@ def generate_base_population(
         # Participants with K_p ≈ 0 are the highest EHS risk group:
         # they do not reduce pace despite rising T_rect.
         #
-        # NSAID modifier: ~25% of recreational marathon runners use NSAID
-        # before or during the race (ibuprofen predominantly). NSAID crosses
-        # the blood-brain barrier and suppresses PGE2, reducing the
-        # subjective perception of thermal overload -- effectively halving
-        # the pacing response (Garcia et al. 2019 mouse model; Nieman 2006
-        # ultramarathon field study).
+        # NSAID flag: ~25% of recreational marathon runners use NSAID before
+        # or during the race (Joslin 2013: 26% during; Kuster 2013: 49%
+        # analgesics before the start). [2026-10-16] K_P_NSAID_FACTOR = 1.0:
+        # the flag no longer changes pacing -- the earlier "halved pacing via
+        # PGE2 suppression" mechanism is not supported in humans (see the
+        # K_P_NSAID_FACTOR comment). The flag is kept for export. The binomial
+        # draw is kept so the random stream (and thus every population) is
+        # unchanged.
         nsaid_gebruik = bool(np.random.binomial(1, NSAID_PREVALENTIE))
         kp_base       = float(np.clip(
             np.random.normal(loc=K_P_PACING, scale=K_P_SIGMA),
@@ -2128,6 +2783,9 @@ def save_population(population: list, filepath: str) -> None:
 def load_population(filepath: str) -> list:
     """
     Load a base population from a pickle file.
+
+    SECURITY: pickle can execute code while loading. Only load .pkl files
+    that this suite wrote on your own computer, never files from others.
 
     Parameters
     ----------
@@ -2666,6 +3324,7 @@ def get_weather_forecast(lat, lon):
         forecast_url = (
             f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}"
             "&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,cloud_cover,surface_pressure"
+            ",shortwave_radiation_instant"   # [2026-10-24] forecast radiation (W/m2 at the indicated time)
             "&forecast_days=15&timezone=UTC"
         )
         response = requests.get(forecast_url, timeout=10)
@@ -2689,6 +3348,8 @@ def get_weather_forecast(lat, lon):
                 },
                 "wind":   {"speed": wind_ms},
                 "clouds": {"all": hourly["cloud_cover"][i]},
+                # [2026-10-24] forecast global radiation; None -> cloud estimate
+                "solar":  {"ghi": (hourly.get("shortwave_radiation_instant") or [None] * len(hourly["time"]))[i]},
             })
         return owm_like_list
     except requests.RequestException as e:
@@ -2761,59 +3422,69 @@ def calculate_solar_radiance(lat, lon, local_datetime_str, cloud_cover, aqi):
         return {'ghi': 0, 'dni': 0, 'dhi': 0, 'solar_elevation': 0, 'zenith': 90}
 
 
+def radiation_series(interp_data, times, temps, wind_1_5m, pressures, clouds,
+                     lat, lon, aqi, rhs=None):
+    """[2026-10-24] Radiation inputs for one simulation, in order of preference:
+
+    1. Data Engine values complete (ghi, solar_elevation, globe_temp, mrt):
+       used as they are (unchanged behaviour).
+    2. Measured or forecast global radiation (ghi) present but no globe/MRT
+       (e.g. a calibration reference or an Open-Meteo forecast): the sun
+       position comes from pvlib, globe temperature and MRT are computed
+       from the MEASURED/FORECAST ghi. Cloud cover is then only used inside
+       the globe model, never to estimate the amount of sunshine.
+    3. No radiation at all: the old clear-sky x cloud-attenuation estimate.
+       That estimate underestimates GHI badly under thin high cloud (DtD
+       2024-09-22: ERA5 89-99 % cloud, measured 450-550 W/m2, estimate
+       ~145 W/m2), so it is a last resort only.
+    Returns (ghi, solar_elevations, globe_temps, mrts, bron).
+    rhs [%] (2026-10-31): humidity for the sky emissivity in the Liljegren
+    globe model (options 2 and 3); 50 % when not given.
+    """
+    if all(interp_data[0].get(k) is not None
+           for k in ('ghi', 'solar_elevation', 'globe_temp', 'mrt')):
+        return ([e['ghi'] for e in interp_data],
+                [e['solar_elevation'] for e in interp_data],
+                [e['globe_temp'] for e in interp_data],
+                [e['mrt'] for e in interp_data], 'data_engine')
+    radiances = [calculate_solar_radiance(lat, lon, str(t), c, aqi)
+                 for t, c in zip(times, clouds)]
+    solar_elevations = [rad['solar_elevation'] for rad in radiances]
+    if all(e.get('ghi') is not None for e in interp_data):
+        ghi  = [max(0.0, float(e['ghi'])) if se > 0 else 0.0
+                for e, se in zip(interp_data, solar_elevations)]
+        bron = 'gemeten_ghi'
+    else:
+        ghi  = [rad['ghi'] for rad in radiances]
+        bron = 'bewolking'
+    if rhs is None:
+        rhs = [50.0] * len(temps)
+    globe_temps = [calculate_globe_temperature(t, g, w, se, p, c, aqi, rh=r)
+                   for t, g, w, se, p, c, r in zip(
+                       temps, ghi, wind_1_5m, solar_elevations, pressures, clouds, rhs)]
+    mrts        = [calculate_mrt(gt, t, w, g, se)
+                   for gt, t, w, g, se in zip(
+                       globe_temps, temps, wind_1_5m, ghi, solar_elevations)]
+    return ghi, solar_elevations, globe_temps, mrts, bron
+
+
 def calculate_globe_temperature(dry_bulb_temp, ghi, wind_speed, solar_elevation,
-                                pressure, cloud_cover, aqi):
+                                pressure, cloud_cover, aqi, rh=50.0):
+    """Black globe temperature (0.15 m) [degC].
+
+    [2026-10-31] Delegates to thermal_env._calculate_globe_scalar, so HESTIA
+    and the Data Engine use one globe model (daytime: Liljegren et al. 2008
+    energy balance with direct/diffuse split and ground reflection; night
+    unchanged). Until 2026-10-30 this function carried its own copy of the
+    older 0.95*GHI/4 model.
     """
-    Calculates black globe temperature (150mm) using energy balance (ISO 7726).
-    Unchanged from rev09.
-    """
-    GLOBE_DIAMETER   = 0.15
-    GLOBE_EMISSIVITY = 0.95
-    SOLAR_ABSORPTIVITY = 0.95
-    STEFAN_BOLTZMANN = 5.67e-8
-    t_air_k = dry_bulb_temp + 273.15
-    effective_wind = max(0.1, wind_speed)
-    h_c = 6.3 * (effective_wind ** 0.6) / (GLOBE_DIAMETER ** 0.4)
-
-    if ghi <= 0 or solar_elevation <= 0:
-        sky_depression = 10 - (cloud_cover / 100) * 6
-        if aqi > 3:
-            sky_depression -= 2
-        sky_temp_k    = t_air_k - sky_depression
-        net_radiation = GLOBE_EMISSIVITY * STEFAN_BOLTZMANN * (sky_temp_k ** 4 - t_air_k ** 4)
-        delta_t       = net_radiation / h_c
-        t_globe_c     = dry_bulb_temp + delta_t
-        return max(dry_bulb_temp - 3, min(dry_bulb_temp + 1, t_globe_c))
-
-    solar_input   = SOLAR_ABSORPTIVITY * ghi / 4.0
-    ambient_rad   = GLOBE_EMISSIVITY * STEFAN_BOLTZMANN * (t_air_k ** 4)
-    total_in      = solar_input + ambient_rad
-    h_r_initial   = 4 * GLOBE_EMISSIVITY * STEFAN_BOLTZMANN * (t_air_k ** 3)
-    delta_t_init  = solar_input / (h_c + h_r_initial)
-    t_globe_k     = t_air_k + delta_t_init
-
-    for _ in range(20):
-        rad_out   = GLOBE_EMISSIVITY * STEFAN_BOLTZMANN * (t_globe_k ** 4)
-        conv_out  = h_c * (t_globe_k - t_air_k)
-        imbalance = total_in - (rad_out + conv_out)
-        if abs(imbalance) < 0.1:
-            break
-        deriv     = 4 * GLOBE_EMISSIVITY * STEFAN_BOLTZMANN * (t_globe_k ** 3) + h_c
-        t_globe_k += 0.7 * imbalance / deriv
-        if t_globe_k < t_air_k - 5:
-            t_globe_k = t_air_k
-        elif t_globe_k > t_air_k + 50:
-            t_globe_k = t_air_k + 20
-
-    t_globe_c = t_globe_k - 273.15
-    if t_globe_c < dry_bulb_temp:
-        t_globe_c = dry_bulb_temp
-    max_delta = 15 if effective_wind > 2.0 else 20
-    return min(t_globe_c, dry_bulb_temp + max_delta)
+    from thermal_env import _calculate_globe_scalar
+    return _calculate_globe_scalar(dry_bulb_temp, ghi, wind_speed, solar_elevation,
+                                   pressure, cloud_cover, aqi, rh=rh)
 
 
 def calculate_mrt(globe_temp, dry_bulb_temp, wind_speed, ghi, solar_elevation):
-    """Calculates Mean Radiant Temperature from globe temperature (ISO 7726). Unchanged."""
+    """Calculates Mean Radiant Temperature from globe temperature (ISO 7726)."""
     GLOBE_DIAMETER   = 0.15
     GLOBE_EMISSIVITY = 0.95
     STEFAN_BOLTZMANN = 5.67e-8
@@ -2826,11 +3497,14 @@ def calculate_mrt(globe_temp, dry_bulb_temp, wind_speed, ghi, solar_elevation):
     if mrt_k4 < 0:
         return globe_temp
     mrt_c = mrt_k4 ** 0.25 - 273.15
+    # [2026-10-31] Sun clip tg+30 and plausibility limit 90 degC (were tg+15
+    # and 70): with the Liljegren globe, MRT of 70-80 degC in desert sun is
+    # physical and must not fall back to the globe temperature.
     if ghi > 0 and solar_elevation > 0:
-        mrt_c = np.clip(mrt_c, globe_temp - 2, globe_temp + 15)
+        mrt_c = np.clip(mrt_c, globe_temp - 2, globe_temp + 30)
     else:
         mrt_c = np.clip(mrt_c, dry_bulb_temp - 15, dry_bulb_temp + 3)
-    if mrt_c > 70 or mrt_c < -50:
+    if mrt_c > 90 or mrt_c < -50:
         return dry_bulb_temp if ghi <= 0 else globe_temp
     return mrt_c
 
@@ -2859,7 +3533,7 @@ def interpolate_weather(weather_data, start_dt, end_dt, interval_minutes=10):
     interp_pressures= np.interp(times_ts, weather_ts, pressures)
 
     def _interp_optional(key_path):
-        vals = [e[key_path[0]].get(key_path[1]) for e in weather_data]
+        vals = [(e.get(key_path[0]) or {}).get(key_path[1]) for e in weather_data]
         if any(v is None for v in vals):
             return [None] * len(times_ts)
         return np.interp(times_ts, weather_ts, np.array(vals, dtype=float))
@@ -2872,6 +3546,10 @@ def interpolate_weather(weather_data, start_dt, end_dt, interval_minutes=10):
     interp_wbgt_pre  = _interp_optional(("indices", "wbgt"))
     interp_utci_pre  = _interp_optional(("indices", "utci"))
     interp_temps_rural = _interp_optional(("main", "temp_rural"))
+    # [2026-10-31] "humidity" is the RH that belongs to the urban temperature
+    # (RH_urban); the rural chain below needs the rural RH when it is known.
+    _rh_rur = _interp_optional(("main", "humidity_rural"))
+    interp_rhs_rural = interp_rhs if any(v is None for v in _rh_rur) else np.asarray(_rh_rur, dtype=float)
 
     # [2026-09] Rural-equivalent WBGT/UTCI, alongside the existing urban
     # ones above -- requested after showing rural-vs-urban air temperature
@@ -2892,14 +3570,14 @@ def interpolate_weather(weather_data, start_dt, end_dt, interval_minutes=10):
         _wind_1_5m_rural = wind_speed_at_height(interp_winds, 10.0, 1.5, z0=0.1)
         rural_globe = calculate_globe_vectorized(
             _ta_r, interp_ghi, _wind_1_5m_rural, interp_solar_el,
-            interp_pressures, interp_clouds)
+            interp_pressures, interp_clouds, 1, rh=interp_rhs_rural)
         rural_mrt = calculate_mrt_vectorized(
             rural_globe, _ta_r, _wind_1_5m_rural, interp_ghi, interp_solar_el)
-        rural_twb = wet_bulb_tmp(tdb=_ta_r, rh=interp_rhs)
+        rural_twb = wet_bulb_tmp(tdb=_ta_r, rh=interp_rhs_rural)
         rural_wbgt_res = wbgt(twb=rural_twb, tg=rural_globe, tdb=_ta_r, with_solar_load=True)
         rural_wbgt = rural_wbgt_res.wbgt if hasattr(rural_wbgt_res, 'wbgt') else rural_wbgt_res
         _wind_utci_rural = np.clip(interp_winds, 0.5, 17.0)
-        rural_utci_res = utci(tdb=_ta_r, tr=rural_mrt, v=_wind_utci_rural, rh=interp_rhs)
+        rural_utci_res = utci(tdb=_ta_r, tr=rural_mrt, v=_wind_utci_rural, rh=interp_rhs_rural)
         rural_utci = rural_utci_res.utci if hasattr(rural_utci_res, 'utci') else rural_utci_res
 
     return [
@@ -2937,6 +3615,147 @@ def interpolate_weather(weather_data, start_dt, end_dt, interval_minutes=10):
 # =============================================================================
 #  RPE MODELS (unchanged from rev09)
 # =============================================================================
+
+def simulate_post_finish_jos3(jos3_model, cvr_model, weather_steps, *, t_rect_finish,
+                              co_reserve_finish, auc_klinisch_race, met_finish,
+                              met_initial, met_cv_finish, cumulative_water_loss_g,
+                              weight_kg, sweat_factor, thirst_threshold, clo_value,
+                              walked=True):
+    """[2026-10-20] Finish zone with the runner's own JOS-3 model. See the
+    PF_JOS3 block for the mechanisms. weather_steps: list of (tdb, mrt, rh,
+    wind_1_5m) covering the window (one entry per minute or repeated)."""
+    dt = PF_JOS3_DT_MIN
+    n = int(round(PF_JOS3_DUUR_MIN / dt))
+    walk_min = PF_WALK_MIN if walked else 0.0
+    t_rect = t_rect_finish
+    co_res = co_reserve_finish
+    t_hist, c_hist, time_hist = [t_rect_finish], [co_reserve_finish], [0.0]
+    t_piek = t_rect_finish
+    auc_kl_pf = 0.0
+    ehs_pf, t_ehs_pf = False, float('nan')
+    tcf_dose_pf, tcf_time_pf, t_tcf_pf = 0.0, 0.0, float('nan')
+    met_cv = met_cv_finish if met_cv_finish is not None else met_finish
+    water = float(cumulative_water_loss_g)
+    can_drink = True
+    co_max_ref = None
+    eac_load, eac_tol_min = 0.0, 1.0
+    # after-glow impulses: (start minute, amount degC)
+    denom = max(0.5, met_initial - PF_MET_RUST)
+    met_after_finish = PF_MET_WALK if walk_min > 0 else PF_MET_RUST
+    impulses = [(0.0, PF_DELTA_T_NAGLOED * max(0.0, met_finish - met_after_finish) / denom)]
+    if walk_min > 0:
+        impulses.append((walk_min, PF_DELTA_T_NAGLOED * max(0.0, PF_MET_WALK - PF_MET_RUST) / denom))
+    try:
+        from pythermalcomfort.jos3_functions.matrix import INDEX as _IDX
+        core_idx = _IDX["core"]
+    except Exception:
+        core_idx = None
+    for k in range(n):
+        t = k * dt
+        walking = t < walk_min
+        standing = (not walking) and (t < walk_min + PF_STAND_MIN)
+        met_now = PF_MET_WALK if walking else PF_MET_RUST
+        tdb, mrt, rh, wind = weather_steps[min(len(weather_steps) - 1, int(t))]
+        # after-glow into the core
+        q = 0.0
+        for t0, amt in impulses:
+            if t >= t0:
+                q += amt * (np.exp(-(t - t0) / PF_TAU_NAGLOED) - np.exp(-(t + dt - t0) / PF_TAU_NAGLOED))
+        if q > 0 and core_idx is not None:
+            jos3_model._t_body[core_idx] += q
+        jos3_model.par = jos3_par(jos3_model, met_now)
+        jos3_model.tdb, jos3_model.tr, jos3_model.rh = tdb, mrt, rh
+        jos3_model.v = max(0.1, float(wind) + (0.8 if walking else 0.0))
+        jos3_model.clo = clo_value
+        jos3_model.simulate(times=1, dtime=int(round(dt * 60)))
+        t_rect = jos3_t_rect(jos3_model)
+        # fluid: sweat continues, drinking as in the race
+        try:                                    # last step only (dict_results() rebuilds the whole history)
+            g_s = float(np.sum(np.asarray(getattr(jos3_model._history[-1],
+                                                    'weight_loss_by_evap_and_res'), dtype=float)))
+        except Exception:
+            _wl = np.asarray(jos3_model.dict_results().get('weight_loss_by_evap_and_res', [0.0]), dtype=float).ravel()
+            g_s = float(_wl[-1]) if _wl.size else 0.0
+        water += g_s * 60.0 * dt * sweat_factor
+        if (water / 1000.0) / weight_kg * 100.0 >= thirst_threshold and can_drink:
+            water = max(0.0, water - np.random.uniform(120, 180))
+            can_drink = False
+        if k % int(round(5.0 / dt)) == 0:
+            can_drink = True                       # at most one drink per 5 min
+        # heart
+        met_cv = cv_met_lag(met_cv, met_now, dt)
+        if cvr_model is not None:
+            snap = JOS3Outputs(
+                t_min=t, cardiac_output=0.0, t_core_mean=jos3_core_for_chsi(jos3_model),
+                t_cb=t_rect, weight_loss_g_s=water / 1000.0, bf_skin_total=0.0,
+                bf_ava_hand=0.6, bf_ava_foot=0.6, current_met=met_cv,
+                t_skin_mean=float(jos3_model.t_skin.mean()))
+            st = cvr_model.compute_step(snap)
+            if co_max_ref is None:
+                co_max_ref = float(st.CO_max)
+            pool = 0.0
+            if not walking:
+                ts = t - walk_min
+                pool = PF_POOLING_FRAC_OF_COMAX * co_max_ref * np.exp(-ts / PF_TAU_POOLING)
+            co_res = max(-5.0, float(st.CO_reserve) - pool)
+        if standing:                               # [2026-10-20] EAC-staan load
+            _tol = eac_tolerance(float(jos3_model.t_skin.mean()), t_rect,
+                                 (water / 1000.0) / weight_kg * 100.0)
+            eac_load += dt / max(1e-6, _tol)
+            eac_tol_min = min(eac_tol_min, _tol)
+        t_piek = max(t_piek, t_rect)
+        t_hist.append(t_rect); c_hist.append(co_res); time_hist.append(t + dt)
+        auc_kl_pf += max(0.0, t_rect - T_AUC_KLINISCH) * dt
+        if TCF_AVAILABLE:
+            inc = control_failure_increment(t_rect, co_res, dt, TCF_CONFIG)
+            tcf_dose_pf += inc
+            if inc > 0:
+                tcf_time_pf += dt
+                if np.isnan(t_tcf_pf):
+                    t_tcf_pf = t + dt
+        if t_rect > 40.5 and co_res <= CO_RESERVE_CEILING_TOL and not ehs_pf:
+            ehs_pf, t_ehs_pf = True, t + dt
+    return {
+        't_rect_piek_postfinish'  : round(t_piek, 4),
+        'co_reserve_postfinish'   : round(co_res, 4),
+        'auc_klinisch_postfinish' : round(auc_kl_pf, 3),
+        'auc_klinisch_totaal'     : round(auc_klinisch_race + auc_kl_pf, 3),
+        'ehs_postfinish'          : ehs_pf,
+        't_ehs_postfinish_min'    : t_ehs_pf,
+        'control_failure_dose_postfinish'     : round(tcf_dose_pf, 4),
+        'control_failure_time_postfinish_min' : round(tcf_time_pf, 3),
+        't_control_failure_postfinish_min'    : t_tcf_pf,
+        't_rect_series_postfinish'    : t_hist,
+        'co_reserve_series_postfinish': c_hist,
+        'time_min_series_postfinish'  : time_hist,
+        'eac_staanbelasting'          : round(eac_load, 4),
+        'eac_tolerantie_min'          : round(eac_tol_min, 4),
+        'eac_kans'                    : eac_probability(eac_load),
+    }
+
+
+def calculate_adult_rpe_from_hr(hr, hr_rest, hr_max, training_factor, mf_score):
+    """[2026-10-19] Borg 6-20 RPE from the CVR model's heart rate (author's
+    decision, RPE_FROM_CVR_HR).
+
+    Borg designed the 6-20 scale to run linearly with heart rate from rest
+    (~60/min -> 6) to maximum (~200/min -> 20). Applied per person:
+        RPE = 6 + 14 x (HR - HR_rest) / (HR_max - HR_rest)
+    HR is the CVR model's own heart rate (Lloyd 2022), which already rises
+    with heat strain and dehydration (CHSI) and reaches HR_max at the
+    cardiovascular ceiling. The separate heat penalty of the old formula
+    (1.8 per degC above 38) is therefore dropped: keeping it counted heat
+    twice (tested on 100 Amsterdam runners: with half the penalty, 38 %
+    'stopped'; without it, 6 %, late in the race). Training and motivation
+    modifiers as in calculate_adult_rpe_improved (motivation sign fixed).
+    """
+    hrr = float(np.clip((hr - hr_rest) / max(1.0, hr_max - hr_rest), 0.0, 1.0))
+    base_rpe = 6.0 + 14.0 * hrr
+    rpe_physical = float(np.clip(base_rpe * (1.0 - training_factor * 0.15), 6.0, 20.0))
+    motivation_effect = (mf_score - 0.5) * 2.0 * (20.0 - rpe_physical) * 0.15
+    rpe_total = float(np.clip(rpe_physical - motivation_effect, 6.0, 20.0))
+    return rpe_physical, rpe_total
+
 
 def calculate_adult_rpe_improved(current_met, t_rect, training_factor,
                                   acclimatization_factor, mf_score,
@@ -3022,7 +3841,11 @@ def calculate_adult_rpe_improved(current_met, t_rect, training_factor,
     rpe_physical       = np.clip(adjusted_base + heat_penalty, 6.0, 20.0)
     motivation_modifier= (mf_score - 0.5) * 2.0
     motivation_effect  = motivation_modifier * (20.0 - rpe_physical) * 0.15
-    rpe_total          = np.clip(rpe_physical + motivation_effect, 6.0, 20.0)
+    # [2026-10-19, BUG FIX, author's decision] Was '+': a MORE motivated
+    # runner got a HIGHER rpe_total and so stopped EARLIER on RPE >= 19.5 --
+    # the opposite of what mf_score means elsewhere in the suite (motivation
+    # keeps runners going; Flouris 2024, see K_p notes). Now '-'.
+    rpe_total          = np.clip(rpe_physical - motivation_effect, 6.0, 20.0)
     return rpe_physical, rpe_total
 
 
@@ -3050,7 +3873,7 @@ def calculate_pediatric_rpe_improved(current_met, t_core, fitness_factor,
     rpe_physical      = np.clip(adjusted_base + heat_penalty, 0.0, 10.0)
     motivation_modifier = (mf_score - 0.5) * 2.0
     motivation_effect   = motivation_modifier * (10.0 - rpe_physical) * 0.25
-    rpe_total           = np.clip(rpe_physical + motivation_effect, 0.0, 10.0)
+    rpe_total           = np.clip(rpe_physical - motivation_effect, 0.0, 10.0)   # [2026-10-19] sign fixed, see adult RPE
     return rpe_physical, rpe_total
 
 
@@ -3079,7 +3902,8 @@ def calculate_pediatric_rpe_improved(current_met, t_core, fitness_factor,
 #
 #  [rev13-P5] AUC_thermisch: cumulative integral of T_rect > 39.0°C (°C·min)
 #  is accumulated in the loop and stored in results. This implements
-#  Breslow's time-integrated thermal dose concept. T_AUC_THRESHOLD = 39.0°C
+#  a time-integrated thermal dose concept. [2026-10-17: earlier attributed
+#  to Breslow; not found in Breslow 2021.] T_AUC_THRESHOLD = 39.0°C
 #  (module constant).
 #
 #  CHANGE SUMMARY vs rev09-rev12 (retained from earlier revisions)
@@ -3111,7 +3935,7 @@ def calculate_pediatric_rpe_improved(current_met, t_core, fitness_factor,
 #
 #  These values are consistent with the physiological literature for
 #  recreational marathon runners (Joyner 1991; Jones & Carter 2000).
-#  Clinical calibration from Bongers (Radboudumc) is still needed to
+#  Clinical calibration (Radboudumc) is still needed to
 #  determine the precise coefficient value.
 #
 #  The base_met parameter (user-selected activity MET) is NO LONGER used
@@ -3128,7 +3952,8 @@ def simulate_post_finish(t_rect_finish: float,
                           co_max_finish: float = None,
                           cvr_model=None,
                           t_skin_finish: float = None,
-                          dehydration_kg_finish: float = 0.0) -> dict:
+                          dehydration_kg_finish: float = 0.0,
+                          met_cv_finish: float = None) -> dict:
     """
     Propagate T_rect and CO_reserve for PF_DUUR_MIN minutes after the finish.
 
@@ -3248,7 +4073,19 @@ def simulate_post_finish(t_rect_finish: float,
         t = stap * PF_DT_MIN   # minutes after finish
 
         # Metabolic after-glow: exponential decay
-        warmte_in  = PF_DELTA_T_NAGLOED * np.exp(-t / PF_TAU_NAGLOED) * PF_DT_MIN
+        # [2026-10-14 FIX, units] Was:
+        #   warmte_in = PF_DELTA_T_NAGLOED * exp(-t/tau) * dt
+        # i.e. 0.40 used as a RATE (degC/min). Its time integral is
+        # PF_DELTA_T_NAGLOED * PF_TAU_NAGLOED = 0.80 degC -- twice the
+        # documented "peak amplitude 0.40 degC" -- and the Euler sum at
+        # dt=0.5 min added ~13% more. Verified on the Amsterdam 2026-10-18
+        # run: post-finish peak exceeded the race peak for 99.2% of
+        # participants, by +0.53 degC on average (+0.65 in the tail),
+        # raising the >42 degC count from 2 to 7. Now the exact integral
+        # of the exponential over each step, so the total after-glow
+        # equals PF_DELTA_T_NAGLOED (0.40 degC) as documented.
+        warmte_in  = PF_DELTA_T_NAGLOED * (np.exp(-t / PF_TAU_NAGLOED)
+                                           - np.exp(-(t + PF_DT_MIN) / PF_TAU_NAGLOED))
 
         # Net temperature change
         t_rect += warmte_in - koeling * PF_DT_MIN
@@ -3285,7 +4122,9 @@ def simulate_post_finish(t_rect_finish: float,
                 weight_loss_g_s=dehydration_kg_finish,
                 bf_skin_total=0.0, bf_ava_hand=0.6, bf_ava_foot=0.6,
                 t_skin_mean=t_skin_now,
-                current_met=PF_MET_RUST,
+                current_met=(PF_MET_RUST if (met_cv_finish is None or not CV_LAG_ENABLED)
+                             else PF_MET_RUST + (met_cv_finish - PF_MET_RUST)
+                             * np.exp(-(t + PF_DT_MIN) / CV_TAU_FALL_MIN)),   # [2026-10-20] lagged recovery
             )
             cvr_state_pf = cvr_model.compute_step(jos3_step)
             co_res = cvr_state_pf.CO_reserve - pooling_deficit
@@ -3318,7 +4157,7 @@ def simulate_post_finish(t_rect_finish: float,
                     t_tcf_pf = t + PF_DT_MIN
 
         # EHS criterion check
-        if t_rect > 40.5 and co_res <= 0 and not ehs_pf:
+        if t_rect > 40.5 and co_res <= CO_RESERVE_CEILING_TOL and not ehs_pf:
             
         #if t_rect > 40.5 and co_res <= 0 and co_reserve_finish > 0 and not ehs_pf:    
             ehs_pf   = True
@@ -3447,23 +4286,9 @@ def calculate_indices_jos3_adult(interp_data, lat, lon, met_value, clo_value,
     # directly into jos3_model.tr and so affected simulated T_rect, not
     # just a display value. Falls back to the internal calculation only
     # when the source sheet predates these columns (all-None).
-    if all(interp_data[0].get(k) is not None
-           for k in ('ghi', 'solar_elevation', 'globe_temp', 'mrt')):
-        ghi              = [entry['ghi'] for entry in interp_data]
-        solar_elevations = [entry['solar_elevation'] for entry in interp_data]
-        globe_temps      = [entry['globe_temp'] for entry in interp_data]
-        mrts             = [entry['mrt'] for entry in interp_data]
-    else:
-        radiances       = [calculate_solar_radiance(lat, lon, str(t), c, aqi)
-                            for t, c in zip(times, clouds)]
-        ghi             = [rad['ghi'] for rad in radiances]
-        solar_elevations= [rad['solar_elevation'] for rad in radiances]
-        globe_temps     = [calculate_globe_temperature(t, g, w, se, p, c, aqi)
-                            for t, g, w, se, p, c in zip(
-                                temps, ghi, wind_1_5m, solar_elevations, pressures, clouds)]
-        mrts            = [calculate_mrt(gt, t, w, g, se)
-                            for gt, t, w, g, se in zip(
-                                globe_temps, temps, wind_1_5m, ghi, solar_elevations)]
+    # [2026-10-24] Measured/forecast radiation preferred, see radiation_series().
+    ghi, solar_elevations, globe_temps, mrts, _rad_bron = radiation_series(
+        interp_data, times, temps, wind_1_5m, pressures, clouds, lat, lon, aqi, rhs=rhs)
     # [fix] Same precomputed-preferred approach for wet-bulb temperature --
     # checked independently since a file could have T_wetbulb without the
     # solar/globe columns above, or vice versa. Klimatos can generate
@@ -3490,9 +4315,11 @@ def calculate_indices_jos3_adult(interp_data, lat, lon, met_value, clo_value,
     # getattr() keeps this backward-compatible with any caller still passing
     # a plain object/tuple without the field.
     fat_percentage = getattr(participant_params, 'body_fat_pct', 25 if gender == "female" else 15)
+    # [2026-10-23] age decrement scaled by fitness and heat acclimatisation (jos3_leeftijd)
+    jos3_leeftijd.set_person(vo2max, runner_age, gender, acclimatization_factor)
     jos3_model     = maak_jos3(height=height, weight=weight, age=runner_age,
                           fat=fat_percentage, sex=gender)
-    jos3_model.t_core[:] = 37.0
+    # [2026-10-19] removed the no-op 'jos3_model.t_core[:] = 37.0' (see FOUNDATION REPAIR)
 
     time_steps_minutes = [(times[i+1] - times[i]).total_seconds() / 60.0
                            for i in range(len(times) - 1)]
@@ -3527,9 +4354,56 @@ def calculate_indices_jos3_adult(interp_data, lat, lon, met_value, clo_value,
     # live CVR step has run (i==0 has no previous step to base pacing on,
     # same as prev_t_rect).
     prev_co_reserve_live     = None
+    jos3_snapshot_prev       = None  # [2026-10-19] state for the forced CV ceiling
+    cv_cap_last              = None  # [2026-10-19] ceiling (MET) one step earlier
+    cv_integral_met          = 0.0   # [2026-10-14] optional integral pacing term (MET)
+    hr_live                  = None  # [2026-10-19] CVR heart rate of this step (RPE)
+    met_cv                   = PF_MET_RUST   # [2026-10-20] lagged MET for the CVR module (standing at the start)
     can_drink_again         = True
 
+    # [2026-10-19] Distance-based race (RACE_DISTANCE_MODE), see the constants.
+    _pace_plan = float(getattr(participant_params, 'pace_min_per_km', 0.0) or 0.0)
+    _dur_plan  = float(getattr(participant_params, 'duration_hours', 0.0) or 0.0)
+    _dt_nom    = float(time_steps_minutes[1]) if len(times) > 1 else 10.0
+    distance_mode = (RACE_DISTANCE_MODE and _pace_plan > 0 and _dur_plan > 0
+                     and len(times) > 1 and _dt_nom > 0)
+    if distance_mode:
+        _planned_steps = max(2, int(round(_dur_plan * 60.0 / _dt_nom)) + 1)
+        _v_plan   = 1000.0 / _pace_plan                       # m/min
+        _vo2_plan = _daniels_gilbert_vo2_at_pace(_pace_plan)  # mL/kg/min
+        # Exact planned distance and time (the old fixed-duration slice was
+        # rounded to whole 10-min steps, up to 5 min off).
+        race_target_m    = _v_plan * _dur_plan * 60.0
+        race_planned_min = _dur_plan * 60.0
+    else:
+        race_target_m = race_planned_min = None
+    race_dist_m      = 0.0
+    race_elapsed_min = 0.0
+    race_finished    = False
+    stop_min         = None
+
+    def _speed_m_per_min(met_now: float) -> float:
+        """Daniels & Gilbert speed for the VO2 that met_now represents,
+        scaled so that met_initial gives exactly the planned pace."""
+        vo2 = _vo2_plan * met_now / max(1e-6, met_initial)
+        a, b, c = 0.000104, 0.182258, -(vo2 + 4.60)
+        return max(0.0, (-b + math.sqrt(b * b - 4 * a * c)) / (2 * a))
+
+    # [2026-10-19] After-glow on slowing (SLOWDOWN_AFTERGLOW).
+    met_prev_used        = None
+    afterglow_total_c    = 0.0
+    afterglow_max_step_c = 0.0
+    try:
+        from pythermalcomfort.jos3_functions.matrix import INDEX as _JOS3_INDEX
+        _core_idx = _JOS3_INDEX["core"]
+    except Exception:
+        _core_idx = None
+
     for i in range(len(times)):
+        if runner_stopped and i > 0 and RPE_STOP_ENDS_RACE:
+            # [2026-10-19] The race ends at the RPE stop; the post-finish
+            # module below follows the runner from here (not frozen).
+            break
         if runner_stopped and i > 0:
             results.append({**results[-1],
                             'time': times[i].strftime('%Y-%m-%d %H:%M'),
@@ -3571,7 +4445,7 @@ def calculate_indices_jos3_adult(interp_data, lat, lon, met_value, clo_value,
         # Ref: Ely BR et al. (2010) Med Sci Sports Exerc 42(1):135-141 (see
         # K_P_PACING docstring for the 2026-09-28 citation correction).
         #
-        # [2026-09-28, gewijzigd op Koos's expliciete verzoek] Cardiovascular
+        # [2026-09-28, gewijzigd op expliciet verzoek van de auteur] Cardiovascular
         # pacing term: was een harde knik bij CO_reserve=0 ("reserve is
         # reserve"); is nu, net als de thermische term, een GELEIDELIJKE
         # overschrijding onder CO_RESERVE_PACING_THRESHOLD (2.0 L/min, dezelfde
@@ -3593,12 +4467,67 @@ def calculate_indices_jos3_adult(interp_data, lat, lon, met_value, clo_value,
             thermal_overshoot = max(0.0, prev_t_rect - T_RECT_PACING_THRESHOLD)
             cv_overshoot      = (max(0.0, CO_RESERVE_PACING_THRESHOLD - prev_co_reserve_live)
                                   if prev_co_reserve_live is not None else 0.0)
+            # [2026-10-14, standaard AAN] Integrerende term op
+            # het onhoudbare deel (CO_reserve < 0 = VO2 boven het door hitte
+            # verlaagde VO2max). Zie K_I_PACING_CV bij de constanten.
+            if K_I_PACING_CV > 0.0 and prev_co_reserve_live is not None:
+                _dt = float(time_steps_minutes[i])
+                if prev_co_reserve_live < 0.0:
+                    cv_integral_met += K_I_PACING_CV * (-prev_co_reserve_live) * _dt
+                elif prev_co_reserve_live > CO_RESERVE_PACING_THRESHOLD:
+                    cv_integral_met *= float(np.exp(-_dt / PACING_CV_INTEGRAL_RELEASE_MIN))
+                cv_integral_met = min(cv_integral_met, PACING_CV_INTEGRAL_MAX_FRAC * met_initial)
             met_reduction     = (kp_ind * thermal_overshoot        # [rev14-A] individual K_p
-                                  + kp_ind_cv * cv_overshoot)
+                                  + kp_ind_cv * cv_overshoot
+                                  + cv_integral_met)
             current_met       = max(1.5, met_initial - met_reduction)
 
+        # [2026-10-19] Forced reduction at the cardiovascular ceiling (see
+        # CV_CEILING_FORCED). Based on the state at the end of the previous
+        # step, the same timing as the voluntary terms.
+        met_forced_reduction = 0.0
+        if (CV_CEILING_FORCED and i > 0 and cvr_model_live is not None
+                and jos3_snapshot_prev is not None):
+            _cap_now = cvr_model_live.met_at_ceiling(jos3_snapshot_prev)
+            # Feed-forward on the trend: the ceiling keeps falling while the
+            # body heats up, so a cap from the end of the previous step is
+            # already too high by the end of this one. Anticipate the same
+            # fall as in the last step (only when it is falling).
+            _met_cap = _cap_now - (max(0.0, cv_cap_last - _cap_now) if CV_CEILING_ANTICIPATE and cv_cap_last is not None else 0.0)
+            cv_cap_last = _cap_now
+            if current_met > _met_cap:
+                met_forced_reduction = current_met - max(1.5, _met_cap)
+                current_met = max(1.5, _met_cap)
+
+        # [2026-10-19] Length of this step. In distance mode the last step is
+        # shortened to the whole minutes still needed to reach the distance.
+        dt_i = float(time_steps_minutes[i])
+        is_last_step = False
+        if distance_mode and i > 0:
+            _v_now = _speed_m_per_min(current_met)
+            _remaining = race_target_m - race_dist_m
+            _need = _remaining / _v_now if _v_now > 0 else float('inf')
+            if _need <= dt_i + 1e-6:
+                dt_i = float(min(dt_i, max(1, math.ceil(_need - 1e-6))))
+                is_last_step = True
+            race_dist_m = min(race_target_m, race_dist_m + _v_now * dt_i)
+        if i > 0:
+            race_elapsed_min += dt_i
+
+        # [2026-10-19] After-glow on a MET drop (SLOWDOWN_AFTERGLOW): heat
+        # added to the JOS-3 core compartments at the start of the step.
+        afterglow_step_c = 0.0
+        if (SLOWDOWN_AFTERGLOW and i > 0 and met_prev_used is not None
+                and current_met < met_prev_used and _core_idx is not None):
+            _drop = met_prev_used - current_met
+            afterglow_step_c = PF_DELTA_T_NAGLOED * _drop / max(0.5, met_initial - PF_MET_RUST)
+            jos3_model._t_body[_core_idx] += afterglow_step_c
+            afterglow_total_c += afterglow_step_c
+            afterglow_max_step_c = max(afterglow_max_step_c, afterglow_step_c)
+        met_prev_used = current_met
+
         # JOS-3 step
-        jos3_model.par = current_met
+        jos3_model.par = jos3_par(jos3_model, current_met)   # [2026-10-19] FOUNDATION REPAIR
         jos3_model.tdb = temps[i]
         jos3_model.tr  = mrts[i]
         jos3_model.rh  = rhs[i]
@@ -3617,15 +4546,15 @@ def calculate_indices_jos3_adult(interp_data, lat, lon, met_value, clo_value,
         )
         jos3_model.clo = clo_value
         if i > 0:
-            jos3_model.simulate(times=int(round(time_steps_minutes[i])), dtime=60)
+            jos3_model.simulate(times=int(round(dt_i)), dtime=60)
 
-        t_rect = jos3_model.t_core.mean() + 0.5  # rectal offset (Rae 2008)
+        t_rect = jos3_t_rect(jos3_model)  # [2026-10-19] pelvis core (was mean of 17 + 0.5)
 
         # [rev13-P5] AUC_thermisch: accumulate time-integrated T_rect exceedance.
         # Integration floor T_AUC_THRESHOLD = 39.0°C (module constant).
         # dt_min = 0 at i==0 (initialisation step, no elapsed time).
         if i > 0:
-            dt_min         = time_steps_minutes[i]
+            dt_min         = dt_i
             auc_thermisch += max(0.0, t_rect - T_AUC_THRESHOLD)  * dt_min
             auc_klinisch  += max(0.0, t_rect - T_AUC_KLINISCH)   * dt_min  # [rev14-B]
 
@@ -3640,7 +4569,7 @@ def calculate_indices_jos3_adult(interp_data, lat, lon, met_value, clo_value,
             # and 19 % after two hours. Now: mean over the minutes simulated
             # in this step (time_steps_minutes[i] entries).
             _wl = np.asarray(results_jos3['weight_loss_by_evap_and_res'], dtype=float).ravel()
-            _n_stap = max(1, int(round(time_steps_minutes[i]))) if i > 0 else 1
+            _n_stap = max(1, int(round(dt_i))) if i > 0 else 1
             water_loss_rate_g_per_s = float(np.mean(_wl[-_n_stap:])) if _wl.size else 0.0
         else:
             metabolic_heat_flux     = jos3_model.par * 58.2
@@ -3664,12 +4593,24 @@ def calculate_indices_jos3_adult(interp_data, lat, lon, met_value, clo_value,
         # while dehydration_pct's actual values were modest/realistic --
         # the bug was the missing rehydration, not the dehydration model.
         sweat_rate     = water_loss_rate_g_per_s * 60.0 * sweat_factor
-        water_loss     = sweat_rate * time_steps_minutes[i] if i > 0 else 0
+        water_loss     = sweat_rate * dt_i if i > 0 else 0
         cumulative_water_loss += water_loss
         water_loss_pct = (cumulative_water_loss / 1000) / weight * 100
         is_thirsty     = water_loss_pct >= thirst_threshold
 
-        if is_thirsty and can_drink_again:
+        # [2026-10-19, BUG FIX] Drinking. can_drink_again was meant as "one
+        # drink per thirst episode" but only reset once the runner was no
+        # longer thirsty -- and one 120-180 g drink never brings a sweating
+        # runner back under the threshold, so after the first drink nobody
+        # ever drank again. Measured (Amsterdam 2026-10-18, 20 runners): 1.2
+        # drinks per runner, 0.04 L/h, net loss 4.2 % after the foundation
+        # repair. Field data: recreational marathon finishers lose 2.3 % body
+        # weight on average (Zouhal et al. 2011, Br J Sports Med 45:1101, 643
+        # runners); elite marathoners drink 0.55 L/h, range 0.03-1.09 (Beis et
+        # al. 2012, Clin J Sport Med 22:254). Now: a thirsty runner drinks
+        # 120-180 g every step (up to ~0.9 L/h), so net loss hovers near the
+        # personal thirst threshold (1.0-2.5 %), as in ad-libitum drinking.
+        if is_thirsty and (can_drink_again or DRINK_EVERY_STEP_WHEN_THIRSTY):
             cumulative_water_loss = max(0, cumulative_water_loss - np.random.uniform(120, 180))
             can_drink_again       = False
         if not is_thirsty:
@@ -3684,6 +4625,7 @@ def calculate_indices_jos3_adult(interp_data, lat, lon, met_value, clo_value,
             # `dehydration_kg_finish = cvr_water_loss_kg`, which is
             # unchanged and now automatically gets the corrected value too).
             cvr_water_loss_kg = cumulative_water_loss / 1000.0
+            met_cv = cv_met_lag(met_cv, current_met, dt_i)   # [2026-10-20] heart lags the load
 
             co_lh = float(np.array(results_jos3['cardiac_output']).flat[-1]) \
                 if 'cardiac_output' in results_jos3 else 900.0
@@ -3700,18 +4642,18 @@ def calculate_indices_jos3_adult(interp_data, lat, lon, met_value, clo_value,
             bf_ava_f = float(np.array(results_jos3['bf_ava_foot']).flat[-1]) \
                 if 'bf_ava_foot' in results_jos3 else 0.5
             t_cb_val = float(np.array(results_jos3['t_cb']).flat[-1]) \
-                if 't_cb' in results_jos3 else jos3_model.t_core.mean()
+                if 't_cb' in results_jos3 else jos3_core_for_chsi(jos3_model)
 
             jos3_snapshot_this_step = JOS3Outputs(
                 t_min          = i,
                 cardiac_output = co_lh,
-                t_core_mean    = jos3_model.t_core.mean(),
+                t_core_mean    = jos3_core_for_chsi(jos3_model),   # [2026-10-19] pelvis core
                 t_cb           = t_cb_val,
                 weight_loss_g_s= cvr_water_loss_kg,
                 bf_skin_total  = bf_skin_tot,
                 bf_ava_hand    = bf_ava_h,
                 bf_ava_foot    = bf_ava_f,
-                current_met    = current_met,  # [2026-07] enables workload-
+                current_met    = met_cv,       # [2026-10-20] lagged MET (CV_LAG_ENABLED); [2026-07] enables workload-
                                                # based CO/HR via Lloyd 2022
                                                # Eq. 12-31 instead of reading
                                                # JOS-3's own cardiac_output
@@ -3725,7 +4667,10 @@ def calculate_indices_jos3_adult(interp_data, lat, lon, met_value, clo_value,
             # CVRModel.compute_step() method as the final post-loop batch
             # pass, so this cannot drift from the officially reported
             # CO_reserve (same precision, just also evaluated in-step).
-            prev_co_reserve_live = cvr_model_live.compute_step(jos3_snapshot_this_step).CO_reserve
+            _cvr_live_state = cvr_model_live.compute_step(jos3_snapshot_this_step)
+            prev_co_reserve_live = _cvr_live_state.CO_reserve
+            hr_live = float(_cvr_live_state.HR)   # [2026-10-19] for RPE_FROM_CVR_HR
+            jos3_snapshot_prev = jos3_snapshot_this_step
 
         if utcis_pre[i] is not None:
             utci_val = utcis_pre[i]
@@ -3750,23 +4695,39 @@ def calculate_indices_jos3_adult(interp_data, lat, lon, met_value, clo_value,
         # reflect that real-time change, not the static target value.
         current_pct_vo2max = pct_vo2max * (current_met / met_value) if met_value > 0 else pct_vo2max
 
-        rpe_physical, rpe_total = calculate_adult_rpe_improved(
-            current_met=current_met,
-            t_rect=t_rect,
-            training_factor=training_factor,
-            acclimatization_factor=acclimatization_factor,
-            mf_score=mf_score,
-            pct_vo2max=current_pct_vo2max,
-            runner_age=runner_age,
-        )
+        if RPE_FROM_CVR_HR and cvr_model_live is not None and hr_live is not None:
+            # [2026-10-19] RPE from this step's CVR heart rate (author's decision).
+            rpe_physical, rpe_total = calculate_adult_rpe_from_hr(
+                hr=hr_live, hr_rest=cvr_model_live.HR_rest, hr_max=cvr_model_live.HR_max,
+                training_factor=training_factor, mf_score=mf_score)
+        else:
+            rpe_physical, rpe_total = calculate_adult_rpe_improved(
+                current_met=current_met,
+                t_rect=t_rect,
+                training_factor=training_factor,
+                acclimatization_factor=acclimatization_factor,
+                mf_score=mf_score,
+                pct_vo2max=current_pct_vo2max,
+                runner_age=runner_age,
+            )
 
-        if rpe_total >= 19.5:
+        # [2026-10-19] Stop decision. With RPE from the CVR heart rate the
+        # perceived effort (rpe_physical) is compared with a personal limit
+        # set by motivation (rpe_stop_threshold): a low-motivation runner
+        # quits near maximal effort, a highly motivated runner keeps going
+        # and is slowed by the cardiovascular ceiling instead. Legacy path:
+        # rpe_total >= 19.5 as before.
+        if RPE_FROM_CVR_HR and hr_live is not None:
+            if rpe_physical >= rpe_stop_threshold(mf_score):
+                runner_stopped = True
+        elif rpe_total >= 19.5:
             runner_stopped = True
 
         first_aid_visit = (t_rect >= 40.5) or (water_loss_pct >= 2.0) or (rpe_total >= 17)
 
+        _t_stamp = (times[i - 1] + pd.Timedelta(minutes=dt_i)) if (i > 0 and is_last_step) else times[i]
         results.append({
-            "time":           times[i].strftime('%Y-%m-%d %H:%M'),
+            "time":           _t_stamp.strftime('%Y-%m-%d %H:%M'),
             "utci":           utci_val,
             "wbgt":           wbgt_val,
             "t_rect":         t_rect,
@@ -3779,6 +4740,10 @@ def calculate_indices_jos3_adult(interp_data, lat, lon, met_value, clo_value,
             "first_aid_visit":     first_aid_visit,
             "is_unliveable":  is_unliveable,
             "current_met":    current_met,        # [rev13-P4] dynamic MET
+            "met_forced_reduction": met_forced_reduction,  # [2026-10-19] MET cut by the CV ceiling
+            "afterglow_c":    afterglow_step_c,   # [2026-10-19] after-glow added on slowing (degC)
+            "distance_km":    (race_dist_m / 1000.0) if distance_mode else float('nan'),
+            "dt_min":         dt_i,               # [2026-10-19] length of this step (last step can be shorter)
             "auc_thermisch":  auc_thermisch,      # [rev13-P5] °C·min above 39.0°C
             "auc_klinisch":   auc_klinisch,       # [rev14-B] °C·min above 40.5°C
             "kp_ind":         kp_ind,             # [rev14-A] individual pacing gain
@@ -3787,6 +4752,25 @@ def calculate_indices_jos3_adult(interp_data, lat, lon, met_value, clo_value,
             "cvs_index":      float('nan'),
             "co_reserve":     float('nan'),
             "decompensating":  False,
+        })
+        if runner_stopped and stop_min is None:
+            stop_min = race_elapsed_min
+        if is_last_step:
+            race_finished = True
+            break
+
+    # [2026-10-19] Race-length bookkeeping (RACE_DISTANCE_MODE / RPE_STOP_ENDS_RACE).
+    if len(results) > 0:
+        results[-1].update({
+            'race_planned_min':   race_planned_min,
+            'race_actual_min':    race_elapsed_min,
+            'race_extension_min': (race_elapsed_min - race_planned_min) if (distance_mode and race_finished) else float('nan'),
+            'race_distance_km':   (race_dist_m / 1000.0) if distance_mode else float('nan'),
+            'race_finished':      bool(race_finished) if distance_mode else (not runner_stopped),
+            'dnf_cutoff':         bool(distance_mode and not race_finished and not runner_stopped),
+            'stop_min':           stop_min,
+            'afterglow_total_c':  afterglow_total_c,
+            'afterglow_max_step_c': afterglow_max_step_c,
         })
 
     if CVR_AVAILABLE and len(jos3_cvr_series) > 0:
@@ -3799,7 +4783,7 @@ def calculate_indices_jos3_adult(interp_data, lat, lon, met_value, clo_value,
                 results[idx]['co_reserve']    = cvr_state.CO_reserve
                 results[idx]['decompensating'] = cvr_state.decompensating
 
-    # [2026-09-29, op verzoek van Koos] 'Punt-van-geen-terugkeer': het eerste
+    # [2026-09-29, op verzoek van de auteur] 'Punt-van-geen-terugkeer': het eerste
     # tijdstip waarop T_rect>40.5 EN CO_reserve<=0 werkelijk GELIJKTIJDIG
     # gelden -- berekend hier, NA de koppeling hierboven, zodat dezelfde
     # co_reserve-waarden worden gebruikt als overal elders in de rapportage
@@ -3814,7 +4798,7 @@ def calculate_indices_jos3_adult(interp_data, lat, lon, met_value, clo_value,
         _co = results[_idx].get('co_reserve', float('nan'))
         if np.isnan(_co):
             continue
-        _conj_nu = (results[_idx]['t_rect'] > T_AUC_KLINISCH) and (_co <= 0.0)
+        _conj_nu = (results[_idx]['t_rect'] > T_AUC_KLINISCH) and (_co <= CO_RESERVE_CEILING_TOL)
         if _conj_nu and not conjunctie_ooit_bereikt:
             conjunctie_ooit_bereikt = True
             conjunctie_eerste_min   = round(_elapsed_min, 1)
@@ -3862,7 +4846,23 @@ def calculate_indices_jos3_adult(interp_data, lat, lon, met_value, clo_value,
                       if CVR_AVAILABLE and len(jos3_cvr_series) > 0 and cvr_ts.states
                       else None)
 
-    pf = simulate_post_finish(
+    if PF_JOS3 and CVR_AVAILABLE and len(jos3_cvr_series) > 0:
+        # [2026-10-20] Finish zone with the runner's own JOS-3 model.
+        _i_end = min(i, len(times) - 1)
+        _steps = []
+        for _m in range(int(PF_JOS3_DUUR_MIN) + 1):
+            _j = min(len(times) - 1, _i_end + int(_m // max(1.0, _dt_nom)))
+            _steps.append((temps[_j], mrts[_j], rhs[_j], wind_1_5m[_j]))
+        pf = simulate_post_finish_jos3(
+            jos3_model, cvr_model_live, _steps,
+            t_rect_finish=t_rect_finish, co_reserve_finish=co_reserve_finish,
+            auc_klinisch_race=auc_klinisch_race, met_finish=current_met,
+            met_initial=met_initial, met_cv_finish=met_cv,
+            cumulative_water_loss_g=cumulative_water_loss, weight_kg=weight,
+            sweat_factor=sweat_factor, thirst_threshold=thirst_threshold,
+            clo_value=clo_value, walked=not runner_stopped)
+    else:
+      pf = simulate_post_finish(
         t_rect_finish     = t_rect_finish,
         co_reserve_finish = co_reserve_finish,
         auc_klinisch_race = auc_klinisch_race,
@@ -3873,6 +4873,7 @@ def calculate_indices_jos3_adult(interp_data, lat, lon, met_value, clo_value,
                               if CVR_AVAILABLE and len(jos3_cvr_series) > 0
                               else None),
         dehydration_kg_finish = cvr_water_loss_kg if CVR_AVAILABLE else 0.0,
+        met_cv_finish     = met_cv if CVR_AVAILABLE else None,   # [2026-10-20]
     )
     # Attach post-finish results to last entry for easy extraction
     results[-1].update({
@@ -3893,6 +4894,10 @@ def calculate_indices_jos3_adult(interp_data, lat, lon, met_value, clo_value,
         # in both individual and Monte Carlo runs, in every report produced
         # with this model so far.
         'control_failure_dose_postfinish'     : pf['control_failure_dose_postfinish'],
+        # [2026-10-20] EAC-staan (0 on the legacy post-finish path)
+        'eac_staanbelasting'  : pf.get('eac_staanbelasting', 0.0),
+        'eac_tolerantie_min'  : pf.get('eac_tolerantie_min', 1.0),
+        'eac_kans'            : pf.get('eac_kans', 0.0),
         'control_failure_time_postfinish_min' : pf['control_failure_time_postfinish_min'],
         't_control_failure_postfinish_min'    : pf['t_control_failure_postfinish_min'],
     })
@@ -3929,23 +4934,9 @@ def run_pediatric_simulation(interp_data, lat, lon, met_value, clo_value,
     aqi             = get_air_quality(lat, lon)
     # [fix] Same precomputed-values-preferred approach as the adult path
     # above -- see that comment for the full rationale and verification.
-    if all(interp_data[0].get(k) is not None
-           for k in ('ghi', 'solar_elevation', 'globe_temp', 'mrt')):
-        ghi              = [entry['ghi'] for entry in interp_data]
-        solar_elevations = [entry['solar_elevation'] for entry in interp_data]
-        globe_temps      = [entry['globe_temp'] for entry in interp_data]
-        mrts             = [entry['mrt'] for entry in interp_data]
-    else:
-        radiances       = [calculate_solar_radiance(lat, lon, str(t), c, aqi)
-                            for t, c in zip(times, clouds)]
-        ghi             = [rad['ghi'] for rad in radiances]
-        solar_elevations= [rad['solar_elevation'] for rad in radiances]
-        globe_temps     = [calculate_globe_temperature(t, g, w, se, p, c, aqi)
-                            for t, g, w, se, p, c in zip(
-                                temps, ghi, wind_1_5m, solar_elevations, pressures, clouds)]
-        mrts            = [calculate_mrt(gt, t, w, g, se)
-                            for gt, t, w, g, se in zip(
-                                globe_temps, temps, wind_1_5m, ghi, solar_elevations)]
+    # [2026-10-24] Measured/forecast radiation preferred, see radiation_series().
+    ghi, solar_elevations, globe_temps, mrts, _rad_bron = radiation_series(
+        interp_data, times, temps, wind_1_5m, pressures, clouds, lat, lon, aqi, rhs=rhs)
 
     if interp_data[0].get('twb_precomputed') is not None:
         twbs = [entry['twb_precomputed'] for entry in interp_data]
@@ -3953,6 +4944,7 @@ def run_pediatric_simulation(interp_data, lat, lon, met_value, clo_value,
         twbs = [wet_bulb_tmp(tdb=t, rh=r) for t, r in zip(temps, rhs)]
     wbgts_pre = [entry.get('wbgt_precomputed') for entry in interp_data]
     utcis_pre = [entry.get('utci_precomputed') for entry in interp_data]
+    jos3_leeftijd.reset_person()   # [2026-10-23] children: no age decrement anyway; no stale factor
     jos3_model = maak_jos3(height=height, weight=weight, age=age,
                        fat=fat_percentage, sex=gender)
     jos3_model.t_core[:] = 37.0
@@ -4047,6 +5039,20 @@ def worker_monte_carlo_adult(args):
     if _script_dir not in sys.path:
         sys.path.insert(0, _script_dir)
     interp_data, lat, lon, met_value, clo_value, params, training, acclimatization = args
+    # [2026-10-15] Reproducibility fix. The only random draw inside a
+    # participant's simulation is the drink size (np.random.uniform(120,
+    # 180) g). In a Pool, each worker inherits the parent's RNG state and
+    # draws in whatever order the scheduler hands it participants, so the
+    # same seed gave slightly different results run to run (measured:
+    # ehs intercept -8.8081 vs -8.8091 for two identical seed-42
+    # calibrations). Seeding per participant from the participant's own
+    # (already seeded) profile makes each simulation independent of
+    # scheduling and of serial vs. parallel execution.
+    _key = (round(float(params.height), 6), round(float(params.weight), 6), int(params.age),
+            round(float(params.vo2max), 6), round(float(params.pct_vo2max), 6),
+            round(float(getattr(params, 'wind_angle_rad', 0.0)), 9))
+    import zlib
+    np.random.seed(zlib.crc32(repr(_key).encode()) & 0xFFFFFFFF)
     return calculate_indices_jos3_adult(
         interp_data, lat, lon, met_value, clo_value, params, training, acclimatization
     )
@@ -4112,7 +5118,7 @@ def _intercept_sensitivity(z_zonder_intercept: np.ndarray,
     to DtD conditions.  It covers:
       - Between-event EHS rate variation (~2-fold in the literature).
       - JOS-3 systematic T_rect offset vs. field measurements (~0.3°C).
-      - training_offset coefficient uncertainty (±0.05, pending Bongers).
+      - training_offset coefficient uncertainty (±0.05, pending clinical calibration).
 
     Parameters
     ----------
@@ -4238,6 +5244,11 @@ def get_age_group(age):
     if 40 <= age <= 49:  return "40-49"
     if 50 <= age <= 59:  return "50-59"
     return "60-65"
+
+
+# [2026-10-25] Reproducible default for the user-facing entry points
+# (console, run_hestia). Pass random_seed=None explicitly for a fresh draw.
+DEFAULT_RANDOM_SEED = 42
 
 
 def run_monte_carlo_adult(interp_data, lat, lon, met_value, clo_value,
@@ -4370,7 +5381,10 @@ def run_monte_carlo_adult(interp_data, lat, lon, met_value, clo_value,
             # exposure time -- see this session's discussion of exactly that
             # gap.
             n_steps = max(2, int(round(params.duration_hours * 60.0 / _step_minutes)) + 1)
-            person_interp = interp_data[:n_steps]
+            # [2026-10-19] RACE_DISTANCE_MODE: the engine ends the race when
+            # the distance is covered, so it gets the whole window (up to the
+            # course limit) and can run longer than planned if it slows down.
+            person_interp = interp_data if RACE_DISTANCE_MODE else interp_data[:n_steps]
             person_met = _acsm_met_from_pace(params.pace_min_per_km)
             worker_args.append((person_interp, lat, lon, person_met, clo_value, params,
                                 training_factor, acclimatization_factor))
@@ -4554,8 +5568,18 @@ def run_monte_carlo_adult(interp_data, lat, lon, met_value, clo_value,
             peak_t_rect_per_sim > T_THERMAL_ONLY_CRITICAL) * 100),
         # [rev14-C] Post-finish
         'pct_ehs_postfinish': float(np.mean(ehs_pf_per_sim) * 100),
+        # [2026-10-20] EAC-staan: expected collapses on standing per 1000 starters
+        'eac_per_1000':       float(np.mean([res[-1].get('eac_kans', 0.0) for res in all_results]) * 1000),
+        # [2026-10-20 late] Median over runners of each runner's highest race WBGT;
+        # above EAC_WBGT_VALID_MAX no field data exist, so no EAC figure is shown.
+        # Below it the figure is provisional: calibrated at one point, not validated.
+        'wbgt_race_max_p50':  float(np.nanmedian([np.nanmax([r.get('wbgt', np.nan) for r in res
+                                                             if r.get('wbgt') is not None] or [np.nan])
+                                                  for res in all_results])),
         't_rect_pf_p95':      float(np.percentile(t_rect_pf_sim, 95)),
     }
+    stats['eac_buiten_bereik'] = bool(np.isfinite(stats['wbgt_race_max_p50'])
+                                      and stats['wbgt_race_max_p50'] > EAC_WBGT_VALID_MAX)
 
     control_failure_per_sim = None
     if run_control_failure and TCF_AVAILABLE:
@@ -4610,10 +5634,15 @@ def run_monte_carlo_adult(interp_data, lat, lon, met_value, clo_value,
         P_OBS = P_OBS_COLLAPSE
 
         t_rect_max_per_sim = np.nanmax(t_rect_sims, axis=1)
+        # [2026-10-20] Race + finish zone (COLLAPSE_INCLUDES_POSTFINISH).
+        _extremes = [collapse_extremes(res) for res in all_results]
+        t_rect_max_collapse = np.array([e[0] for e in _extremes])
+        res_min_collapse    = np.array([e[1] for e in _extremes])
+        res_min_collapse    = np.where(np.isnan(res_min_collapse), 2.0, res_min_collapse)
         z_zonder_intercept = (
-              W_T1 * np.clip(t_rect_max_per_sim - 39.5, 0.0, None)
-            + W_T2 * np.clip(t_rect_max_per_sim - 40.5, 0.0, None)
-            + W_C  * np.clip(2.0 - res_min,            0.0, None)
+              W_T1 * np.clip(t_rect_max_collapse - 39.5, 0.0, None)
+            + W_T2 * np.clip(t_rect_max_collapse - 40.5, 0.0, None)
+            + W_C  * np.clip(2.0 - res_min_collapse,  0.0, None)
             + W_D  * np.clip(dehy_eind - 3.0,          0.0, None)
         )
 
@@ -4739,7 +5768,37 @@ def run_monte_carlo_adult(interp_data, lat, lon, met_value, clo_value,
             'pct_vo2max':            round(p.pct_vo2max, 3),
             'implied_met_initial':   round(implied_met, 2),
             'met_min_dynamic':       round(min_met, 2),
-            'kp_pacing':             round(getattr(p, 'kp_pacing', K_P_PACING), 4),  # [rev14-A]
+            # [2026-10-14] Pace/finish-time and pacing-response columns:
+            # needed to check the simulated field against real finish
+            # times and to see how much each runner actually slowed down.
+            'pace_min_per_km':       round(getattr(p, 'pace_min_per_km', 0.0), 3),
+            'finish_time_h':         round(getattr(p, 'duration_hours', 0.0), 3),   # planned
+            # [2026-10-19] Actual race: longer when slowed (RACE_DISTANCE_MODE),
+            # shorter when stopped on RPE (RPE_STOP_ENDS_RACE).
+            'race_actual_h':         round(sim_result[-1].get('race_actual_min', float('nan')) / 60.0, 3),
+            'race_extension_min':    round(sim_result[-1].get('race_extension_min', float('nan')), 1),
+            'race_distance_km':      round(sim_result[-1].get('race_distance_km', float('nan')), 2),
+            'race_finished':         int(bool(sim_result[-1].get('race_finished', True))),
+            'dnf_cutoff':            int(bool(sim_result[-1].get('dnf_cutoff', False))),
+            'gestopt_rpe':           int(any(bool(r.get('stopped', False)) for r in sim_result)),
+            'stop_min':              sim_result[-1].get('stop_min'),
+            'nagloei_vertraging_totaal_c': round(sim_result[-1].get('afterglow_total_c', 0.0), 3),
+            'nagloei_vertraging_max_c':    round(sim_result[-1].get('afterglow_max_step_c', 0.0), 3),
+            'pct_vo2max_ceiling':    (round(sustainable_vo2max_fraction(p.duration_hours * 60.0), 3)
+                                      if getattr(p, 'duration_hours', 0.0) else None),
+            # [2026-10-15] Relative to this runner's own START MET (first
+            # step), not to implied_met: implied_met is before the
+            # training_offset (training_factor * 5%), so with training_factor
+            # 0.5 every runner showed a spurious ~2.5% "pacing reduction".
+            'pacing_reductie_pct':   (round(100.0 * (1.0 - min_met / _met_start), 1)
+                                      if (_met_start := float(sim_result[0].get('current_met', implied_met) or implied_met)) > 0
+                                      else None),
+            # [2026-10-19] Forced pace reduction at the cardiovascular ceiling:
+            # number of 10-min steps capped, and the largest MET cut.
+            'cv_plafond_stappen':    int(sum(1 for r in sim_result if r.get('met_forced_reduction', 0.0) > 1e-9
+                                             and not r.get('stopped', False))),
+            'cv_plafond_max_met':    round(max((r.get('met_forced_reduction', 0.0) for r in sim_result), default=0.0), 2),
+            'kp_pacing':            round(getattr(p, 'kp_pacing', K_P_PACING), 4),  # [rev14-A]
             'nsaid_gebruik':         int(getattr(p, 'nsaid_gebruik', False)),          # [rev14-A]
             'auc_thermisch_deg_min': round(final_auc, 2),
             'auc_klinisch_deg_min':  round(final_auc_kl, 2),                          # [rev14-B]
@@ -4765,6 +5824,8 @@ def run_monte_carlo_adult(interp_data, lat, lon, met_value, clo_value,
             'sweat_factor':          round(p.sweat_factor, 2),
             'thirst_threshold_perc': round(p.thirst_threshold, 2),
             'max_t_rect':            round(max_t_rect, 4),
+            # [2026-10-14] Peak over race AND 10-min post-finish window.
+            'max_t_rect_incl_postfinish': round(max(max_t_rect, t_rect_pf), 4),
             'max_rpe':               round(max_rpe, 2),
             'max_water_loss_perc':   round(max_dehy, 2),
         }
@@ -4777,6 +5838,12 @@ def run_monte_carlo_adult(interp_data, lat, lon, met_value, clo_value,
                 'cvr_hr_piek':        round(float(np.nanmax(hr_vals)),  1),
                 'cvr_cvs_index_max':  round(float(np.nanmax(cvs_vals)), 3),
                 'cvr_co_reserve_min': round(float(np.nanmin(res_vals)), 2),
+                # [2026-10-20] What the collapse logistic reads (race + finish zone).
+                'cvr_co_reserve_min_incl_postfinish': round(collapse_extremes(sim_result)[1], 2),
+                # [2026-10-20] EAC-staan
+                'eac_kans':           round(float(sim_result[-1].get('eac_kans', 0.0)), 6),
+                'eac_staanbelasting': round(float(sim_result[-1].get('eac_staanbelasting', 0.0)), 3),
+                'eac_tolerantie_min': round(float(sim_result[-1].get('eac_tolerantie_min', 1.0)), 3),
                 'cvr_decompensating':  any(r.get('decompensating', False) for r in sim_result),
                 'cvr_p_collapse_pct': round(
                     float(stats['p_collapse_per_sim'][i]) * 100, 4
@@ -4793,7 +5860,7 @@ def run_monte_carlo_adult(interp_data, lat, lon, met_value, clo_value,
 
     results_df = pd.DataFrame(detailed_export_data)
 
-    # [2026-09-27, gevonden via participant_dose_analysis-onderzoek met Koos]
+    # [2026-09-27, gevonden via participant_dose_analysis-onderzoek met de auteur]
     # collapse-kans is een GEWOGEN SOM van een thermische en een cardiovasculaire
     # gedrempelde term; een deelnemer die op precies één van de twee assen
     # extreem scoort maar op de andere normaal blijft, gaat in die optelling
@@ -4815,8 +5882,8 @@ def run_monte_carlo_adult(interp_data, lat, lon, met_value, clo_value,
         results_df['thermisch_percentiel'] = results_df['max_t_rect'].rank(pct=True) * 100
         results_df['cardiovasculair_percentiel'] = results_df['cvr_cvs_index_max'].rank(pct=True) * 100
         already_flagged = (
-            ((results_df['max_t_rect'] > 40.5) & (results_df['cvr_co_reserve_min'] <= 0)) |
-            ((results_df['max_t_rect'] > 39.5) & (results_df['cvr_co_reserve_min'] <= 0))
+            ((results_df['max_t_rect'] > 40.5) & (results_df['cvr_co_reserve_min'] <= CO_RESERVE_CEILING_TOL)) |
+            ((results_df['max_t_rect'] > 39.5) & (results_df['cvr_co_reserve_min'] <= CO_RESERVE_CEILING_TOL))
         )
         eenzijdig = (
             (results_df['thermisch_percentiel'] >= EENZIJDIG_EXTREEM_PERCENTIEL) |
@@ -4919,258 +5986,10 @@ def calculate_pediatric_risk_classification(utci_val, wbgt_val, t_core, rpe_tota
 #  high-risk runners over time instead of changing membership at every step.
 # =============================================================================
 
-def plot_adult_results(results, stats, city_name, start_time, duration_hours):
-    """
-    4-panel plot for adult simulation results.
-
-    The T_rect panel includes P97.5/P99 reference curves and, when available,
-    the mean trajectory of the vulnerable tail cohort: the runners whose own
-    peak T_rect falls in the highest 2.5% of the Monte Carlo population.
-    """
-    # [2026-09] Was `results[0]` -- silently assumed every participant's
-    # result list is the same length, true before sample_pace existed
-    # (everyone shared one duration) but false the moment it doesn't:
-    # `results` here is run_monte_carlo_adult()'s UNPADDED return value,
-    # so results[0] can be a short-duration participant while stats['mean_
-    # t_rect'] etc. were built from the padded (longest-participant-length)
-    # arrays inside that function. Reproduced directly: a real run with
-    # sample_pace=True crashed here with "x and y must have same first
-    # dimension, but have shapes (9,) and (12,)" -- the (9,) came from
-    # results[0] happening to be a faster (shorter-duration) participant,
-    # not from the actual weather window, which does cover 12 steps. Using
-    # the longest result list instead guarantees the same length as the
-    # padded stats arrays regardless of which participant results[0]
-    # happens to be.
-    longest = max(results, key=len)
-    times_str = [r["time"] for r in longest]
-    times_dt  = [pd.to_datetime(t) for t in times_str]
-
-    fig, axs = plt.subplots(2, 2, figsize=(20, 14), gridspec_kw={'hspace': 0.4, 'wspace': 0.3})
-    fig.suptitle(f"Adult Thermal Simulation for {city_name} on {pd.to_datetime(start_time).date()}",
-                 fontsize=18, weight='bold')
-
-    ax1 = axs[0, 0]
-    ax1.plot(times_dt, stats['mean_t_rect'], 'b-', label='Mean T_rect')
-    ax1.fill_between(times_dt, stats['lower_t_rect'], stats['upper_t_rect'],
-                     color='blue', alpha=0.2, label='5th-95th Percentile')
-    if 't_rect_p975' in stats:
-        ax1.plot(times_dt, stats['t_rect_p975'], color='darkorange',
-                 linestyle='-.', linewidth=2.0, label='P97.5 T_rect')
-    if 't_rect_p99' in stats:
-        ax1.plot(times_dt, stats['t_rect_p99'], color='red',
-                 linestyle=':', linewidth=2.4, label='P99 T_rect')
-    if 'vulnerable_tail_mean_t_rect' in stats:
-        tail_label = (
-            f"Vulnerable tail mean "
-            f"(top {stats.get('vulnerable_tail_pct_actual', 2.5):.1f}% by peak T_rect)"
-        )
-        ax1.plot(times_dt, stats['vulnerable_tail_mean_t_rect'], color='black',
-                 linestyle='-', linewidth=2.6, label=tail_label)
-    ax1.axhline(y=39.0, color='gold',       linestyle='--', label='Heat Stress (39°C)')
-    ax1.axhline(y=40.0, color='darkorange', linestyle='--', label='Serious Risk (40°C)')
-    ax1.axhline(y=42.0, color='red',        linestyle='--', label='Life-threatening (42°C)')
-    ax1.axhline(y=43.0, color='black',      linestyle='-',  linewidth=2,
-                label='Lethal Limit (43°C, Vanos 2023)')
-    ax1.set_title("Core Body Temperature (T_rect)", fontsize=14)
-    ax1.set_ylabel("T_rect (°C)", fontsize=12)
-
-    # [2026-09, requested by Koos] The mean/percentile/vulnerable-tail lines
-    # above are nanmean/nanpercentile over whoever is still running at each
-    # clock-time step (see run_monte_carlo_adult() -- sample_pace=True gives
-    # each participant their own duration; a finished participant simply has
-    # a shorter per-person result list, i.e. their remaining steps are
-    # absent, not physically NaN-filled until the padding happens later for
-    # the fixed-width arrays used inside that function). That is not a
-    # confidence interval over a fixed cohort: the population behind each
-    # point shrinks over time, and it shrinks in a biased way (faster,
-    # higher-MET, hence hotter participants finish and drop out first),
-    # which on its own can make a line fall even though no individual's own
-    # T_rect ever did. Plotting how many people are still behind each line
-    # turns that hidden confound into a visible axis instead of a silent
-    # one. Computed directly from `results` (the ragged, unpadded per-
-    # participant list this function already receives) rather than from
-    # any array internal to run_monte_carlo_adult, which is out of scope
-    # here. The vulnerable-tail count re-derives the same top-2.5%-by-peak-
-    # T_rect membership run_monte_carlo_adult uses for stats[
-    # 'vulnerable_tail_mean_t_rect'], since that membership mask itself
-    # isn't returned in `stats` -- it is the subgroup most visibly affected,
-    # since it disproportionately contains early, high-MET finishers.
-    n_steps = len(times_dt)
-    n_total = len(results)
-    active_n_total = np.array([
-        sum(1 for res in results if len(res) > i) for i in range(n_steps)
-    ])
-    ax1b = ax1.twinx()
-    ax1b.fill_between(times_dt, 0, active_n_total / n_total * 100,
-                       color='gray', alpha=0.10, step=None, zorder=0,
-                       label='% deelnemers nog actief (totale populatie)')
-    peak_t_rect_per_result = np.array([
-        max((r['t_rect'] for r in res if not np.isnan(r['t_rect'])), default=np.nan)
-        for res in results
-    ])
-    if np.any(~np.isnan(peak_t_rect_per_result)):
-        tail_cutoff = np.nanpercentile(peak_t_rect_per_result, 97.5)
-        tail_mask = peak_t_rect_per_result >= tail_cutoff
-        tail_results = [res for res, m in zip(results, tail_mask) if m]
-        n_tail = len(tail_results)
-        if n_tail > 0:
-            active_n_tail = np.array([
-                sum(1 for res in tail_results if len(res) > i) for i in range(n_steps)
-            ])
-            ax1b.plot(times_dt, active_n_tail / n_tail * 100,
-                      color='black', linestyle=(0, (1, 1)), linewidth=1.3, alpha=0.55,
-                      label='% van de kwetsbare-staartgroep nog actief')
-    ax1b.set_ylabel("% deelnemers nog actief", fontsize=10, color='gray')
-    ax1b.set_ylim(0, 105)
-    ax1b.tick_params(axis='y', labelcolor='gray', labelsize=8)
-
-    lines1, labels1 = ax1.get_legend_handles_labels()
-    lines1b, labels1b = ax1b.get_legend_handles_labels()
-    ax1.legend(lines1 + lines1b, labels1 + labels1b, fontsize=8, loc='upper right')
-
-    ax2 = axs[0, 1]
-    ax2.plot(times_dt, stats['mean_rpe'], 'r-', label='Mean RPE')
-    ax2.fill_between(times_dt, stats['lower_rpe'], stats['upper_rpe'],
-                     color='red', alpha=0.2, label='5th-95th Percentile')
-    ax2.axhline(y=17,   color='purple', linestyle=':',  label='Exhaustion (RPE 17)')
-    ax2.axhline(y=19.5, color='black',  linestyle='--', label='Stop Threshold (RPE 19.5)')
-    ax2.set_title("Rate of Perceived Exertion (Borg 6-20)", fontsize=14)
-    ax2.set_ylabel("RPE (6-20)", fontsize=12)
-    ax2.set_ylim(6, 20.5)
-    ax2.legend()
-
-    ax3  = axs[1, 0]
-    # [changed on request] The old panel used two separate y-axes (twinx)
-    # for UTCI and WBGT -- this was the source of the matplotlib warning
-    # "Axes that are not compatible with tight_layout", and the place
-    # where the UTCI display bug occurred (never traced with certainty to
-    # a specific cause, despite extensive investigation). Replaced by a
-    # single shared axis (everything is in degC, so one scale is correct
-    # on the merits, not just simpler): T_air, WBGT, UTCI, MRT.
-    t_air_vals = [r["t_air"] for r in longest]
-    utci_vals  = [r["utci"]  for r in longest]
-    wbgt_vals  = [r["wbgt"]  for r in longest]
-    mrt_vals   = [r["mrt"]   for r in longest]
-    ax3.plot(times_dt, t_air_vals, color='#0057D9', linewidth=2.2, label='T_air (°C)')
-    ax3.plot(times_dt, wbgt_vals,  color='#00A650', linewidth=2.2, label='WBGT (°C)')
-    ax3.plot(times_dt, utci_vals,  color='#B300B3', linewidth=2.2, label='UTCI (°C)')
-    ax3.plot(times_dt, mrt_vals,   color='#E8580C', linewidth=2.2, label='MRT (°C)')
-    ax3.set_ylabel("Temperature (°C)", fontsize=12)
-    ax3.set_title("Environmental Thermal Indices", fontsize=14)
-    ax3.legend(loc='upper left')
-
-    ax5 = axs[1, 1]
-    ax5.plot(times_dt, stats['percent_stopped'],    color='black',     linestyle='--', label='% Stopped')
-    ax5.plot(times_dt, stats['percent_first_aid'],       color='magenta',   linestyle='--', label='% First Aid')
-    ax5.plot(times_dt, stats['percent_unliveable'], color='darkviolet',linewidth=2.5,  label='% Unliveable')
-    ax5.fill_between(times_dt, 0, stats['percent_unliveable'], color='darkviolet', alpha=0.2)
-    ax5.set_title("Percentage of Participants at Risk", fontsize=14)
-    ax5.set_ylabel("Participants (%)", fontsize=12)
-    ax5.set_ylim(0, 101)
-    ax5.legend()
-
-    for ax in axs.flat:
-        ax.set_xlabel("Time", fontsize=12)
-        ax.grid(True, linestyle='--', alpha=0.6)
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-        ax.tick_params(axis='x', rotation=45)
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
-    plt.show(block=False)
-    return fig
 
 
-def plot_pediatric_results(results, stats, city_name, start_time, duration_hours):
-    """4-panel plot for pediatric simulation results. Unchanged."""
-    times_str = [r["time"] for r in results[0]]
-    times_dt  = [pd.to_datetime(t) for t in times_str]
-    fig, axs  = plt.subplots(2, 2, figsize=(20, 14), gridspec_kw={'hspace': 0.4, 'wspace': 0.3})
-    fig.suptitle(f"Pediatric Thermal Simulation for {city_name} on {pd.to_datetime(start_time).date()}",
-                 fontsize=18, weight='bold')
-
-    ax1 = axs[0, 0]
-    ax1.plot(times_dt, stats['mean_t_core'], 'b-', label='Mean T_core')
-    ax1.fill_between(times_dt, stats['lower_t_core'], stats['upper_t_core'],
-                     color='blue', alpha=0.2, label='5th-95th Percentile')
-    ax1.axhline(y=38.5, color='gold',       linestyle='--', label='Moderate Stress (38.5°C)')
-    ax1.axhline(y=39.2, color='darkorange', linestyle='--', label='High Risk (39.2°C)')
-    ax1.set_title("Core Body Temperature (T_core)", fontsize=14)
-    ax1.set_ylabel("T_core (°C)", fontsize=12)
-    ax1.legend()
-
-    ax2 = axs[0, 1]
-    ax2.plot(times_dt, stats['mean_rpe'], 'r-', label='Mean RPE (OMNI 0-10)')
-    ax2.fill_between(times_dt, stats['lower_rpe'], stats['upper_rpe'],
-                     color='red', alpha=0.2, label='5th-95th Percentile')
-    ax2.axhline(y=8.5, color='purple', linestyle=':', label='First Aid (RPE 8.5)')
-    ax2.axhline(y=9.5, color='black',  linestyle='--', label='Stop Threshold (RPE 9.5)')
-    ax2.set_title("Rate of Perceived Exertion (OMNI 0-10)", fontsize=14)
-    ax2.set_ylabel("RPE (0-10)", fontsize=12)
-    ax2.set_ylim(0, 10.5)
-    ax2.legend()
-
-    ax3 = axs[1, 0]
-    t_air_vals = [r["t_air"] for r in results[0]]
-    utci_vals  = [r["utci"]  for r in results[0]]
-    wbgt_vals  = [r["wbgt"]  for r in results[0]]
-    mrt_vals   = [r["mrt"]   for r in results[0]]
-    ax3.plot(times_dt, t_air_vals, color='#0057D9', linewidth=2.2, label='T_air (°C)')
-    ax3.plot(times_dt, wbgt_vals,  color='#00A650', linewidth=2.2, label='WBGT (°C)')
-    ax3.plot(times_dt, utci_vals,  color='#B300B3', linewidth=2.2, label='UTCI (°C)')
-    ax3.plot(times_dt, mrt_vals,   color='#E8580C', linewidth=2.2, label='MRT (°C)')
-    ax3.set_ylabel("Temperature (°C)", fontsize=12)
-    ax3.set_title("Environmental Thermal Indices", fontsize=14)
-    ax3.legend(loc='upper left')
-
-    ax5 = axs[1, 1]
-    ax5.plot(times_dt, stats['percent_stopped'],   color='black',   label='% Stopped')
-    ax5.plot(times_dt, stats['percent_first_aid'], color='magenta', linestyle='--', label='% First Aid')
-    ax5.set_title("Percentage of Participants at Risk", fontsize=14)
-    ax5.set_ylabel("Participants (%)", fontsize=12)
-    ax5.set_ylim(0, 101)
-    ax5.legend()
-
-    for ax in axs.flat:
-        ax.set_xlabel("Time", fontsize=12)
-        ax.grid(True, linestyle='--', alpha=0.6)
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-        ax.tick_params(axis='x', rotation=45)
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
-    plt.show(block=False)
-    return fig
 
 
-def plot_adult_boxplots(results_df):
-    """Boxplots by age group and gender. Unchanged."""
-    if results_df is None or results_df.empty:
-        return
-    sns.set(style="whitegrid")
-    variables = [
-        ('max_t_rect',         'Maximum Core Temperature (°C)', [37, 42]),
-        ('max_rpe',            'Maximum Perceived Exertion (RPE)', [6, 20]),
-        ('max_water_loss_perc','Maximum Water Loss (% body weight)', [0, 5]),
-    ]
-    fig, axes = plt.subplots(3, 1, figsize=(14, 18))
-    fig.suptitle("Distribution of Max Values by Age Group and Gender", fontsize=16)
-    for i, (var, title, ylim) in enumerate(variables):
-        ax    = axes[i]
-        order = sorted(results_df['age_group'].unique())
-        sns.boxplot(data=results_df, x='age_group', y=var, hue='gender', ax=ax,
-                    palette={"male": "skyblue", "female": "lightpink"},
-                    showmeans=True,
-                    meanprops={"marker": "o", "markerfacecolor": "white", "markeredgecolor": "black"},
-                    order=order)
-        ax.set_title(title, fontsize=14)
-        ax.set_xlabel("Age Group", fontsize=12)
-        ax.set_ylabel(title.split('(')[0].strip(), fontsize=12)
-        ax.set_ylim(ylim)
-        ax.legend(title="Gender", loc='upper right')
-        ax.grid(True, linestyle='--', alpha=0.6)
-        sns.stripplot(data=results_df, x='age_group', y=var, hue='gender', ax=ax,
-                      dodge=True, jitter=True, alpha=0.4,
-                      palette={"male": "blue", "female": "red"}, legend=False, order=order)
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
-    plt.show(block=False)
-    return fig
 
 
 # =============================================================================
@@ -5186,15 +6005,14 @@ def get_representative_participant(age, gender):
 def run_single_simulation_for_temp(met_value, env_conditions, participant, clo_value, duration_minutes):
     jos3 = maak_jos3(height=participant['height'], weight=participant['weight'],
                 age=participant['age'], fat=participant['fat'], sex=participant['sex'])
-    jos3.t_core[:] = 37.0
-    jos3.par = met_value
+    jos3.par = jos3_par(jos3, met_value)   # [2026-10-19] FOUNDATION REPAIR
     jos3.clo = clo_value
     jos3.tdb = env_conditions['tdb']
     jos3.tr  = env_conditions['mrt']
     jos3.v   = env_conditions['v']
     jos3.rh  = env_conditions['rh']
     jos3.simulate(times=int(duration_minutes))
-    return jos3.t_core.mean()
+    return jos3_t_rect(jos3)
 
 
 def find_met_for_target_temp(target_temp, env_conditions, participant, clo_value, duration_minutes):
@@ -5221,13 +6039,16 @@ def analyze_met_thresholds(interp_data, lat, lon, clo_value):
     results         = []
     aqi             = get_air_quality(lat, lon)
     detailed_env    = []
-    for entry in interp_data:
-        rad      = calculate_solar_radiance(lat, lon, str(entry['time']), entry['clouds'], aqi)
-        w15      = wind_speed_at_height(entry['wind'], 10, 1.5)
-        gt       = calculate_globe_temperature(entry['temp'], rad['ghi'], w15,
-                                               rad['solar_elevation'], entry['pressure'],
-                                               entry['clouds'], aqi)
-        mrt      = calculate_mrt(gt, entry['temp'], w15, rad['ghi'], rad['solar_elevation'])
+    _w15s = [wind_speed_at_height(en['wind'], 10, 1.5) for en in interp_data]
+    _rs = radiation_series(interp_data, [en['time'] for en in interp_data],
+                           [en['temp'] for en in interp_data], _w15s,
+                           [en['pressure'] for en in interp_data],
+                           [en['clouds'] for en in interp_data], lat, lon, aqi,
+                           rhs=[en['rh'] for en in interp_data])
+    for _i, entry in enumerate(interp_data):
+        w15      = _w15s[_i]
+        gt       = _rs[2][_i]
+        mrt      = _rs[3][_i]
         detailed_env.append({'time': entry['time'], 'tdb': entry['temp'],
                               'mrt': mrt, 'v': max(0.1, w15), 'rh': entry['rh']})
 
@@ -5251,48 +6072,27 @@ def analyze_met_thresholds(interp_data, lat, lon, clo_value):
     return pd.DataFrame(results)
 
 
-def plot_met_thresholds(df_met, user_selected_met):
-    """Plot permissible MET values by age group. Unchanged."""
-    sns.set(style="whitegrid")
-    age_groups   = sorted(df_met['age_group'].unique())
-    n_groups     = len(age_groups)
-    fig, axes    = plt.subplots(n_groups, 1, figsize=(12, 5 * n_groups), sharex=True, sharey=True)
-    if n_groups == 1:
-        axes = [axes]
-    temp_colors  = {39.0: 'blue', 39.5: 'green', 40.0: 'orange', 41.0: 'red'}
-    gender_styles= {'male': '-', 'female': '--'}
-    for i, age_group in enumerate(age_groups):
-        ax       = axes[i]
-        df_group = df_met[df_met['age_group'] == age_group]
-        for gender in ['male', 'female']:
-            df_g = df_group[df_group['gender'] == gender]
-            for temp, color in temp_colors.items():
-                df_t = df_g[df_g['temp_threshold'] == temp]
-                if not df_t.empty:
-                    ax.plot(df_t['time'], df_t['permissible_met'],
-                            label=f'{gender.capitalize()} < {temp}°C',
-                            color=color, linestyle=gender_styles[gender],
-                            marker='o', markersize=3)
-        ax.axhline(y=user_selected_met, color='black', linestyle=':', linewidth=2.5,
-                   label=f'Chosen Activity (MET: {user_selected_met})')
-        ax.set_title(f'Permissible Activity Intensity: {age_group}', fontsize=14)
-        ax.set_ylabel('MET Value', fontsize=12)
-        ax.legend(title="Legend", bbox_to_anchor=(1.02, 1), loc='upper left')
-        ax.grid(True, which='both', linestyle='--', linewidth=0.5)
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-    axes[-1].set_xlabel("Time", fontsize=12)
-    plt.ylim(bottom=1)
-    fig.suptitle('Analysis of Maximum Permissible MET Values', fontsize=18, weight='bold')
-    plt.tight_layout(rect=[0, 0, 0.85, 0.96])
-    plt.show()
 
 
 # =============================================================================
 #  THERMOPOULOS EXCEL LOADER (unchanged from rev09)
 # =============================================================================
 
-def load_weather_from_thermopoulos_excel(filepath, sheet_name):
-    """Load weather data from a Thermopoulos Excel file. Unchanged."""
+def _num(row, col):
+    """Float value of an optional Data Engine column, None when absent/empty."""
+    try:
+        v = row[col]
+    except (KeyError, IndexError):
+        return None
+    return None if pd.isna(v) else float(v)
+
+
+def load_weather_from_thermopoulos_excel(filepath, sheet_name, timezone=None):
+    """Load weather data from a Thermopoulos Excel file.
+
+    The time zone is read from the Metadata sheet; pass `timezone` when the
+    file has none (2026-10-25: no longer asked interactively; the console
+    asks for it in hestia_console.main when needed)."""
     try:
         df = pd.read_excel(filepath, sheet_name=sheet_name, index_col=0)
     except Exception as e:
@@ -5305,19 +6105,18 @@ def load_weather_from_thermopoulos_excel(filepath, sheet_name):
         print(f"{Fore.RED}Missing columns: {missing}{Style.RESET_ALL}")
         return None, None
 
-    tz_str = None
+    tz_str = timezone
     try:
         meta_df = pd.read_excel(filepath, sheet_name='Metadata', header=0)
         meta_df.columns = meta_df.columns.str.strip().str.lower()
-        if 'timezone' in meta_df.columns:
+        if 'timezone' in meta_df.columns and timezone is None:
             tz_str = str(meta_df.iloc[0]['timezone']).strip()
     except Exception as e:
         print(f"{Fore.YELLOW}Could not read Metadata sheet: {e}{Style.RESET_ALL}")
 
-    if tz_str is None:
-        tz_str = input("Enter timezone (e.g., Europe/Amsterdam): ").strip()
-        if not tz_str:
-            return None, None
+    if not tz_str:
+        print(f"{Fore.RED}No time zone in the Metadata sheet; pass timezone=...{Style.RESET_ALL}")
+        return None, None
 
     if not isinstance(df.index, pd.DatetimeIndex):
         try:
@@ -5326,6 +6125,18 @@ def load_weather_from_thermopoulos_excel(filepath, sheet_name):
             print(f"{Fore.RED}Index could not be converted to datetime.{Style.RESET_ALL}")
             return None, None
 
+    # [2026-10-31] Older Data Engine file: recompute globe/MRT/WBGT/UTCI with
+    # the current globe model (thermal_env.actualiseer_straling).
+    try:
+        _meta = pd.read_excel(filepath, sheet_name='Metadata', header=0).iloc[0].to_dict()
+    except Exception:
+        _meta = None
+    from thermal_env import actualiseer_straling
+    df, _herb = actualiseer_straling(df, _meta)
+    if _herb:
+        print(f"{Fore.YELLOW}{sheet_name}: made by an older Data Engine; globe temperature, MRT, "
+              f"WBGT and UTCI recomputed with the current globe model.{Style.RESET_ALL}")
+
     if df.index.tz is None:
         df.index = df.index.tz_localize(tz_str)
 
@@ -5333,9 +6144,20 @@ def load_weather_from_thermopoulos_excel(filepath, sheet_name):
     for idx, row in df.iterrows():
         weather_data.append({
             "dt":   int(idx.timestamp()),
-            "main": {"temp": row["T_air_urban"], "humidity": row["RH"], "pressure": row["pressure"]},
+            # [2026-10-31] RH_urban belongs to T_air_urban (same dew point);
+            # the rural RH is kept as humidity_rural for the rural chain.
+            "main": {"temp": row["T_air_urban"],
+                     "humidity": _num(row, "RH_urban") if _num(row, "RH_urban") is not None else row["RH"],
+                     "humidity_rural": row["RH"],
+                     "pressure": row["pressure"]},
             "wind": {"speed": row["wind_10m"]},
             "clouds": {"all": row["cloud_cover"]},
+            # [2026-10-24] carry the Data Engine's measured/forecast radiation,
+            # globe temperature and MRT, as thermopoulos_loader does.
+            "solar": {"ghi": _num(row, "solar_radiation"), "elevation": _num(row, "solar_elevation")},
+            "radiant": {"globe_temp": _num(row, "T_globe"), "mrt": _num(row, "MRT"),
+                        "twb": _num(row, "T_wetbulb")},
+            "indices": {"wbgt": _num(row, "WBGT"), "utci": _num(row, "UTCI")},
         })
     print(f"{Fore.GREEN}Loaded {len(weather_data)} hours from {sheet_name}.{Style.RESET_ALL}")
     return weather_data, tz_str
@@ -5363,15 +6185,17 @@ def calculate_and_export_wbgt(city_name, lat, lon, apply_uhi=False, population=N
                                                    6 <= entry["time"].hour < 18)
     wbgt_results = []
     aqi = get_air_quality(lat, lon)
-    for entry in interp_data:
-        radiance   = calculate_solar_radiance(lat, lon, str(entry["time"]), entry["clouds"], aqi)
-        wind_1_5m  = wind_speed_at_height(entry["wind"], 10, 1.5)
-        globe_temp = calculate_globe_temperature(entry["temp"], radiance['ghi'], wind_1_5m,
-                                                  radiance['solar_elevation'], entry["pressure"],
-                                                  entry["clouds"], aqi)
-        mrt        = calculate_mrt(globe_temp, entry["temp"], wind_1_5m,
-                                   radiance['ghi'], radiance['solar_elevation'])
-        with_solar = bool(radiance['ghi'] > 0 and radiance['solar_elevation'] > 0)
+    _w15s = [wind_speed_at_height(en["wind"], 10, 1.5) for en in interp_data]
+    _rs = radiation_series(interp_data, [en["time"] for en in interp_data],
+                           [en["temp"] for en in interp_data], _w15s,
+                           [en["pressure"] for en in interp_data],
+                           [en["clouds"] for en in interp_data], lat, lon, aqi,
+                           rhs=[en["rh"] for en in interp_data])
+    for _i, entry in enumerate(interp_data):
+        wind_1_5m  = _w15s[_i]
+        globe_temp = _rs[2][_i]
+        mrt        = _rs[3][_i]
+        with_solar = bool(_rs[0][_i] > 0 and _rs[1][_i] > 0)
         wbgt_args  = {"twb": entry["twb"], "tg": globe_temp,
                       "with_solar_load": with_solar, "round_output": True}
         if with_solar:
@@ -5402,75 +6226,12 @@ def calculate_and_export_wbgt(city_name, lat, lon, apply_uhi=False, population=N
 #  USER INPUT FUNCTIONS (unchanged)
 # =============================================================================
 
-def select_met_activity(activity_dict):
-    print("\nChoose an activity:")
-    for key, activity in activity_dict.items():
-        print(f"{key}. {activity['description']} (MET: {activity['met']})")
-    while True:
-        try:
-            choice = int(input("Enter the activity number: "))
-            if choice in activity_dict:
-                selected = activity_dict[choice]
-                return choice, selected["met"], selected["speed_kmh"] * 1000 / 3600
-            print("Invalid choice.")
-        except ValueError:
-            print("Please enter a valid number.")
 
 
-def select_clo_value(clo_dict):
-    print("\nChoose a clothing option:")
-    for key, option in clo_dict.items():
-        print(f"{key}. {option['description']} (clo: {option['clo']})")
-    while True:
-        try:
-            choice = int(input("Enter the clothing option number: "))
-            if choice in clo_dict:
-                return clo_dict[choice]["clo"]
-            print("Invalid choice.")
-        except ValueError:
-            print("Please enter a valid number.")
 
 
-def select_age_configuration():
-    """
-    [rev10] NOTE: age_configuration is now only used as a label.
-    Age is embedded in each profile from generate_base_population().
-    This function is retained for backward compatibility.
-    """
-    print("\n[rev10] Age distribution is now set in generate_base_population().")
-    print("        N(40, 10) clipped [18, 65] -- representative of NL marathon events.")
-    return "standard"
 
 
-def get_adaptation_profile(activity_choice):
-    profiles = {
-        1: {"name": "Beginner / Not acclimatized",         "training": 0.0,  "acclimatization": 0.0},
-        2: {"name": "Low-average / Partially acclimatized","training": 0.25, "acclimatization": 0.3},
-        3: {"name": "Average / Well-acclimatized",         "training": 0.5,  "acclimatization": 0.6},
-        4: {"name": "Advanced / Fully acclimatized",       "training": 1.0,  "acclimatization": 1.0},
-    }
-    if activity_choice in [6, 7, 8, 9, 10]:        recommended = 4
-    elif activity_choice in [1, 2, 3, 4, 5, 11]:   recommended = 3
-    elif activity_choice in [15, 16, 17]:           recommended = 2
-    else:                                            recommended = 1
-
-    print(f"\n{Fore.CYAN}Recommended: {profiles[recommended]['name']}{Style.RESET_ALL}")
-    while True:
-        use = input("Use this profile? (y/n): ").lower().strip()
-        if use in ['y', 'yes', '']:
-            return profiles[recommended]
-        if use in ['n', 'no']:
-            for k, v in profiles.items():
-                print(f"{k}. {v['name']}")
-            while True:
-                try:
-                    c = int(input("Enter number: "))
-                    if c in profiles:
-                        return profiles[c]
-                    print("Invalid.")
-                except ValueError:
-                    print("Please enter a valid number.")
-        print("Please enter 'y' or 'n'.")
 
 
 def clear_all_caches():
@@ -5486,543 +6247,28 @@ def clear_all_caches():
 #  MAIN (rev10 changes: population generation, validation, and persistence)
 # =============================================================================
 
-def main():
-    """
-    Main simulation pipeline.
 
-    [rev10] Population workflow:
-    1. User is prompted for population parameters (N, seed).
-    2. generate_base_population() creates the fixed population.
-    3. validate_population() is called and results printed.
-    4. User can optionally save/load the population (.pkl).
-    5. run_monte_carlo_adult() uses the fixed population.
 
-    [rev11] Population files now carry a version tag. A mismatch warning is
-    printed if a file saved by a different revision is loaded.
-    """
-    plt.close('all')
-    clear_all_caches()
-    init(autoreset=True)
-    print(f"{Style.BRIGHT}HESTIA: Integrated Thermal Simulation Tool (rev17){Style.RESET_ALL}")
-    print(f"{Fore.CYAN}rev17 changes: optional Thermoregulatory Control Failure "
-          f"module with Thermal-CVR deficit dose (degC*L).{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}rev16 changes: T_rect P97.5/P99 plot lines and a fixed top-2.5% "
-          f"vulnerable tail group based on peak T_rect.{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}rev15 changes: calibration-uncertainty band for all GHOR percentages "
-          f"(pct_decompensation, pct_roberts_kritiek, pct_ehs_postfinish, collapse){Style.RESET_ALL}")
-    print(f"{Fore.YELLOW}[rev14] INTERCEPT RECALIBRATION REQUIRED: the K_p distribution and "
-          f"post-finish module shift the T_rect distribution. Run intercept_estimation.py "
-          f"with a tdb 22->26 degC reference for GHOR reports.{Style.RESET_ALL}")
 
-    try:
-        # --- Mode Selection ---
-        while True:
-            print("\nSelect the simulation mode:")
-            print("1. Adults (Thermal Simulation)")
-            print("2. Children (Thermal Simulation)")
-            print("3. WBGT Calculation (5-day forecast)")
-            print("4. Use existing Thermopoulos Excel data")
-            sim_mode = input("Enter your choice (1, 2, 3, or 4): ").strip()
-            if sim_mode in ['1', '2', '3', '4']:
-                sim_mode = ({'1': 'adult', '2': 'child', '3': 'wbgt', '4': 'excel'})[sim_mode]
-                break
-            print(f"{Fore.RED}Invalid choice.{Style.RESET_ALL}")
+# =============================================================================
+#  Moved names (2026-10-25): the interactive console lives in hestia_console.py
+#  and the console figures in hestia_model_plots.py. Old imports keep working.
+# =============================================================================
+_MOVED = {
+    **{n: "hestia_console" for n in ("select_met_activity", "select_clo_value",
+                                      "select_age_configuration", "get_adaptation_profile", "main")},
+    **{n: "hestia_model_plots" for n in ("plot_adult_results", "plot_pediatric_results",
+                                          "plot_adult_boxplots", "plot_met_thresholds")},
+}
 
-        print(f"\n--- Mode selected: {sim_mode.upper()} ---")
 
-        # --- [rev12] Collapse endpoint selection ---
-        # The active endpoint determines which intercept_kal is used for the
-        # collapse risk model. Default is 'ehs' (most conservative, best documented).
-        if sim_mode in ('adult', '1') or True:   # show for all adult sims
-            print(f"\n[rev12] Collapse risk endpoint selection:")
-            ep_keys = list(COLLAPSE_ENDPOINTS.keys())
-            for i, k in enumerate(ep_keys, 1):
-                ep = COLLAPSE_ENDPOINTS[k]
-                status_color = Fore.GREEN if ep['status'] == 'VALIDATED' else Fore.YELLOW
-                print(f"  {i}. {ep['label']}")
-                print(f"     P_obs: {ep['p_obs']*10000:.1f}/10.000  |  "
-                      f"intercept: {ep['intercept_kal']:.3f}  |  "
-                      f"{status_color}{ep['status']}{Style.RESET_ALL}")
-            print(f"  (default: 1 = EHS, most conservative)")
-            ep_choice = input("Select endpoint (1/2/3, or Enter for default): ").strip()
-            if ep_choice in ('2', '3'):
-                import builtins
-                # Override module-level ACTIVE_ENDPOINT for this session
-                import sys
-                _chosen_key = ep_keys[int(ep_choice) - 1]
-                # Patch module globals for this run
-                globals()['ACTIVE_ENDPOINT'] = _chosen_key
-                globals()['P_OBS_COLLAPSE']  = COLLAPSE_ENDPOINTS[_chosen_key]['p_obs']
-                print(f"{Fore.CYAN}[rev12] Active endpoint set to: "
-                      f"'{COLLAPSE_ENDPOINTS[_chosen_key]['label']}'{Style.RESET_ALL}")
-                if COLLAPSE_ENDPOINTS[_chosen_key]['status'] in ('PROVISIONAL', 'REQUIRES_RECALIBRATION'):
-                    print(f"{Fore.YELLOW}[rev12] WARNING: This endpoint is PROVISIONAL. "
-                          f"See module docstring for calibration status.{Style.RESET_ALL}")
-            else:
-                print(f"{Fore.CYAN}[rev12] Using default endpoint: "
-                      f"'{COLLAPSE_ENDPOINTS['ehs']['label']}'{Style.RESET_ALL}")
-
-        city_name = input("Enter the city name (e.g., Amsterdam): ")
-        lat, lon  = get_lat_lon(city_name)
-        if lat is None:
-            print(f"{Fore.RED}Could not retrieve coordinates.{Style.RESET_ALL}")
-            return
-
-        if sim_mode == 'wbgt':
-            apply_uhi  = input("Apply Urban Heat Island (UHI) effect? (y/n): ").lower() == 'y'
-            population = int(input("City population: ")) if apply_uhi else None
-            calculate_and_export_wbgt(city_name, lat, lon, apply_uhi, population)
-            return
-
-        sim_submode = None
-
-        if sim_mode == 'excel':
-            excel_file = input("Enter the Thermopoulos Excel filename: ").strip()
-            if not os.path.isfile(excel_file):
-                print(f"{Fore.RED}File not found.{Style.RESET_ALL}")
-                return
-            try:
-                from openpyxl import load_workbook
-                wb     = load_workbook(excel_file, read_only=True)
-                sheets = wb.sheetnames
-                print("\nAvailable sheets:")
-                for i, s in enumerate(sheets, 1):
-                    print(f"{i}. {s}")
-                sheet_name = sheets[int(input("Select sheet number: ")) - 1]
-            except Exception as e:
-                print(f"{Fore.YELLOW}Could not list sheets: {e}{Style.RESET_ALL}")
-                sheet_name = input("Enter sheet name: ").strip()
-
-            weather_data, tz_str = load_weather_from_thermopoulos_excel(excel_file, sheet_name)
-            if weather_data is None:
-                return
-            local_timezone = pytz.timezone(tz_str)
-
-            while True:
-                sub = input("\nSimulate for (1) Adults or (2) Children? ").strip()
-                if sub in ['1', '2']:
-                    sim_submode = 'adult' if sub == '1' else 'child'
-                    break
-                print(f"{Fore.RED}Invalid choice.{Style.RESET_ALL}")
-
-            apply_uhi  = False
-            population = None
-
-        else:
-            weather_data = get_weather_forecast(lat, lon)
-            if not weather_data:
-                return
-
-            print("\n--- Raw Weather Forecast Summary ---")
-            print("{:<20} {:<10} {:<10} {:<10}".format("Time (UTC)", "Temp (°C)", "RH (%)", "Wind (m/s)"))
-            print("-" * 55)
-            for entry in weather_data[:5]:
-                dt_utc = datetime.fromtimestamp(entry["dt"], tz=UTC)
-                print("{:<20} {:<10.1f} {:<10.0f} {:<10.1f}".format(
-                    dt_utc.strftime('%Y-%m-%d %H:%M'),
-                    entry["main"]["temp"], entry["main"]["humidity"], entry["wind"]["speed"]))
-            print("...")
-
-            available_dates = sorted(set([
-                pd.Timestamp(datetime.fromtimestamp(e["dt"], tz=UTC)).date()
-                for e in weather_data
-            ]))
-            print("\nAvailable forecast dates:")
-            for i, d in enumerate(available_dates):
-                print(f"{i+1}. {d.strftime('%Y-%m-%d')}")
-            date_choice   = int(input("Choose date number: ")) - 1
-            date_str      = available_dates[date_choice].strftime('%Y-%m-%d')
-            local_timezone= get_timezone(lat, lon)
-            apply_uhi     = input("Apply UHI effect? (y/n): ").lower() == 'y'
-            population_uhi= int(input("City population: ")) if apply_uhi else None
-            sim_submode   = sim_mode
-
-        # --- Date / time selection ---
-        if sim_mode == 'excel':
-            available_dates = sorted(set([
-                datetime.fromtimestamp(e["dt"], tz=local_timezone).date()
-                for e in weather_data
-            ]))
-            print("\nAvailable dates:")
-            for i, d in enumerate(available_dates):
-                print(f"{i+1}. {d.strftime('%Y-%m-%d')}")
-            date_choice = int(input("Choose date number: ")) - 1
-            date_str    = available_dates[date_choice].strftime('%Y-%m-%d')
-
-        print(f"\nDate selected: {date_str}.")
-        start_time_str = input("Enter start time (HH:MM): ")
-        duration       = float(input("Event duration in hours (e.g., 1.5): "))
-        n_simulations  = int(input("Number of simulated participants (e.g., 5000): "))
-        use_control_failure = False
-
-        # --- Mode-specific inputs ---
-        if sim_submode == 'adult':
-            activity_choice, met_value, _ = select_met_activity(MET_ACTIVITIES_ADULT)
-            adaptation_profile  = get_adaptation_profile(activity_choice)
-            training_factor     = adaptation_profile['training']
-            acclimatization_factor = adaptation_profile['acclimatization']
-            clo_value           = select_clo_value(CLO_OPTIONS_ADULT)
-            age_config          = select_age_configuration()  # [rev10] label only
-            if TCF_AVAILABLE:
-                tcf_choice = input(
-                    "\nRun Thermoregulatory Control Failure module "
-                    "(experimental T_rect x CO-deficit dose)? (y/N): "
-                ).lower().strip()
-                use_control_failure = tcf_choice in ('y', 'yes', 'j', 'ja')
-            else:
-                print(f"{Fore.YELLOW}Control Failure module not available; "
-                      f"extra TCF analysis is skipped.{Style.RESET_ALL}")
-        else:
-            age_group_choice    = input("Select age group (1: 0-10, 2: 11-20): ")
-            age_config          = "0-10" if age_group_choice == '1' else "11-20"
-            _, met_value, _     = select_met_activity(MET_ACTIVITIES_CHILD)
-            fitness_choice      = input("Fitness level (1: Low, 2: Medium, 3: High): ")
-            fitness_factor      = {'1': 0.2, '2': 0.5, '3': 0.8}.get(fitness_choice, 0.5)
-            clo_value           = select_clo_value(CLO_OPTIONS_CHILD)
-
-        # --- [rev10] Population generation and validation ---
-        base_population = None
-        if sim_submode == 'adult':
-            # Ask for random seed for reproducibility
-            seed_input = input("\n[rev10] Enter random seed for reproducible population "
-                               "(integer, or press Enter for random): ").strip()
-            random_seed = int(seed_input) if seed_input else None
-
-            # Check for existing population file
-            pop_file = f"HESTIA_population_N{n_simulations}_seed{random_seed}.pkl"
-            if os.path.isfile(pop_file):
-                load_existing = input(f"Found existing population file '{pop_file}'. Load it? (y/n): ").lower()
-                if load_existing == 'y':
-                    base_population = load_population(pop_file)
-                    print(f"{Fore.CYAN}Loaded {len(base_population)} profiles from disk.{Style.RESET_ALL}")
-
-            if base_population is None:
-                # Generate fresh population
-                base_population = generate_base_population(
-                    n_simulations         = n_simulations,
-                    training_factor       = training_factor,
-                    acclimatization_factor= acclimatization_factor,
-                    random_seed           = random_seed,
-                )
-                # Validate
-                print("\nRunning population validation...")
-                val_result = validate_population(base_population, show_plots=True)
-                if not val_result['all_pass']:
-                    print(f"{Fore.YELLOW}[rev10] Population validation found issues. "
-                          f"Check warnings above before proceeding.{Style.RESET_ALL}")
-
-                # Offer to save
-                save_pop = input(f"\nSave population to '{pop_file}' for future use? (y/n): ").lower()
-                if save_pop == 'y':
-                    save_population(base_population, pop_file)
-
-            n_simulations = len(base_population)
-
-        # --- Weather preparation ---
-        start_dt    = pd.Timestamp(f"{date_str} {start_time_str}", tz=local_timezone.zone)
-        end_dt      = start_dt + timedelta(hours=duration)
-        interp_data = interpolate_weather(weather_data, start_dt, end_dt)
-
-        if apply_uhi and sim_mode != 'excel':
-            print(f"\nApplying UHI effect for {city_name}...")
-            for entry in interp_data:
-                is_daytime   = 6 <= entry["time"].hour < 18
-                entry["temp"]+= calculate_uhi_effect(population_uhi, entry["wind"], is_daytime)
-
-        print(f"\nStarting simulation for {n_simulations} participants in {city_name}...")
-
-        if sim_submode == 'adult':
-            all_results, stats, results_df = run_monte_carlo_adult(
-                interp_data, lat, lon, met_value, clo_value, n_simulations,
-                age_config, training_factor, acclimatization_factor,
-                use_parallel=True,
-                base_population=base_population,   # [rev10]
-                random_seed=random_seed,           # [rev10]
-                run_control_failure=use_control_failure,  # [rev17]
-            )
-        else:
-            all_results, stats = run_monte_carlo_pediatric(
-                interp_data, lat, lon, met_value, clo_value, n_simulations,
-                age_config, fitness_factor, use_parallel=True
-            )
-
-        if not all_results:
-            print("No results were calculated.")
-            return
-
-        # --- Excel export ---
-        if sim_submode == 'adult' and results_df is not None:
-            # Always write to this script's own directory, so
-            # HESTIA_TCF_Plots.py always finds the files alongside it.
-            _script_dir    = os.path.dirname(os.path.abspath(__file__))
-            excel_filename = os.path.join(_script_dir, "HESTIA_Simulation_Results.xlsx")
-            ts_filename    = os.path.join(_script_dir, "HESTIA_TCF_Timeseries.xlsx")
-            sheet_name     = f"{city_name.replace(' ', '_')}_{start_dt.strftime('%Y-%m-%d')}"
-            print(f"\n[INFO] Exporting to '{excel_filename}', sheet '{sheet_name}'...")
-            try:
-                if os.path.exists(excel_filename):
-                    with pd.ExcelWriter(excel_filename, engine='openpyxl', mode='a',
-                                        if_sheet_exists='replace') as writer:
-                        results_df.to_excel(writer, sheet_name=sheet_name, index=False)
-                else:
-                    with pd.ExcelWriter(excel_filename, engine='openpyxl', mode='w') as writer:
-                        results_df.to_excel(writer, sheet_name=sheet_name, index=False)
-                print(f"{Fore.GREEN}[SUCCESS] Exported {len(results_df)} participants.{Style.RESET_ALL}")
-            except Exception as e:
-                print(f"{Fore.RED}[ERROR] Excel export failed: {e}{Style.RESET_ALL}")
-
-            try:
-                import importlib.util as _ilu
-                _ts_mod_path = os.path.join(_script_dir, "HESTIA_TCF_Timeseries_Export.py")
-                _spec = _ilu.spec_from_file_location("HESTIA_TCF_Timeseries_Export", _ts_mod_path)
-                _ts_mod = _ilu.module_from_spec(_spec)
-                _spec.loader.exec_module(_ts_mod)
-                _ts_mod.export_tcf_timeseries(
-                    all_results, results_df, sheet_name,
-                    output_path=ts_filename,
-                )
-            except Exception as e_ts:
-                print(f"{Fore.YELLOW}[WAARSCHUWING] Timeseries export mislukt: {e_ts}{Style.RESET_ALL}")
-
-        # --- Environmental data summary ---
-        print("\n--- Interpolated Environmental Data Used in Simulation ---")
-        print("{:<20} {:<10} {:<10} {:<15} {:<10} {:<10}".format(
-            "Time", "Temp (°C)", "RH (%)", "TWB (°C)", "Wind (m/s)", "MRT (°C)"))
-        print("-" * 80)
-        first_sim = all_results[0]
-        for i, entry in enumerate(interp_data):
-            print("{:<20} {:<10.1f} {:<10.0f} {:<15.1f} {:<10.1f} {:<10.1f}".format(
-                entry["time"].strftime('%Y-%m-%d %H:%M'),
-                entry["temp"], entry["rh"], entry["twb"],
-                entry["wind"], first_sim[i]['mrt'],
-            ))
-
-        # --- Results display ---
-        if sim_submode == 'adult':
-            print(f"\n=== Adult Risk Classification Summary (95th Percentile + T_rect Tail) ===")
-            print("{:<20} {:<10} {:<10} {:<15} {:<15} {:<10} {:<40}".format(
-                "Time", "UTCI", "WBGT", "T_rect(95%)", "T_rect(97.5%)", "RPE(95%)", "Overall Risk"))
-            print("-" * 122)
-            for i, r_point in enumerate(all_results[0]):
-                risk = calculate_adult_risk_classification(
-                    r_point['utci'], r_point['wbgt'],
-                    stats['upper_t_rect'][i], stats['upper_rpe'][i])
-                t975 = stats.get('t_rect_p975', stats['upper_t_rect'])[i]
-                print(f"{r_point['time']:<20} {r_point['utci']:<10.2f} {r_point['wbgt']:<10.2f} "
-                      f"{stats['upper_t_rect'][i]:<15.2f} {t975:<15.2f} "
-                      f"{stats['upper_rpe'][i]:<10.2f} "
-                      f"{risk['risk_color']}{risk['detailed_risk']}")
-
-            print(f"\n=== Core Temperature Risk Threshold Analysis (T_rect) ===")
-            thresholds = sorted([float(k) for k in stats['temp_threshold_stats'].keys()])
-            header = "{:<20}".format("Time") + "".join(
-                [" {:<25}".format(f"% > {t}°C (95% CI)") for t in thresholds])
-            print(header)
-            print("-" * len(header))
-            for i, r_point in enumerate(all_results[0]):
-                row = "{:<20}".format(r_point['time'])
-                for t in thresholds:
-                    t_str = f"{t:.1f}"
-                    m  = stats['temp_threshold_stats'][t_str]['mean'][i]
-                    lo = stats['temp_threshold_stats'][t_str]['ci_lower'][i]
-                    hi = stats['temp_threshold_stats'][t_str]['ci_upper'][i]
-                    row += " {:<25}".format(f"{m:8.4f} ({lo:8.4f}-{hi:8.4f})")
-                print(row)
-
-            if 'vulnerable_tail_n' in stats:
-                print(f"\n=== Vulnerable Tail Cohort (top 2.5% by peak T_rect) ===")
-                print(f"Participants: {stats['vulnerable_tail_n']} "
-                      f"({stats['vulnerable_tail_pct_actual']:.2f}% of simulation)")
-                print(f"Peak T_rect cutoff: {stats['vulnerable_tail_peak_cutoff']:.2f} °C")
-                print(f"Mean age: {stats['vulnerable_tail_age_mean']:.1f} y | "
-                      f"Mean VO2max: {stats['vulnerable_tail_vo2max_mean']:.1f} mL/kg/min | "
-                      f"Mean K_p: {stats['vulnerable_tail_kp_mean']:.3f} MET/°C | "
-                      f"NSAID use: {stats['vulnerable_tail_nsaid_pct']:.1f}%")
-                if 'vulnerable_tail_co_reserve_min_p50' in stats:
-                    print(f"Tail CO reserve min P50/P05: "
-                          f"{stats['vulnerable_tail_co_reserve_min_p50']:.2f} / "
-                          f"{stats['vulnerable_tail_co_reserve_min_p05']:.2f} L/min | "
-                          f"Tail dehydration P50/P95: "
-                          f"{stats['vulnerable_tail_dehy_pct_p50']:.2f}% / "
-                          f"{stats['vulnerable_tail_dehy_pct_p95']:.2f}%")
-
-            plot_adult_results(all_results, stats, city_name, start_dt, duration)
-            if results_df is not None:
-                plot_adult_boxplots(results_df)
-
-            if CVR_AVAILABLE and 'hr_peak_p50' in stats:
-                # [rev12] Print active endpoint before CVR summary for traceability
-                if 'active_endpoint_label' in stats:
-                    ep_status = stats['active_endpoint_status']
-                    ep_color  = Fore.GREEN if ep_status == 'VALIDATED' else Fore.YELLOW
-                    print(f"\n{'='*72}")
-                    print(f"[rev12] COLLAPSE RISK MODEL -- ACTIVE ENDPOINT")
-                    print(f"  Endpoint : {stats['active_endpoint_label']}")
-                    print(f"  Status   : {ep_color}{ep_status}{Style.RESET_ALL}")
-                    print(f"  P_obs    : {stats['active_endpoint_p_obs']*10000:.1f} / 10.000")
-                    print(f"  Intercept: {stats['collapse_intercept_kal']:.3f}")
-                    print(f"  Source   : {stats['active_endpoint_source']}")
-                    if ep_status in ('PROVISIONAL', 'REQUIRES_RECALIBRATION'):
-                        print(f"  {Fore.YELLOW}NOTE: Recalibration required after the rev14 "
-                              f"K_p distribution (A) and post-finish module (C) changes. "
-                              f"Run intercept_estimation.py with tdb 22->26degC.{Style.RESET_ALL}")
-                    print(f"{'='*72}")
-
-                # [rev14] GHOR OPERATIONAL SUMMARY
-                print(f"\n{'='*72}")
-                print(f"[rev14] GHOR OPERATIONAL SUMMARY")
-                print(f"{'='*72}")
-
-                # A -- K_p population
-                if 'kp_mean' in stats:
-                    print(f"\n  [A] POPULATION PACING RESPONSIVENESS")
-                    print(f"      K_p mean             : {stats['kp_mean']:.3f} MET/°C")
-                    print(f"      K_p P5               : {stats['kp_p05']:.3f} MET/°C")
-                    pct_km = stats['pct_kp_onder_002']
-                    km_col = Fore.RED if pct_km > 5 else Fore.YELLOW if pct_km > 2 else Fore.GREEN
-                    # [rev15] No intercept sensitivity for K_p (it is sampled independently);
-                    # report as point estimate with MC note.
-                    print(f"      % K_p < 0.02 (overmotivated): "
-                          f"{km_col}{pct_km:.1f}%{Style.RESET_ALL}  "
-                          f"[MC sample; N={n_simulations}]")
-                    print(f"      % NSAID use          : {stats.get('pct_nsaid', 0):.1f}%")
-                    if pct_km > 3:
-                        print(f"      {Fore.YELLOW}ATTENTION: {pct_km:.1f}% of the population does not "
-                              f"pace down under thermal overload. Increased "
-                              f"finish-zone surveillance recommended.{Style.RESET_ALL}")
-
-                # B — AUC clinical (Roberts)
-                if 'auc_klinisch_p95' in stats:
-                    print(f"\n  [B] THERMAL DOSE (Roberts 2007, threshold 60 degree-min)")
-                    print(f"      AUC_klinisch P50     : {stats['auc_klinisch_p50']:.2f} degC*min")
-                    print(f"      AUC_klinisch P95     : {stats['auc_klinisch_p95']:.2f} degC*min")
-                    print(f"      AUC total P95        : {stats['auc_klinisch_totaal_p95']:.2f} degC*min")
-                    pct_rob = stats['pct_roberts_kritiek']
-                    rob_col = Fore.RED if pct_rob > 1 else Fore.YELLOW if pct_rob > 0.1 else Fore.GREEN
-                    # [rev15] Calibration uncertainty band
-                    rob_lo  = stats.get('pct_roberts_kritiek_lo', pct_rob)
-                    rob_hi  = stats.get('pct_roberts_kritiek_hi', pct_rob)
-                    rob_str = _format_pct_with_band(pct_rob, rob_lo, rob_hi)
-                    print(f"      % above Roberts threshold: "
-                          f"{rob_col}{rob_str}{Style.RESET_ALL}")
-                    print(f"      [rev15] Band = calibration uncertainty, intercept +/-0.5; "
-                          f"not a classical 95% CI")
-                    if pct_rob > 0.5:
-                        print(f"      {Fore.RED}CRITICAL: >0.5% of population exceeds 60 degree-min. "
-                              f"Cooling within 5-10 min after collapse is essential.{Style.RESET_ALL}")
-
-                # C — Post-finish
-                if 'pct_ehs_postfinish' in stats:
-                    print(f"\n  [C] POST-FINISH RISK ZONE (10 min after finish)")
-                    pct_pf = stats['pct_ehs_postfinish']
-                    pf_col = Fore.RED if pct_pf > 0.5 else Fore.YELLOW if pct_pf > 0.1 else Fore.GREEN
-                    # [rev15] Calibration uncertainty band
-                    pf_lo  = stats.get('pct_ehs_postfinish_lo', pct_pf)
-                    pf_hi  = stats.get('pct_ehs_postfinish_hi', pct_pf)
-                    pf_str = _format_pct_with_band(pct_pf, pf_lo, pf_hi)
-                    print(f"      % EHS post-finish    : "
-                          f"{pf_col}{pf_str}{Style.RESET_ALL}")
-                    print(f"      T_rect peak PF P95   : {stats['t_rect_pf_p95']:.2f}degC")
-                    print(f"      [rev15] Band = calibration uncertainty, intercept +/-0.5")
-                    if pct_pf > 0.1:
-                        print(f"      {Fore.YELLOW}ATTENTION: increased medical staffing "
-                              f"in the finish zone recommended (first 10 min after finish).{Style.RESET_ALL}")
-
-                # D -- Thermoregulatory Control Failure (experimental)
-                if 'control_failure_dose_p95' in stats:
-                    print(f"\n  [D] THERMOREGULATORY CONTROL FAILURE "
-                          f"(experimental mechanistic metric)")
-                    for line in format_control_failure_summary(stats):
-                        print(f"      {line}")
-                    pct_tcf_severe = stats.get('pct_control_failure_severe', 0.0)
-                    if pct_tcf_severe > 1.0:
-                        print(f"      {Fore.RED}CRITICAL: >1% severe control-failure dose. "
-                              f"Prioritise finish-zone cooling and rapid triage.{Style.RESET_ALL}")
-                    elif stats.get('pct_control_failure_relevant', 0.0) > 1.0:
-                        print(f"      {Fore.YELLOW}ATTENTION: relevant TCF dose in a vulnerable "
-                              f"subgroup; monitor P95/P99 and the finish zone.{Style.RESET_ALL}")
-                print(f"{'='*72}")
-                print_cvr_population_summary(
-                    stats,
-                    start_group_label=city_name,
-                    n_participants=n_simulations,
-                    edition=str(start_dt.date()),
-                )
-
-                # [rev15] CALIBRATION UNCERTAINTY SUMMARY
-                # Printed after CVR console output so GHOR readers see the
-                # uncertainty context for every percentage above.
-                if 'pct_decompensation_lo' in stats:
-                    print(f"\n{'='*72}")
-                    print(f"[rev15] CALIBRATION UNCERTAINTY BAND (intercept +/-0.5 log-odds)")
-                    print(f"{'='*72}")
-                    print(f"  Note: the '~lo-hi%' band reflects the uncertainty in the")
-                    print(f"  calibration source (Boston->DtD transfer), NOT a classical")
-                    print(f"  95% CI. Monte Carlo sampling uncertainty (Wald, N={n_simulations})")
-                    print(f"  is NOT the dominant factor here.")
-                    print(f"")
-                    dec_str = _format_pct_with_band(
-                        stats['pct_decompensation'],
-                        stats['pct_decompensation_lo'],
-                        stats['pct_decompensation_hi'])
-                    col_str = _format_pct_with_band(
-                        stats['p_collapse_mean'],
-                        stats['p_collapse_mean_lo'],
-                        stats['p_collapse_mean_hi'])
-                    hoog_str = _format_pct_with_band(
-                        stats['pct_high_collapse_risk'],
-                        stats['pct_high_collapse_risk_lo'],
-                        stats['pct_high_collapse_risk_hi'])
-                    print(f"  CVR decompensating        : {dec_str}")
-                    print(f"  Mean collapse probability: {col_str}")
-                    print(f"  % high collapse risk     : {hoog_str}")
-                    if 'pct_roberts_kritiek_lo' in stats:
-                        rob_str = _format_pct_with_band(
-                            stats['pct_roberts_kritiek'],
-                            stats['pct_roberts_kritiek_lo'],
-                            stats['pct_roberts_kritiek_hi'])
-                        print(f"  % above Roberts threshold: {rob_str}")
-                    if 'pct_ehs_postfinish_lo' in stats:
-                        pf_str = _format_pct_with_band(
-                            stats['pct_ehs_postfinish'],
-                            stats['pct_ehs_postfinish_lo'],
-                            stats['pct_ehs_postfinish_hi'])
-                        print(f"  EHS post-finish          : {pf_str}")
-                    print(f"")
-                    print(f"  Band narrows after clinical calibration (Bongers,")
-                    print(f"  Radboudumc) of the Z-function coefficients W_T1/W_T2/W_C/W_D.")
-                    print(f"{'='*72}")
-
-            df_met_analysis = analyze_met_thresholds(interp_data, lat, lon, clo_value)
-            plot_met_thresholds(df_met_analysis, met_value)
-
-        else:
-            print(f"\n=== Pediatric Risk Classification Summary (95th Percentile) ===")
-            print("{:<20} {:<10} {:<10} {:<15} {:<10} {:<15} {:<40}".format(
-                "Time", "UTCI", "WBGT", "T_core(95%)", "RPE(95%)", "% First Aid", "Risk"))
-            print("-" * 130)
-            for i, r_point in enumerate(all_results[0]):
-                risk = calculate_pediatric_risk_classification(
-                    r_point['utci'], r_point['wbgt'],
-                    stats['upper_t_core'][i], stats['upper_rpe'][i])
-                print(f"{r_point['time']:<20} {r_point['utci']:<10.2f} {r_point['wbgt']:<10.2f} "
-                      f"{stats['upper_t_core'][i]:<15.2f} {stats['upper_rpe'][i]:<10.2f} "
-                      f"{stats['percent_first_aid'][i]:<15.1f} "
-                      f"{risk['risk_color']}{risk['detailed_risk']}")
-
-            plot_pediatric_results(all_results, stats, city_name, start_dt, duration)
-
-        input("\nPress Enter to close the plot windows and exit.")
-
-    except ValueError as e:
-        import traceback
-        traceback.print_exc()
-        print(f"{Fore.RED}Invalid input error: {e}{Style.RESET_ALL}")
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        print(f"{Fore.RED}An unexpected error occurred: {e}{Style.RESET_ALL}")
+def __getattr__(name):
+    if name in _MOVED:
+        import importlib
+        return getattr(importlib.import_module(_MOVED[name]), name)
+    raise AttributeError(f"module 'hestia_model' has no attribute '{name}'")
 
 
 if __name__ == "__main__":
-    main()
+    from hestia_console import main as _console_main
+    _console_main()

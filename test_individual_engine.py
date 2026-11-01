@@ -37,7 +37,10 @@ import tempfile
 import numpy as np
 import pandas as pd
 
-os.environ.setdefault("PYROX_DATA_DIR", tempfile.mkdtemp())
+_TMPD = tempfile.mkdtemp(prefix="hestia_ie_")
+import atexit as _ax, shutil as _sh
+_ax.register(_sh.rmtree, _TMPD, True)  # [2026-10-25] clean up
+os.environ.setdefault("PYROX_DATA_DIR", _TMPD)
 
 from individual_engine import (
     PersonalInputs, EventScenario, IndividualAssessment,
@@ -466,8 +469,10 @@ def test_eac_window_scoping() -> bool:
     entities into one number (Asplund: collapse DURING a race points to
     a different, more serious cause)."""
     print("EHE/EAC window scoping")
-    from individual_engine import (eac_hit, eac_dose, conjunctive_hit,
-                                    EHE_T_THRESHOLD, EHE_CO_THRESHOLD)
+    # [2026-10-20] EAC-staan replaced this criterion; the old one is kept as
+    # eac_hit_legacy / eac_dose_legacy and still tested here.
+    from individual_engine import (eac_hit_legacy as eac_hit, eac_dose_legacy as eac_dose,
+                                    conjunctive_hit, EHE_T_THRESHOLD, EHE_CO_THRESHOLD)
     ok = True
 
     # Cool runner, but CO_reserve goes negative AFTER finishing.
@@ -508,7 +513,8 @@ def test_eac_requires_sustained_deficit() -> bool:
     40% to 15% on the same scenario, and the empirical distribution has
     a clear knee there (15% at 0.5, 15% at 1.0, 12.5% at 2.0)."""
     print("EAC requires a sustained deficit, not one dip")
-    from individual_engine import eac_hit, eac_dose, EAC_DOSE_THRESHOLD
+    from individual_engine import (eac_hit_legacy as eac_hit, eac_dose_legacy as eac_dose,
+                                    EAC_DOSE_THRESHOLD)   # [2026-10-20] legacy criterion
     ok = True
 
     def mk(pf_series):
@@ -536,8 +542,26 @@ def test_eac_requires_sustained_deficit() -> bool:
     return ok
 
 
+def test_eac_staan() -> bool:
+    """[2026-10-20] EAC-staan: the engine's collapse probability on standing
+    is what eac_hit / eac_dose / eac_fraction now read."""
+    print("EAC-staan (collapse on standing)")
+    from individual_engine import eac_hit, eac_dose, eac_probability_of
+    ok = True
+    def mk(p, R):
+        rows = [{"t_rect": 38.5, "co_reserve": 2.0}]
+        rows[-1].update({"eac_kans": p, "eac_staanbelasting": R})
+        return rows
+    ok &= _check("probability read from the engine result", eac_probability_of(mk(0.02, 12.0)) == 0.02)
+    ok &= _check("load read from the engine result", eac_dose(mk(0.02, 12.0)) == 12.0)
+    ok &= _check("hit only at 50 % or more", eac_hit(mk(0.6, 40.0)) and not eac_hit(mk(0.1, 15.0)))
+    ok &= _check("old results without EAC-staan count as 0", eac_probability_of([{"t_rect": 38.0}]) == 0.0)
+    return ok
+
+
 if __name__ == "__main__":
     results = [
+        test_eac_staan(),
         test_timezone_localization(),
         test_reproducibility_same_seed(),
         test_zone_episode_classification(),

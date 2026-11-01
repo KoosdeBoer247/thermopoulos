@@ -24,7 +24,7 @@ Wat het doet
    e-mailadres).
 
 Het Controleverslag noemt per berichttype welke velden zijn overgenomen en
-welke zijn weggelaten (alleen namen, geen waarden), zodat Joost/Radboudumc
+welke zijn weggelaten (alleen namen, geen waarden), zodat de clinic-organisatie/Radboudumc
 voor het doorsturen kunnen controleren wat erin zit.
 
 Gebruik

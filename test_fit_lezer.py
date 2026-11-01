@@ -39,5 +39,15 @@ if pad and Path(pad).is_file():
 else:
     print("(FIT_TEST_BESTAND niet gezet: bestandscontroles overgeslagen)")
 
-print("\nALLES OK" if not FOUT else f"\n{len(FOUT)} FOUT(EN)")
-sys.exit(1 if FOUT else 0)
+
+
+def test_fit_lezer():
+    """[2026-10-17] pytest entry point: the checks above ran at import."""
+    assert not FOUT, FOUT
+
+
+if __name__ == "__main__":
+    # [2026-10-17] Was an unconditional sys.exit() at module level, which made
+    # pytest abort during collection ("INTERNALERROR").
+    print("\nALLES OK" if not FOUT else f"\n{len(FOUT)} FOUT(EN)")
+    sys.exit(1 if FOUT else 0)

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="300 128 424 424">
+<defs>
+  <linearGradient id="ringgrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#1E7FD8"/><stop offset="100%" stop-color="#2FA66B"/></linearGradient>
+</defs>
+
+<circle cx="512" cy="340" r="192" fill="none" stroke="url(#ringgrad)" stroke-width="13"/>
+
+<circle cx="512" cy="345" r="96" fill="none" stroke="url(#ringgrad)" stroke-width="7" opacity="0.30"/>
+<circle cx="512" cy="345" r="70" fill="none" stroke="url(#ringgrad)" stroke-width="7" opacity="0.45"/>
+<path d="M432,388 L462,362 L488,378 L514,322 L540,344 L566,292 L592,304"
+      fill="none" stroke="#FFFFFF" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="592" cy="304" r="9" fill="#FFFFFF"/>
+
+</svg>

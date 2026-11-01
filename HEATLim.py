@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+# ASU/USYD HEAT-Lim -- third-party code by G. Guzman-Echavarria and J. Vanos et al.,
+# licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
+# Source: Zenodo doi:10.5281/zenodo.15642387 (v2). Change made here: this note added.
+# See THIRD_PARTY_LICENSES.md. Not covered by the suite's MIT licence.
 """
 Created on Fri Nov  5 11:24:20 2021
 

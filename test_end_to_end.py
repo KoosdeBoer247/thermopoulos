@@ -68,8 +68,11 @@ K.REQUEST_PAUSE_S = 0.0
 answers = iter(["TestCity", "n", "y", "Dam tot Damloop", "22-09", "13:30", "", "100", "n"])
 builtins.input = lambda prompt="": (lambda a: (print(f"{prompt}{a}"), a)[1])(next(answers))
 
-os.makedirs("/home/claude/klimatos/e2e", exist_ok=True)
-os.chdir("/home/claude/klimatos/e2e")
+import tempfile
+_E2E_DIR = tempfile.mkdtemp(prefix="hestia_e2e_")
+import atexit as _ax, shutil as _sh
+_ax.register(_sh.rmtree, _E2E_DIR, True)  # [2026-10-25] clean up
+os.chdir(_E2E_DIR)
 
 K.main()
 

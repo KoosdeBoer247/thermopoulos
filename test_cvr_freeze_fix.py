@@ -39,6 +39,15 @@ from hestia_model import (
     calculate_indices_jos3_adult, AdultParticipantProfile,
     _daniels_gilbert_vo2_at_pace, VO2MAX_TO_MET_FACTOR,
 )
+import hestia_model as _H
+
+# [2026-10-19] This file tests the LEGACY freeze path (a stopped runner's
+# state copied to the end of the race). Since 2026-10-19 the default is
+# RPE_STOP_ENDS_RACE = True (race ends at the stop, post-finish module
+# follows) and RPE comes from the CVR heart rate, so the legacy path is
+# switched on explicitly here to keep it covered.
+_H.RPE_STOP_ENDS_RACE = False
+_H.RPE_FROM_CVR_HR = False
 
 
 def _check(name: str, cond: bool, detail: str = "") -> bool:

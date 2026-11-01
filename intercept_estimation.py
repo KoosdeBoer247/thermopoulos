@@ -42,8 +42,16 @@ OUTPUTS
 
 REFERENCES
 ----------
-Breslow RG et al. (2021) Am J Sports Med 49(10):2696-2703.
-  [Boston Marathon EHS 2012-2019: EP1 calibration source]
+Breslow RG, Collins JE, Troyanos C, Cohen MC, d'Hemecourt P, Dyer KS,
+  Baggish A (2021). Exertional heat stroke at the Boston Marathon:
+  demographics and the environment. Med Sci Sports Exerc 53(9):1818-1825.
+  doi:10.1249/MSS.0000000000002652.
+  [Boston 2015-2019, 50 EHS / 136,161 starters = 3.7/10,000; all cases in
+   races with mean WBGT 17-20 degC. EP1 target 4.5/10,000 = author's choice,
+   see ENDPOINTS['ehs'].]
+  [2026-10-17] Previously cited as "Am J Sports Med 49(10):2696-2703",
+  "2012-2019 pooled", 9.0/10,000 -- that reference does not exist (Crossref:
+  those pages hold two ankle-surgery papers) and the rate is not in the paper.
 GHOR Noord-Holland Noord, DtD 2024.
   [50 / 35.000 hospitalisations: EP2 calibration source]
 
@@ -70,10 +78,11 @@ init(autoreset=True)
 # =============================================================================
 
 # --- Population parameters ---
-N_POPULATION   = 200      # [temp] Reduced for a single-core feasibility run;
+N_POPULATION   = int(os.environ.get('HESTIA_CAL_N', 200))  # [2026-10-14] env override HESTIA_CAL_N
+                          # [temp] Reduced for a single-core feasibility run;
                           # re-run at 10,000-50,000 in a multi-core environment
                           # for the production COLLAPSE_ENDPOINTS values.
-RANDOM_SEED    = 42        # Fixed seed for reproducibility
+RANDOM_SEED    = int(os.environ.get("HESTIA_CAL_SEED", 42))  # Fixed seed for reproducibility; [2026-10-15] env override HESTIA_CAL_SEED
 
 # --- Simulation parameters ---
 # [2026-07, RESTRUCTURED] Generalizable principle: every calibration target
@@ -100,7 +109,7 @@ RANDOM_SEED    = 42        # Fixed seed for reproducibility
 # makes this generalizable rather than a one-off DtD-specific patch.
 
 REF_CONDITIONS_BOSTON = {
-    # Meteorological -- Boston 2017 (Breslow 2021 reference year): moderate
+    # Meteorological -- Boston 2017 (one of the Breslow 2021 editions): moderate
     # WBGT ~18degC, temperature rising during the race.
     'tdb_start'  : 18.0,   # °C dry-bulb at race start
     'tdb_end'    : 22.0,   # °C dry-bulb at race finish (rising trend)
@@ -121,6 +130,13 @@ REF_CONDITIONS_BOSTON = {
     # Adaptation (Boston 2017 field: moderately trained)
     'training_factor'       : 0.30,
     'acclimatization_factor': 0.35,
+    # [2026-10-19, night] Sampled pace over the marathon distance, like every
+    # event run and like the DtD block, so the calibration population has the
+    # same pace and duration spread as the runs it is applied to. (The large
+    # Amsterdam/Boston mismatch first blamed on this turned out to come from
+    # the fixed per-runner wind angle; see hestia_model.WIND_ANGLE_AVERAGED.)
+    'sample_pace'           : True,
+    'event_dist_km'         : 42.195,
 }
 
 # [2026-07, new] DtD 2024's own reference conditions -- approximate, in the
@@ -131,12 +147,24 @@ REF_CONDITIONS_BOSTON = {
 # WBGT ~20-21degC over the race window). Flagged PROVISIONAL, same as the
 # endpoints that use it -- refine against the real fetched weather file if
 # more precision is needed.
+# [2026-10-24] Replaced by the REAL hourly weather of 22-09-2024 (Thermopoulos
+# Data Engine hindcast, Amsterdam, file DtD2024_Amsterdam_hindcast.xlsx in the
+# suite folder). build_reference_interp() replays that file (linear in time
+# between the hours) when 'weather_excel' is set; the scalar values below are
+# kept only for the console line and as a record of the old synthetic ramp
+# (19.5->21.5 degC, RH 68, wind 1.5, cloud 40), which had drier air and more
+# wind than the real day (WBGT about 1 lower over 12-14h).
+# The file's measured global radiation, sun elevation, globe temperature and
+# MRT are used directly (ERA5 reported 89-99 % cloud while 450-550 W/m2 was
+# measured: thin high cloud, so cloud cover must not be used to estimate sun).
 REF_CONDITIONS_DTD = {
-    'tdb_start'  : 19.5,   # °C dry-bulb at race start
-    'tdb_end'    : 21.5,   # °C dry-bulb at race finish (rising trend)
-    'rh'         : 68.0,   # % relative humidity (approximate, Sept Amsterdam)
-    'wind_ms'    : 1.5,    # m/s wind at 1.5m height (approximate)
-    'cloud_cover': 40,     # % cloud cover
+    'weather_excel': 'DtD2024_Amsterdam_hindcast.xlsx',
+    'weather_sheet': 'Historical_Custom',
+    'tdb_start'  : 20.2,   # °C T_air_urban at 11:30 (info only when weather_excel is used)
+    'tdb_end'    : 23.0,   # °C T_air_urban at ~13:45 (info only)
+    'rh'         : 73.0,   # % mean RH 11:30-13:45 (info only)
+    'wind_ms'    : 2.8,    # m/s wind at 10 m (info only; the engine converts 10 m -> 1.5 m)
+    'cloud_cover': 95,     # % ERA5 cloud cover (info only; radiation is taken from the file)
     'pressure'   : 1015.0, # hPa
     # Race parameters
     'duration_h' : 1.63,   # hours (matches the DtD scenarios run this project)
@@ -152,6 +180,14 @@ REF_CONDITIONS_DTD = {
     # this project's DtD test runs)
     'training_factor'       : 0.50,
     'acclimatization_factor': 0.60,
+    # [2026-10-14] The 2026-09 recalibration of hospitalisation/first_aid was
+    # done with sample_pace=True, event_dist_km=16.1 and the window widened
+    # to PACE_MIN_PER_KM_CEILING*16.1 (see COLLAPSE_ENDPOINTS notes in
+    # hestia_model.py), but that setting was never written back into this
+    # script -- running it as shipped reproduced the OLD sample_pace=False
+    # regime. Recorded here so the documented procedure is reproducible.
+    'sample_pace'  : True,
+    'event_dist_km': 16.1,
 }
 
 REF_CONDITIONS_BY_KEY = {
@@ -166,23 +202,30 @@ REF_CONDITIONS_BY_KEY = {
 # Status controls what is printed in the output report.
 ENDPOINTS = {
     'ehs': {
-        'label'   : 'EHS klinisch (Boston 2012-2019 gepoold)',
-        'p_target': 9.0 / 10_000,          # 0.00090  Breslow 2021
-        'source'  : 'Breslow RG et al. (2021) Am J Sports Med 49(10):2696-2703',
+        'label'   : 'Model risk calibrated on clinical EHS (Boston Marathon, Breslow 2021)',
+        # [2026-10-17] Author's choice 4.5/10,000 (was 9.0, unsourced).
+        # Breslow 2021: 3.7/10,000 pooled over 2015-2019 (95% CI 2.7-4.8), but
+        # the reference scenario below is one warm edition (2017); cases only
+        # occurred at mean WBGT 17-20, so the warm-edition rate is higher
+        # (~6/10,000 if all 50 fell in 3 of 5 editions; 95% CI 4.5-8.1).
+        # 4.5 lies between both; replace by the 2017 rate once the per-year
+        # table of the full paper is available.
+        'p_target': 4.5 / 10_000,          # 0.00045
+        'source'  : 'Breslow RG, Collins JE, Troyanos C, et al. (2021) Med Sci Sports Exerc 53(9):1818-1825, doi:10.1249/MSS.0000000000002652',
         'status'  : 'PRIMARY',             # most trustworthy calibration point
         'ref_conditions_key': 'boston',
     },
     'hospitalisation': {
         'label'   : 'Hospital admission (DtD 2024)',
         'p_target': 50.0 / 35_000,         # 0.001429  GHOR NHN
-        'source'  : 'GHOR Noord-Holland Noord, Dam tot Damloop 2024',
+        'source'  : 'Data provided by GHOR Noord-Holland Noord and Le Champion (Dam tot Damloop 2024)',
         'status'  : 'PROVISIONAL',
         'ref_conditions_key': 'dtd',
     },
     'ehbo': {
         'label'   : 'First-aid contact, all incidents (DtD 2024 estimate)',
         'p_target': 150.0 / 35_000,        # 0.004286  centrale schatting
-        'source'  : 'Schatting GHOR NHN / DtD 2024 (ongepubliceerd)',
+        'source'  : 'Data provided by GHOR Noord-Holland Noord and Le Champion (Dam tot Damloop 2024; first-aid count is an estimate)',
         'status'  : 'PROVISIONAL',
         'ref_conditions_key': 'dtd',
     },
@@ -262,6 +305,36 @@ def build_reference_interp(cfg: dict) -> list:
                               freq=f"{cfg['interval_min']}min")
 
     n_steps  = len(times)
+
+    # [2026-10-24] Replay a real Data Engine weather file when configured,
+    # through the SAME builder the runner/event paths use
+    # (hestia_bridge.build_interp_data), so the reference carries the Data
+    # Engine's measured radiation, sun elevation, globe temperature and MRT.
+    if cfg.get('weather_excel'):
+        from pathlib import Path as _P
+        from hestia_bridge import build_interp_data
+        pad = _P(cfg['weather_excel'])
+        if not pad.is_absolute():
+            pad = _P(__file__).resolve().parent / pad
+        wx = pd.read_excel(pad, sheet_name=cfg.get('weather_sheet', 'Historical_Custom'), index_col=0)
+        wx.index = pd.to_datetime(wx.index)
+        # [2026-10-31] same radiation update as the runner/event loaders
+        from thermal_env import actualiseer_straling
+        wx, _ = actualiseer_straling(wx, pd.read_excel(pad, sheet_name='Metadata').iloc[0].to_dict())
+        if wx.index.tz is None:
+            wx.index = wx.index.tz_localize(tz)
+        if times[0] < wx.index.min() or times[-1] > wx.index.max():
+            raise ValueError(f"{pad.name} does not cover {times[0]} - {times[-1]}")
+        interp_data = build_interp_data(wx, times[0], times[-1], cfg['interval_min'])
+        for e in interp_data:
+            e['twb'] = float(wet_bulb_tmp(tdb=e['temp'], rh=e['rh']))
+        T = np.array([e['temp'] for e in interp_data]); G = np.array([e['ghi'] for e in interp_data])
+        print(f"  Referentie-interp uit {pad.name}: {len(interp_data)} tijdstappen, "
+              f"{T[0]:.1f}->{T[-1]:.1f}°C (max {T.max():.1f}), "
+              f"RH {np.mean([e['rh'] for e in interp_data]):.0f}%, "
+              f"zonnestraling gem. {G.mean():.0f} W/m2 (gemeten, Data Engine)")
+        return interp_data
+
     # Linear temperature ramp
     temps    = np.linspace(cfg['tdb_start'], cfg['tdb_end'], n_steps)
 
@@ -299,7 +372,8 @@ def get_population(engine, ref_key: str, cfg: dict) -> list:
     accidentally reused for a DtD-conditions calibration or vice versa.
     """
     pop_pkl = f'intercept_estimation_population_{ref_key}_N{N_POPULATION}_seed{RANDOM_SEED}.pkl'
-    if os.path.isfile(pop_pkl):
+    _nonint = os.environ.get('HESTIA_NONINTERACTIVE') or os.environ.get('HESTIA_CAL_NONINTERACTIVE')  # second name kept for old scripts
+    if os.path.isfile(pop_pkl) and not _nonint and sys.stdin.isatty():
         ans = input(f"\nCalibration population '{pop_pkl}' found. Load it? (y/n, recommended=y): ").strip().lower()
         if ans in ('y', 'yes', ''):
             try:
@@ -321,6 +395,8 @@ def get_population(engine, ref_key: str, cfg: dict) -> list:
         training_factor        = cfg['training_factor'],
         acclimatization_factor = cfg['acclimatization_factor'],
         random_seed            = RANDOM_SEED,
+        sample_pace            = cfg.get('sample_pace', False),
+        event_dist_km          = cfg.get('event_dist_km', 16.1),
     )
     print(f"  Generation: {time.time()-t0:.1f}s, {len(population)} valid profiles.")
 
@@ -361,6 +437,40 @@ def _detect_parallel_safe() -> bool:
         return False
 
     return True
+
+
+EAC_P_TARGET = 1.5 / 1000.0   # Naidoo, Sewry e.a. 2022 (J Sports Med Phys Fitness 62:1519)
+
+
+def calibrate_eac_ln_k(engine, loads, p_target: float = EAC_P_TARGET) -> dict:
+    """[2026-10-20] Bisection for hestia_model.EAC_LN_K: mean over runners of
+    Phi((ln R - lnK) / EAC_SIGMA) = p_target (R = 0 contributes 0)."""
+    from math import erf, sqrt
+    R = np.asarray(loads, dtype=float)
+    R = R[np.isfinite(R)]
+    pos = R[R > 0]
+    sig = engine.EAC_SIGMA
+    base = float(getattr(engine, 'EAC_BASE_P', 0.0))   # [2026-10-20 late] heat-independent share
+    def mean_p(lnk):
+        z = (np.log(pos) - lnk) / sig
+        p_heat = 0.5 * (1.0 + np.vectorize(erf)(z / sqrt(2.0)))
+        return float(np.sum(base + (1.0 - base) * p_heat)) / max(1, len(R))
+    lo, hi = -10.0, 20.0
+    for _ in range(100):
+        mid = 0.5 * (lo + hi)
+        if mean_p(mid) > p_target:
+            lo = mid
+        else:
+            hi = mid
+    lnk = 0.5 * (lo + hi)
+    print(f"  EAC-staan: ln K = {lnk:.6f}  (mean P = {mean_p(lnk)*1000:.3f} per 1000; "
+          f"{len(pos)} of {len(R)} runners stood; median R = {np.median(pos) if len(pos) else float('nan'):.2f} min)")
+    return {'ln_k': lnk, 'p_target': p_target, 'p_final': mean_p(lnk),
+            'n_standing': int(len(pos)), 'median_load_min': float(np.median(pos)) if len(pos) else None,
+            'label': 'EAC-staan (collapse on standing after the finish)',
+            'source': 'Naidoo D, Sewry NA, Schwellnus MP e.a. (2022) J Sports Med Phys Fitness 62(11):1519-1525',
+            'eac_base_p': base, 'eac_core_cap': getattr(engine, 'EAC_CORE_CAP', None),
+            'ref_conditions_key': 'dtd', 'intercept': lnk}
 
 
 def run_calibration_simulation(engine, population: list, interp_data: list, cfg: dict) -> dict:
@@ -406,6 +516,8 @@ def run_calibration_simulation(engine, population: list, interp_data: list, cfg:
         use_parallel           = parallel,
         base_population        = population,
         random_seed            = None,  # population already fixed
+        sample_pace            = cfg.get('sample_pace', False),
+        event_dist_km          = cfg.get('event_dist_km', 16.1),
     )
 
     elapsed = time.time() - t0
@@ -418,17 +530,14 @@ def run_calibration_simulation(engine, population: list, interp_data: list, cfg:
     # ------------------------------------------------------------------
     # Extraheer uitkomstvectoren
     # ------------------------------------------------------------------
-    t_rect_max = np.array([
-        max((r['t_rect'] for r in sim if not np.isnan(r['t_rect'])), default=np.nan)
-        for sim in all_results
-    ])
+    # [2026-10-20] Same extremes as the engine's collapse logistic: race +
+    # finish zone when engine.COLLAPSE_INCLUDES_POSTFINISH (collapse_extremes()).
+    _ext = [engine.collapse_extremes(sim) for sim in all_results]
+    t_rect_max = np.array([e[0] for e in _ext])
 
     # CO_reserve: use a nan-robust min; fall back to 2.0 if entirely nan
     # 2.0 = physiologically neutral (no stress, no contribution to the Z-score)
-    co_res_raw = np.array([
-        np.nanmin([r.get('co_reserve', np.nan) for r in sim])
-        for sim in all_results
-    ])
+    co_res_raw = np.array([e[1] for e in _ext])
     n_co_nan   = int(np.sum(np.isnan(co_res_raw)))
     n_co_valid = int(np.sum(~np.isnan(co_res_raw)))
 
@@ -501,10 +610,14 @@ def run_calibration_simulation(engine, population: list, interp_data: list, cfg:
         print(f"  Consider a higher reference temperature (raise tdb_start/end) or "
               f"a higher MET_value in REF_CONDITIONS.\n")
 
+    # [2026-10-20] EAC-staan standing load per runner (hestia_model.eac_probability)
+    eac_loads = np.array([float(sim[-1].get('eac_staanbelasting', 0.0) or 0.0) for sim in all_results])
+
     return {
         't_rect_max'  : t_rect_max,
         'co_res_min'  : co_res_min,
         'dehy_end'    : dehy_end,
+        'eac_loads'   : eac_loads,
         'stats'       : stats,
         'elapsed_s'   : elapsed,
         'n_co_nan'    : n_co_nan,
@@ -942,22 +1055,22 @@ def print_final_report(calibration_results: dict, sensitivity: dict,
         'ehbo'           : 'ehbo',
     }
     label_map = {
-        'ehs'            : 'EHS (clinical, Boston Marathon pooled)',
+        'ehs'            : 'Model risk calibrated on clinical EHS (Boston Marathon, Breslow 2021)',
         'hospitalisation': 'Hospital admission (DtD 2024)',
         'ehbo'           : 'First-aid contact, all incidents (DtD 2024 estimate)',
     }
     p_obs_map = {
-        'ehs'            : '9.0 / 10_000',
+        'ehs'            : '4.5 / 10_000',
         'hospitalisation': '50.0 / 35_000',
         'ehbo'           : '150.0 / 35_000',
     }
     source_map = {
-        'ehs'            : 'Breslow RG et al. (2021) Am J Sports Med 49(10):2696-2703',
-        'hospitalisation': 'GHOR Noord-Holland Noord, Dam tot Damloop 2024',
-        'ehbo'           : 'Estimate GHOR NHN / DtD 2024 (unpublished)',
+        'ehs'            : 'Breslow RG, Collins JE, Troyanos C, et al. (2021) Med Sci Sports Exerc 53(9):1818-1825, doi:10.1249/MSS.0000000000002652',
+        'hospitalisation': 'Data provided by GHOR Noord-Holland Noord and Le Champion (Dam tot Damloop 2024)',
+        'ehbo'           : 'Data provided by GHOR Noord-Holland Noord and Le Champion (Dam tot Damloop 2024; first-aid count is an estimate)',
     }
     status_map = {
-        'ehs'            : 'VALIDATED',
+        'ehs'            : 'PROVISIONAL',   # calibrated on one reference event, not independently validated
         'hospitalisation': 'PROVISIONAL',
         'ehbo'           : 'PROVISIONAL',
     }
@@ -965,6 +1078,8 @@ def print_final_report(calibration_results: dict, sensitivity: dict,
     cal_ts = datetime.now(timezone.utc).strftime('%Y-%m-%d')
     print(f"\nCOLLAPSE_ENDPOINTS = {{")
     for ep_key in ('ehs', 'hospitalisation', 'ehbo'):
+        if ep_key not in calibration_results:   # [2026-10-15] HESTIA_CAL_KEYS subset
+            continue
         res = calibration_results[ep_key]
         ep  = ENDPOINTS[ep_key]
         ic  = res['intercept']
@@ -1091,6 +1206,13 @@ def main():
     #        ENDPOINTS entry naming it via ref_conditions_key -- this loop  #
     #        picks it up automatically.                                    #
     # ------------------------------------------------------------------ #
+    # [2026-10-15] Optional HESTIA_CAL_KEYS=dtd (or boston) to calibrate only
+    # the endpoints of one reference scenario (e.g. a larger-N DtD run).
+    _only = os.environ.get('HESTIA_CAL_KEYS')
+    if _only:
+        _keep = set(k.strip() for k in _only.split(','))
+        for _ep in [k for k, v in ENDPOINTS.items() if v['ref_conditions_key'] not in _keep]:
+            ENDPOINTS.pop(_ep)
     needed_keys = sorted(set(ep['ref_conditions_key'] for ep in ENDPOINTS.values()))
     print(f"Distinct reference-conditions scenarios needed: {needed_keys}\n")
 
@@ -1103,6 +1225,10 @@ def main():
               f"{cfg['tdb_start']}->{cfg['tdb_end']}degC, MET={cfg['met_value']}")
         print(f"{'='*72}")
 
+        if cfg.get('sample_pace'):
+            # [2026-10-14] Same widening run_hestia.py applies for real runs.
+            cfg = dict(cfg, duration_h=max(cfg['duration_h'],
+                       engine.race_window_hours(cfg.get('event_dist_km', 16.1))))   # [2026-10-19] incl. sweep room
         interp_data = build_reference_interp(cfg)
         population  = get_population(engine, ref_key, cfg)
         n_pop       = len(population)
@@ -1130,16 +1256,30 @@ def main():
         )
         calibration_results[ep_key] = res
 
+    # [2026-10-20] EAC-staan: solve EAC_LN_K so the mean collapse probability
+    # on the Dam tot Damloop reference population equals 1.5 per 1000 starters
+    # (Naidoo, Sewry e.a. 2022, Two Oceans, cool conditions). No re-simulation
+    # needed: K does not feed back into the dynamics.
+    if 'dtd' in sim_outs and 'eac_loads' in sim_outs['dtd']:
+        _eac = calibrate_eac_ln_k(engine, sim_outs['dtd']['eac_loads'])
+        _eac['random_seed'] = RANDOM_SEED
+        _eac['n_population'] = int(len(sim_outs['dtd']['eac_loads']))
+        with open('intercept_estimation_eac.json', 'w') as _f:   # separate file: not a logistic endpoint
+            json.dump(_eac, _f, indent=2)
+        print(f"  EAC-staan result written to intercept_estimation_eac.json")
+
     # ------------------------------------------------------------------ #
     #  6. Sensitivity analysis EP3 (ehbo) -- against ehbo's own ref_out     #
     # ------------------------------------------------------------------ #
-    sensitivity = sensitivity_analysis_ehbo(sim_outs[ENDPOINTS['ehbo']['ref_conditions_key']])
+    sensitivity = (sensitivity_analysis_ehbo(sim_outs[ENDPOINTS['ehbo']['ref_conditions_key']])
+                   if 'ehbo' in ENDPOINTS else {})   # [2026-10-15] HESTIA_CAL_KEYS subset
 
     # ------------------------------------------------------------------ #
     #  7. Optional: bootstrap CI on EP1 (ehs) -- against ehs's own ref_out #
     # ------------------------------------------------------------------ #
-    run_boot = input("\nCompute a bootstrap 95% CI for EP1? "
-                     "(takes ~2-5 extra min, y/n, default=n): ").strip().lower()
+    run_boot = ('n' if os.environ.get('HESTIA_CAL_NONINTERACTIVE') else
+                input("\nCompute a bootstrap 95% CI for EP1? "
+                      "(takes ~2-5 extra min, y/n, default=n): ").strip().lower())
     if run_boot in ('y', 'yes'):
         ci_lo, ci_hi = bootstrap_ci(
             sim_out        = sim_outs[ENDPOINTS['ehs']['ref_conditions_key']],
@@ -1163,7 +1303,7 @@ def main():
     print(f"\n{Fore.GREEN}Calibration complete.{Style.RESET_ALL}")
     print(f"Paste the COLLAPSE_ENDPOINTS block (see above) into "
           f"hestia_model.py and change the status from "
-          f"REQUIRES_RECALIBRATION to VALIDATED (EP1) / PROVISIONAL (EP2, EP3).")
+          f"REQUIRES_RECALIBRATION to PROVISIONAL (all endpoints: calibrated, not independently validated).")
 
 
 if __name__ == '__main__':

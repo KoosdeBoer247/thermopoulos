@@ -291,6 +291,37 @@ class CVRModel:
         dehyd = max(0.0, dehydration_pct)
         return 0.5 * dehyd + 0.5 * delta_t_body
 
+    # ── Cardiovascular ceiling as an intensity limit [2026-10-19] ─────────────
+    def met_at_ceiling(self, jos3: JOS3Outputs) -> float:
+        """Highest MET this runner's heart can still supply in the current
+        thermal/hydration state: the MET at which VO2 equals the heat-reduced
+        VO2max (Lloyd 2022 Eq. 15/32 as used in compute_step), i.e. where
+        CO_demand reaches CO_max_heat and CO_reserve reaches 0.
+
+        Used by hestia_model to force a pace reduction when the voluntary
+        pace would demand more than the heart can deliver (author's decision
+        2026-10-19: CO_reserve has a hard physical limit at 0; a runner who
+        reaches it slows down whether he wants to or not -- Gonzalez-Alonso &
+        Calbet 2003, Circulation 107:824; Periard et al. 2011, Exp Physiol
+        96:134).
+        """
+        dehydration_pct = (jos3.weight_loss_g_s / self.runner.mass) * 100
+        t_skin = jos3.t_skin_mean if jos3.t_skin_mean is not None else jos3.t_core_mean - 4.0
+        chsi = self._chsi(jos3.t_core_mean, t_skin, dehydration_pct)
+        co_max_heat = (1 + chsi * -0.083) * self.CO_max
+        # [2026-10-19] Crossed regime: when heat + dehydration push the
+        # resting cardiac output (Eq. 26, +31.3 %/CHSI) above the reduced
+        # maximum (-8.3 %/CHSI), compute_step's demand floor makes CO_reserve
+        # negative at ANY workload. No pace restores it, so the ceiling is 0
+        # and the engine forces the MET floor (walking/stopping). Found on
+        # Amsterdam 2026-10-18: one 45-kg runner at 5.7 % dehydration.
+        co_rest_heat = (1 + chsi * 0.313) * self.CO_rest
+        if co_rest_heat >= co_max_heat:
+            return 0.0
+        avo2diffmax = self._vo2max_abs / max(0.1, self.CO_max)
+        vo2max_heat = avo2diffmax * co_max_heat                     # L/min
+        return max(0.0, vo2max_heat * 1000.0 / (3.5 * self.runner.mass))
+
     # ── Single time step ───────────────────────────────────────────────────────
 
     def compute_step(
@@ -303,7 +334,7 @@ class CVRModel:
 
         [2026-07, REBUILT] Two same-day attempts to fix implausibly high
         collapse-risk rates were tried and reverted (see git history /
-        INTEGRATION_CHANGELOG.md): an intensity-dependent a-vO2diff, and a
+        CHANGELOG.md): an intensity-dependent a-vO2diff, and a
         direct MET-based VO2 calculation that bypassed jos3.cardiac_output
         entirely. The second one "looked" like it fixed the problem
         (Falmouth 2015: 92.7 -> 4.8 expected collapses/1000) but was a
@@ -367,7 +398,7 @@ class CVRModel:
         avo2diffmax = self._vo2max_abs / max(0.1, self.CO_max)   # Eq. 15, no altitude
         vo2max_heat = avo2diffmax * co_max_heat                    # Eq. 32, no altitude
         denom = max(0.05, vo2max_heat - self._vo2_rest)
-        # [2026-10-04, op verzoek van Koos] f wordt NIET meer afgekapt op 1,15.
+        # [2026-10-04, op verzoek van de auteur] f wordt NIET meer afgekapt op 1,15.
         # f_raw is het werkelijke inspanningsdeel (kan > 1 zijn: meer zuurstof
         # gevraagd dan het door hitte verlaagde maximum kan leveren). Voor de
         # hartslag en voor het gevalideerde bereik (f <= 1) geldt f = min(f_raw, 1).
@@ -444,7 +475,7 @@ class CVRModel:
 
         # --- Reserve and load, measured against the heat-adjusted ceiling ---
         # [2026-07] co_reserve is intentionally unbounded (see prior fix
-        # history above/in INTEGRATION_CHANGELOG.md): it expresses distance
+        # history above/in CHANGELOG.md): it expresses distance
         # from safe, not a value ever directly observed at some clipped
         # limit. cvs_index likewise unbounded above 1.0.
         co_reserve = co_max_heat - co_demand

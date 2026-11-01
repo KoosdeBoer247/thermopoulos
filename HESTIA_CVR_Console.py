@@ -578,8 +578,8 @@ def calculate_cvr_risk_score(cvs_index: float, co_reserve: float,
 
 if __name__ == "__main__":
     import sys
-    sys.path.insert(0, '/home/claude')
-    sys.path.insert(0, '/mnt/user-data/outputs')
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
 
     from HESTIA_CVR_Module_v2 import (
         RunnerProfile, JOS3Outputs, CVRModel,

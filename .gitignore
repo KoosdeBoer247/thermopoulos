@@ -1,0 +1,19 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+node_modules/
+# generated weather files and outputs
+Thermopoulos_DataEngine_*.xlsx
+HESTIA_Simulation_Results.xlsx
+HESTIA_population_*.pkl
+intercept_estimation_population_*.pkl
+intercept_estimation_results.json
+intercept_estimation_eac.json
+loper_uitvoer/
+*.content.json
+# field data never belong in the repository
+*.fit
+deelnemers*.xlsx
+fit_uitvoer/
+PRIVE_*.xlsx
+aanmeldlijst*.xlsx

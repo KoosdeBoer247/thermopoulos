@@ -84,8 +84,8 @@ import hestia_model as hestia
 from hestia_model import (
     AdultParticipantProfile, VO2MAX_TO_MET_FACTOR, K_P_PACING,
     MET_ACTIVITIES_ADULT, CLO_OPTIONS_ADULT,
-    select_met_activity, select_clo_value, get_adaptation_profile,
 )
+from hestia_console import select_met_activity, select_clo_value, get_adaptation_profile
 from thermopoulos_loader import ThermopoulosData
 from generate_event_report import generate_report
 
@@ -376,7 +376,7 @@ def monte_carlo_adult(data: ThermopoulosData,
                       *,
                       use_parallel: bool = True,
                       base_population: Optional[list] = None,
-                      random_seed: Optional[int] = None,
+                      random_seed: Optional[int] = hestia.DEFAULT_RANDOM_SEED,
                       run_control_failure: bool = True,
                       sample_pace: bool = False,
                       event_dist_km: float = 16.1) -> Tuple:
@@ -414,7 +414,7 @@ def monte_carlo_adult(data: ThermopoulosData,
     (all_results, stats, results_df).
     """
     if sample_pace:
-        widened_hours = hestia.PACE_MIN_PER_KM_CEILING * event_dist_km / 60.0
+        widened_hours = hestia.race_window_hours(event_dist_km)   # [2026-10-19] incl. sweep room
         duration_hours = max(duration_hours, widened_hours)
     interp = build_interpolated_weather(data, start_time, duration_hours, sheet)
     return hestia.run_monte_carlo_adult(
@@ -631,8 +631,10 @@ def _run_cli():
             f"sharing MET {met_value}/{duration_hours}h for everyone? (y/n)",
             "n",
         ).lower().startswith("y")
-        seed_raw = _prompt("Random seed (blank = different each run)", "")
-        random_seed = int(seed_raw) if seed_raw else None
+        # [2026-10-25] Reproducible by default: seed 42 unless the user types
+        # another number, or "random" for a different draw each run.
+        seed_raw = _prompt("Random seed (42 = reproducible default; 'random' = different each run)", "42")
+        random_seed = None if seed_raw.strip().lower() == "random" else int(seed_raw)
 
         print(f"\nRunning Monte Carlo population (n={n_simulations}) — {data.city}, "
               f"{start_time}, MET {met_value}, {duration_hours}h. This can take a while "
@@ -671,45 +673,43 @@ def _run_cli():
             for p in paths:
                 print(f"  Plot written to: {p}")
 
-        if _prompt("Generate event report (Markdown)? (y/n)", "y").lower().startswith("y"):
-            # [2026-08-26] build_bridge_summary needs interp_data, which
-            # monte_carlo_adult() builds internally but does not return (its
-            # return signature is a 3-tuple relied on elsewhere, e.g.
-            # suite_smoke_test.py -- changing it to a 4-tuple would break
-            # that caller). Recomputed here instead: build_interpolated_
-            # weather() is a pure function of the same (data, start_time,
-            # duration_hours, sheet) already used above, so this costs one
-            # redundant interpolation pass rather than risking a signature
-            # change to a function other code already depends on.
-            from hestia_bridge import build_bridge_summary
-            interp_for_bridge = build_interpolated_weather(data, start_time, duration_hours, sheet)
-            bridge_summary = build_bridge_summary(all_results, interp_for_bridge)
-            report_name = os.path.join(
-                _script_dir, f"HESTIA_Report_{data.city}_{start_date}_n{len(all_results)}.md")
-            activity_desc = f"MET {met_value}, clo {clo_value}"
-            report_text = generate_report(
-                event_name=f"{data.city} {start_date}",
-                data=data, stats=stats, results_df=results_df,
-                start_time=start_time, duration_hours=duration_hours,
-                activity_description=activity_desc, n_simulations=len(all_results),
-                output_path=report_name, bridge_summary=bridge_summary,
-                plot_paths=paths, interp_data=interp_for_bridge,
-                sample_pace=sample_pace,
-            )
-            print(f"  Report written to: {report_name}")
-
-            # [2026-08-30] Optional Word (.docx) export -- see
-            # report_to_docx.py's own docstring for why this is a shared
-            # module rather than duplicated per report generator.
-            if _prompt("Also export as Word (.docx)? (y/n)", "y").lower().startswith("y"):
-                try:
-                    from report_to_docx import export_report_docx
-                    docx_name = report_name[:-3] + ".docx"
-                    export_report_docx(report_text, docx_name, report_kind="facts",
-                                       event_name=f"{data.city} {start_date}")
-                    print(f"  Word report written to: {docx_name}")
-                except Exception as e:
-                    print(f"  Word export failed ({e}) -- the Markdown report above is unaffected.")
+        # [2026-10-27] The report data are always kept as a "rapportpakket"
+        # (rapportpakket.py), so the report can also be made later from the
+        # start menu (choice R) without recomputing.
+        from hestia_bridge import build_bridge_summary
+        # [2026-10-14] Same widened window the Monte Carlo itself used when
+        # sample_pace=True (see monte_carlo_adult()), so section 2 of the
+        # report covers the whole simulated period. build_interpolated_weather()
+        # is a pure function of the same inputs as above (monte_carlo_adult()
+        # does not return its interp_data; its 3-tuple is relied on elsewhere).
+        _dur_report = duration_hours
+        if sample_pace:
+            _dur_report = max(duration_hours, hestia.race_window_hours(event_dist_km))
+        interp_for_bridge = build_interpolated_weather(data, start_time, _dur_report, sheet)
+        bridge_summary = build_bridge_summary(all_results, interp_for_bridge)
+        report_stam = os.path.join(
+            _script_dir, f"HESTIA_Report_{data.city}_{start_date}_n{len(all_results)}")
+        activity_desc = (f"Per deelnemer eigen pace/MET (zie volgende regels), clo {clo_value}; "
+                         f"opgegeven nominale MET {met_value} wordt in deze modus niet gebruikt"
+                         if sample_pace else f"MET {met_value}, clo {clo_value}")
+        import rapportpakket
+        pakket_gegevens = dict(
+            event_name=f"{data.city} {start_date}",
+            data=data, stats=stats, results_df=results_df,
+            start_time=start_time, duration_hours=duration_hours,
+            activity_description=activity_desc, n_simulations=len(all_results),
+            bridge_summary=bridge_summary,
+            plot_paths=paths, interp_data=interp_for_bridge,
+            sample_pace=sample_pace, event_dist_km=event_dist_km,
+            training_factor=training_factor,
+            acclimatization_factor=acclimatization_factor,
+        )
+        pk = rapportpakket.bewaar("hestia", pakket_gegevens, report_stam)
+        if pk:
+            print(f"  Report data kept: {pk.name} (start menu R = make the report later)")
+        if _prompt("Generate event report now? (y/n)", "y").lower().startswith("y"):
+            rapportpakket.maak({"soort": "hestia", "rapport_stam": report_stam,
+                                "gegevens": pakket_gegevens}, vraag_word=True)
 
         # [2026-09] Optional per-participant dose-buildup export -- shows,
         # for chosen participant_id(s), the time-resolved build-up of

@@ -25,7 +25,7 @@ from docx.shared import Pt, RGBColor
 from hestia_loper_rapport import _stijl, _tabel, _p, _bullets, _figuur
 from hestia_reconstructie import VARIANTEN
 
-KLEUR = {"B1": "#2a78d6", "B2": "#eb6834", "B3": "#1baf7a", "meting": "#222222", "A": "#9a9a9a"}
+KLEUR = {"B1": "#2a78d6", "B2": "#eb6834", "B3": "#1baf7a", "B4": "#8e44ad", "meting": "#222222", "A": "#9a9a9a"}
 FONT = 15
 VERGELIJKINGEN = ("kern", "hartslag", "vocht", "nawarmte")
 
@@ -158,7 +158,7 @@ def figuur_loper(lv, pad: Path):
     lo = np.nanmin([np.nanmin(rc.band["t_rect_lo"]) for rc in lv.recon.values()] + [np.nanmin(pm["kern_temp"])])
     ax[0].set_ylim(max(33.5, lo - 0.2), None)
     # hartslag: band populatie-Garmin per variant (B1 en B3)
-    for v in ("B1", "B3"):
+    for v in ("B1", "B3", "B4"):
         if v not in lv.recon:
             continue
         hrs = [h["hr"] for h in lv.recon[v].hr.values()]
@@ -170,7 +170,7 @@ def figuur_loper(lv, pad: Path):
     ax[1].plot(pm.index, pm["hartslag"], color=KLEUR["meting"], lw=2, label="Gemeten")
     ax[1].set_ylabel("Hartslag (/min)")
     # huid borst
-    for v in ("B1", "B3"):
+    for v in ("B1", "B3", "B4"):
         if v in lv.recon:
             ax[2].plot(lv.recon[v].centraal.index, lv.recon[v].centraal["huid_borst"], color=KLEUR[v], lw=2,
                        label=f"{v} JOS-3 borst")
@@ -191,7 +191,7 @@ def figuur_loper(lv, pad: Path):
 def figuur_bland_altman(lopers, pad: Path):
     plt.rcParams.update({"font.size": FONT})
     vs = list(VARIANTEN)
-    fig, ax = plt.subplots(1, len(vs), figsize=(15, 5.5), sharey=True)
+    fig, ax = plt.subplots(1, len(vs), figsize=(5 * len(vs), 5.5), sharey=True)
     leeg = True
     for a, v in zip(ax, vs):
         xs, ys, labels = [], [], []
@@ -263,19 +263,23 @@ def maak_rapport(lopers, g, criteria, clinic, vast, controles, figs, pad: Path,
         _p(doc, f"Minder dan {nmin} bruikbare lopers: volgens het schema alleen beschrijvend, "
                 f"geen groepsoordeel. Het oordeel tussen haakjes laat zien waar het groepsgemiddelde "
                 f"zou vallen.", vet=True)
-    rijen = [["Maat (groep)", "B1 (primair)", "B2", "B3"]]
-    for maat in ("kern_bias", "kern_rmse", "kern_opwarming_verschil", "kern_dekking", "vocht_verschil"):
+    rijen = [["Maat (groep)", "B1 (primair)", "B2", "B3", "B4 (verkennend)"]]
+    for maat in ("kern_bias", "kern_rmse", "kern_opwarming_verschil", "kern_dekking", "vocht_verschil",
+                 "huid_borst_bias"):
         c = criteria["maten"][maat]
         r = [f"{c['label']} ({c['eenheid']})"]
         for v in VARIANTEN:
             x = _groepswaarde(g, maat, v)
             r.append("–" if x is None else f"{_n(x.groepswaarde, 2 if c['eenheid'] != '%' else 0)}  {x.oordeel}")
         rijen.append(r)
-    _tabel(doc, rijen, breedtes=[5.5, 4, 3.8, 3.8], pt=11)
+    _tabel(doc, rijen, breedtes=[4.6, 3.4, 3.1, 3.1, 3.4], pt=10)
     _p(doc, "B1 rekent zoals de suite nu (JOS-3 krijgt MET als activiteitsfactor; kerntemperatuur = "
             "gemiddelde van de 17 kernsegmenten + 0,5 °C). B2 en B3 rekenen de inspanning om naar "
             "een veelvoud van de eigen rustverbranding, wat JOS-3 verwacht; B3 gebruikt daarbij de "
-            "bekkenkern. Alle drie zijn vóór de clinic vastgelegd.", pt=12)
+            "bekkenkern. Alle drie zijn vóór de clinic vastgelegd. B4 is achteraf toegevoegd (verkennend): "
+            "als B3, maar met het koude-huidsignaal van JOS-3 begrensd op 2 K. Huid borst = "
+            "JOS-3-borsthuid min de huidtemperatuur van de CORE; die laatste wordt onder de sensor "
+            "gemeten en kan warmer zijn dan de onbedekte huid.", pt=12)
 
     doc.add_heading("2. Vastlegging en controles", 1)
     if vast:
@@ -354,7 +358,7 @@ def maak_rapport(lopers, g, criteria, clinic, vast, controles, figs, pad: Path,
             _p(doc, "Opmerking: " + lv.opmerking, cursief=True, pt=12)
         _p(doc, f"Hoofddeel: {_n(hd.duur_min, 0)} min, {_n(hd.afstand_km, 2)} km, "
                 f"{_n(hd.tempo_min_km, 2)} min/km. CORE: {lv.inclusie['kern'][1]}.", pt=12)
-        rijen = [["Maat", "B1", "B2", "B3"]]
+        rijen = [["Maat", "B1", "B2", "B3", "B4"]]
         for k, lab, d in [("kern_bias", "Bias kern (°C)", 2), ("kern_rmse", "RMSE kern (°C)", 2),
                           ("kern_opwarming_model", "Opwarming model (°C)", 2),
                           ("kern_opwarming_meting", "Opwarming meting (°C)", 2),
@@ -366,11 +370,12 @@ def maak_rapport(lopers, g, criteria, clinic, vast, controles, figs, pad: Path,
                           ("vocht_model_pct", "Vochtverlies model (%)", 2),
                           ("vocht_meting_pct", "Vochtverlies gemeten (%)", 2),
                           ("kern_max_verschil", "Maximum kern, model − meting (°C)", 2),
+                          ("huid_borst_bias", "Huid borst, model − CORE (°C)", 2),
                           ("dyn_K_model", "Versterking K model (°C/MET)", 3),
                           ("dyn_dode_tijd_model", "Dode tijd model (min)", 0),
                           ("dyn_tau_model", "τ model (min)", 0)]:
             rijen.append([lab] + [_n(lv.maten[v].get(k), d) if v in lv.maten else "–" for v in VARIANTEN])
-        _tabel(doc, rijen, breedtes=[7.5, 3, 3, 3], pt=10)
+        _tabel(doc, rijen, breedtes=[6.5, 2.6, 2.6, 2.6, 2.6], pt=10)
         if lv.code in figs:
             _figuur(doc, figs[lv.code], f"{lv.code}: lijnen = centrale run, banden = 95% over 50 runs; "
                                         f"grijze band boven = modus A. Hartslag: band tussen VO2max "

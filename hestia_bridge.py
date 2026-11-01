@@ -117,7 +117,11 @@ def build_interp_data(weather_df: pd.DataFrame, start: pd.Timestamp,
 
     temp = interp("T_air_urban")
     wind = interp("wind_10m", 2.0)
-    rh = interp("RH", 50.0)
+    # [2026-10-31] Humidity that belongs to T_air_urban: RH_urban (same dew
+    # point as the rural air, RH recalculated at the urban temperature).
+    # Before, the rural RH was paired with the urban temperature, which
+    # overstated the vapour pressure by ~6-7 % per degC of heat island.
+    rh = interp("RH_urban" if "RH_urban" in weather_df.columns else "RH", 50.0)
     clouds = interp("cloud_cover", 30.0)
     pressure = interp("pressure", 1013.0)
     ghi = interp("solar_radiation", 0.0)
@@ -367,14 +371,14 @@ def cumulative_deficit_dose(res: list) -> float:
     for r in res:
         t, c = r.get("t_rect"), r.get("co_reserve")
         if t is not None and c is not None and not np.isnan(t) and not np.isnan(c):
-            if t >= 40.5 and c <= 0:
-                dose += abs(c) * 10.0  # 10-min race timesteps -> L/min-minutes
+            if t >= 40.5 and h.at_cv_ceiling(c):
+                dose += h.ceiling_depth(c) * 10.0  # 10-min race timesteps -> L/min-minutes
     pf_t = res[-1].get("t_rect_series_postfinish") or []
     pf_c = res[-1].get("co_reserve_series_postfinish") or []
     for t, c in zip(pf_t, pf_c):
         if t is not None and c is not None and not np.isnan(t) and not np.isnan(c):
-            if t >= 40.5 and c <= 0:
-                dose += abs(c) * 0.5  # ~30s post-finish timesteps
+            if t >= 40.5 and h.at_cv_ceiling(c):
+                dose += h.ceiling_depth(c) * 0.5  # ~30s post-finish timesteps
     return dose
 
 
@@ -398,8 +402,8 @@ def participant_trace(res: list) -> dict:
     for i, r in enumerate(res):
         t, c = r.get("t_rect"), r.get("co_reserve")
         if t is not None and c is not None and not np.isnan(t) and not np.isnan(c):
-            if t >= 40.5 and c <= 0:
-                cum_dose += abs(c) * 10.0
+            if t >= 40.5 and h.at_cv_ceiling(c):
+                cum_dose += h.ceiling_depth(c) * 10.0
             m = i * 10.0
             t_series.append(float(t)); c_series.append(float(c))
             dose_series.append(cum_dose); minutes.append(m)
@@ -411,8 +415,8 @@ def participant_trace(res: list) -> dict:
     pf_min_since_finish, pf_t_vals, pf_c_vals, pf_dose_vals = [], [], [], []
     for j, (t, c) in enumerate(zip(pf_t, pf_c)):
         if t is not None and c is not None and not np.isnan(t) and not np.isnan(c):
-            if t >= 40.5 and c <= 0:
-                cum_dose += abs(c) * 0.5
+            if t >= 40.5 and h.at_cv_ceiling(c):
+                cum_dose += h.ceiling_depth(c) * 0.5
             t_series.append(float(t)); c_series.append(float(c))
             dose_series.append(cum_dose); minutes.append(last_min + j * 0.5)
             pf_min_since_finish.append(j * 0.5)
@@ -624,7 +628,7 @@ def _summarize_results(all_results: list) -> dict:
         during_race = any(
             (r.get("t_rect") is not None and r.get("co_reserve") is not None
              and not np.isnan(r.get("t_rect")) and not np.isnan(r.get("co_reserve"))
-             and r["t_rect"] >= 40.5 and r["co_reserve"] <= 0)
+             and r["t_rect"] >= 40.5 and r["co_reserve"] <= h.CO_RESERVE_CEILING_TOL)
             for r in res
         )
         post_finish = bool(res[-1].get("ehs_postfinish", False))
@@ -683,7 +687,7 @@ def _summarize_results(all_results: list) -> dict:
     valid = ~np.isnan(baseline_co) & ~np.isnan(worst_co) & (baseline_co > 0)
     pct_reserve_remaining = np.full(len(baseline_co), np.nan)
     pct_reserve_remaining[valid] = 100.0 * np.clip(worst_co[valid] / baseline_co[valid], 0.0, 1.0)
-    pct_zero_or_negative = float(100 * np.mean(worst_co[~np.isnan(worst_co)] <= 0)) \
+    pct_zero_or_negative = float(100 * np.mean(worst_co[~np.isnan(worst_co)] <= h.CO_RESERVE_CEILING_TOL)) \
         if np.any(~np.isnan(worst_co)) else float("nan")
 
     return {
@@ -1123,7 +1127,7 @@ def render_hestia_section(st_module, weather_df: pd.DataFrame, lat: float, lon: 
         c1, c2, c3 = st_module.columns(3)
         c1.metric("Peak T_re, mean", f"{quick['peak_t_rect_mean']:.1f}\u00b0C")
         c2.metric("True EHS criterion met", f"{quick['pct_true_ehs_criterion']:.1f}%",
-                 help="T_rect >= 40.5\u00b0C AND CO_reserve <= 0, SIMULTANEOUSLY, "
+                 help="T_rect >= 40.5\u00b0C AND CO_reserve <= 0 (at the cardiovascular ceiling, tolerance 0.05 L/min), SIMULTANEOUSLY, "
                       "at any point during the race or in the 10-min post-finish "
                       "window \u2014 the author's own conjunctive hypothesis. "
                       "T_rect alone is deliberately NOT reported as an EHS risk: "

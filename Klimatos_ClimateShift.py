@@ -324,7 +324,8 @@ except ImportError:
         raise ImportError("Could not import a wet bulb temperature function.")
 
 # HEAT-Lim (Vanos et al. 2023) for physiological liveability (Mmax). Optional:
-# place HEATLim.py (MIT, from github.com/gguzmane/HEAT-Lim) next to this script.
+# place HEATLim.py (ASU/USYD HEAT-Lim, CC BY 4.0, Zenodo doi:10.5281/zenodo.15642387)
+# next to this script.
 # If absent, the liveability module is skipped and the rest still runs.
 try:
     import HEATLim as HEATLIM
@@ -589,6 +590,27 @@ LIVEABILITY_EXP_TIME    = 3        # exposure window [h]; HEAT-Lim allows 1, 3, 
 LIVEABILITY_SUN         = "outdoor"  # 'outdoor' = use pipeline MRT (sun); 'shade' = MRT==Ta
 LIVEABILITY_TA_MIN      = 25.0     # only evaluate hours with Ta >= this (HEAT-Lim applicability)
 LIVEABILITY_MIN_WIND    = 0.5      # floor on 1.5 m air velocity [m/s]
+LIVEABILITY_FLOOR_TOL   = 0.05     # [2026-10-26] a worst-hour Mmax within this of the rest floor counts as "at the floor"
+LIVEABILITY_HOURS_TARGET_YEARS = [2030, 2040]   # [2026-10-26] projection years of plot_liveability_hours()
+# [2026-10-26] Projection of the liveability hours by TEMPERATURE SHIFT (same
+# method as the EHS-evolution module): every hour of each trend-period year is
+# warmed by slope * (target year - that year), the full thermal pipeline (UHI,
+# globe/MRT, wet-bulb) is recomputed and the HEAT-Lim hours are counted again.
+# The slope is the Theil-Sen trend of LIVEABILITY_PROJ_SHIFT_VAR over
+# EVENT_TREND_PERIOD, with its 95% CI as the low/high variants.
+ENABLE_LIVEABILITY_PROJECTION = True
+LIVEABILITY_PROJ_SHIFT_VAR    = "T_air_warm_season"   # mean daily Tmax of the 25% warmest days (rural)
+# Humidity when the CLIMATE warms -- AUTHOR'S CHOICE (2026-10-27: constant_rh):
+#   "constant_rh"     : relative humidity unchanged, so the water-vapour content
+#                       rises with temperature (default; as in the EHS-evolution
+#                       module). Closest to KNMI'23: summer RH falls only 1-4
+#                       percentage points while temperature rises up to ~5 degC.
+#   "constant_vapour" : water-vapour content unchanged, so RH falls (correct for
+#                       the same air warming, e.g. the urban heat island, but far
+#                       drier than KNMI'23 for a warmer climate; a lower variant)
+LIVEABILITY_PROJ_HUMIDITY     = "constant_rh"
+LIVEABILITY_PROJ_UHI_MAX      = 6.0    # upper bound of the Oke UHI increment [degC] (thermal_env)
+LIVEABILITY_PROJ_STORE_MARGIN = 12.0   # raw hours kept down to LIVEABILITY_TA_MIN - UHI_MAX - this [degC]
 LIVEABILITY_ACTIVITY_MET = 3.0     # 'liveable for normal activity' bar (~brisk walk / light chores)
 
 # Personal profiles embedded verbatim from HEAT-Lim (personal_profiles/*_livability.txt)
@@ -736,36 +758,15 @@ def _safe_plot(func, *args, **kwargs):
 # Geocoding  (ported from Thermopoulos engine)
 # =============================================================================
 
-def geocode_city_candidates(city: str, max_results: int = 7) -> List[Dict]:
-    """Geocode a city name to a list of candidate locations."""
-    url = "https://geocoding-api.open-meteo.com/v1/search"
-    params = {"name": city, "count": max_results, "language": "en", "format": "json"}
-    try:
-        response = requests.get(url, params=params, timeout=30)
-        response.raise_for_status()
-        data = response.json()
-    except requests.RequestException as e:
-        logger.error(f"Geocoding failed: {e}")
-        raise
-    if "results" not in data:
-        raise ValueError(f"No locations found for '{city}'.")
-    return data["results"]
+# [2026-10-25] Shared physics and location helpers now live in thermal_env.py
+# (one implementation for the Data Engine and Klimatos).
+from thermal_env import (geocode_city_candidates, select_city, calculate_solar_parameters,
+                         wind_speed_at_height, calculate_uhi_oke, _calculate_globe_scalar,
+                         _calculate_mrt_scalar, calculate_globe_vectorized, calculate_mrt_vectorized,
+                         GLOBE_MODEL)
 
 
-def select_city(candidates: List[Dict]) -> Dict:
-    """Interactive selection from multiple geocoding candidates."""
-    print("\nMultiple locations found:\n")
-    for i, c in enumerate(candidates, start=1):
-        print(f"[{i}] {c['name']}, {c.get('country', 'Unknown')} "
-              f"({c.get('admin1', '')}) - Pop: {c.get('population', 'unknown')}")
-    while True:
-        try:
-            choice = int(input(f"\nSelect location [1-{len(candidates)}]: "))
-            if 1 <= choice <= len(candidates):
-                return candidates[choice - 1]
-        except ValueError:
-            pass
-        print("Invalid selection.")
+
 
 # =============================================================================
 # Hourly archive fetch (one calendar year at a time)
@@ -1002,42 +1003,10 @@ def fetch_hourly_year(lat: float, lon: float, tz: str, year: int) -> pd.DataFram
 # Solar & wind physics  (ported verbatim from Thermopoulos engine)
 # =============================================================================
 
-def calculate_solar_parameters(df: pd.DataFrame, lat: float, lon: float, tz: str) -> pd.DataFrame:
-    """Solar elevation angle via pvlib (clipped at 0)."""
-    location = pvlib.location.Location(lat, lon, tz=tz)
-    try:
-        solar_pos = location.get_solarposition(df.index)
-        df['solar_elevation'] = solar_pos['elevation'].clip(lower=0)
-    except Exception as e:
-        logger.error(f"Solar calculation failed: {e}")
-        df['solar_elevation'] = 0
-    return df
 
 
-def wind_speed_at_height(v_ref, z_ref, z_target, z0=0.1):
-    """Logarithmic wind-profile correction (neutral surface layer)."""
-    if z_ref <= 0 or z_target <= 0 or z0 <= 0:
-        return v_ref
-    return v_ref * (np.log(z_target / z0) / np.log(z_ref / z0))
 
 
-def calculate_uhi_oke(population: int, index: pd.DatetimeIndex) -> pd.Series:
-    """Oke (1973) population-based UHI with modern correction + diurnal factors."""
-    if not population or population <= 0:
-        return pd.Series(0.0, index=index)
-    base_uhi = 2.01 * np.log10(population) - 4.06
-    if population > 1_000_000:
-        uhi_max = np.clip(base_uhi * 0.6, 0.0, 6.0)
-    else:
-        uhi_max = np.clip(base_uhi, 0.0, 5.0)
-    hours = index.hour
-    factors = np.zeros(len(index))
-    factors[(hours >= 0) & (hours <= 5)] = 1.0
-    factors[(hours >= 6) & (hours <= 9)] = 0.6
-    factors[(hours >= 10) & (hours <= 16)] = 0.2
-    factors[(hours >= 17) & (hours <= 20)] = 0.5
-    factors[(hours >= 21) & (hours <= 23)] = 0.9
-    return pd.Series(uhi_max * factors, index=index)
 
 
 def _saturation_vapor_pressure_hpa(temp_c) -> np.ndarray:
@@ -1088,69 +1057,10 @@ def adjust_rh_for_uhi(rh_rural, t_rural_c, t_urban_c, rh_floor: float = 15.0) ->
 # Globe & MRT  (ported verbatim from Thermopoulos engine)
 # =============================================================================
 
-def _calculate_globe_scalar(dry_bulb, ghi, wind, solar_elev, pressure, cloud, aqi=1):
-    """ISO 7726 globe temperature (Newton-Raphson).
-    NB: Python's built-in max(0.1, x) silently returns 0.1 when x is NaN (NaN
-    comparisons are always False), which would otherwise turn a missing wind
-    reading into a false "calm" (0.1 m/s) assumption -> an artificially warm
-    globe temperature / WBGT on exactly the hours with missing data, with no
-    warning. We guard explicitly so any NaN input propagates to a NaN output,
-    consistent with how missing data is handled everywhere else in the pipeline
-    (nanmax correctly ignores it)."""
-    if any(np.isnan(x) for x in (dry_bulb, ghi, wind, solar_elev, pressure, cloud)):
-        return np.nan
-    GLOBE_DIA = 0.15; EMISSIVITY = 0.95; ABSORPTIVITY = 0.95; SIGMA = 5.67e-8
-    t_air_k = dry_bulb + 273.15
-    eff_wind = max(0.1, wind)
-    h_c = 6.3 * (eff_wind ** 0.6) / (GLOBE_DIA ** 0.4)
-    if ghi <= 0 or solar_elev <= 0:
-        sky_depression = 10 - (cloud / 100) * 6
-        if aqi > 3: sky_depression -= 2
-        sky_temp_k = t_air_k - sky_depression
-        net_rad = EMISSIVITY * SIGMA * (sky_temp_k ** 4 - t_air_k ** 4)
-        t_globe = dry_bulb + (net_rad / h_c)
-        return max(dry_bulb - 3, min(dry_bulb + 1, t_globe))
-    solar_input = ABSORPTIVITY * ghi / 4.0
-    amb_rad = EMISSIVITY * SIGMA * (t_air_k ** 4)
-    total_in = solar_input + amb_rad
-    t_globe_k = t_air_k + (solar_input / (h_c + 4 * EMISSIVITY * SIGMA * t_air_k ** 3))
-    imbalance = 0.0
-    for _ in range(10):
-        rad_out = EMISSIVITY * SIGMA * (t_globe_k ** 4)
-        conv_out = h_c * (t_globe_k - t_air_k)
-        imbalance = total_in - (rad_out + conv_out)
-        if abs(imbalance) < 0.1:
-            break
-        deriv = 4 * EMISSIVITY * SIGMA * (t_globe_k ** 3) + h_c
-        t_globe_k += 0.7 * (imbalance / deriv)
-    t_globe_c = t_globe_k - 273.15
-    if np.isnan(t_globe_c):
-        return np.nan
-    limit = 15 if eff_wind > 2 else 20
-    return max(dry_bulb, min(dry_bulb + limit, t_globe_c))
 
 
-def _calculate_mrt_scalar(tg, ta, v, ghi, elev):
-    """ISO 7726 Mean Radiant Temperature. Same NaN-guard rationale as
-    _calculate_globe_scalar (see its docstring)."""
-    if any(np.isnan(x) for x in (tg, ta, v, ghi, elev)):
-        return np.nan
-    GLOBE_DIA = 0.15; EMISSIVITY = 0.95; SIGMA = 5.67e-8
-    tg_k = tg + 273.15; ta_k = ta + 273.15
-    eff_wind = max(0.1, v)
-    h_c = 6.3 * (eff_wind ** 0.6) / (GLOBE_DIA ** 0.4)
-    conv_term = (h_c / (EMISSIVITY * SIGMA)) * (tg_k - ta_k)
-    mrt_k4 = (tg_k ** 4) + conv_term
-    if mrt_k4 < 0:
-        return tg
-    mrt_c = (mrt_k4 ** 0.25) - 273.15
-    if ghi > 0 and elev > 0:
-        return np.clip(mrt_c, tg - 2, tg + 15)
-    return np.clip(mrt_c, ta - 15, ta + 3)
 
 
-calculate_globe_vectorized = np.vectorize(_calculate_globe_scalar)
-calculate_mrt_vectorized = np.vectorize(_calculate_mrt_scalar)
 
 # =============================================================================
 # Unified processing pipeline  (ported from Thermopoulos engine)
@@ -1190,7 +1100,8 @@ def process_weather_data(df: pd.DataFrame, city: Dict, lat: float, lon: float, t
 
     df["T_globe"] = calculate_globe_vectorized(
         df["T_air_urban"].values, df["solar_radiation"].values, df["wind_1.5m"].values,
-        df["solar_elevation"].values, df["pressure"].values, df["cloud_cover"].values)
+        df["solar_elevation"].values, df["pressure"].values, df["cloud_cover"].values,
+        1, rh=df["RH_urban"].values)   # [2026-10-31] sky emissivity (Liljegren globe)
 
     df["MRT"] = calculate_mrt_vectorized(
         df["T_globe"].values, df["T_air_urban"].values, df["wind_1.5m"].values,
@@ -1478,8 +1389,14 @@ def event_window_metrics(proc: pd.DataFrame, year: int, tz: str) -> Dict:
 def build_annual_maxima(lat: float, lon: float, tz: str, city: Dict,
                         start_year: int, end_year: int,
                         apply_uhi: bool = APPLY_UHI,
-                        event_slices: Optional[Dict[int, pd.DataFrame]] = None) -> pd.DataFrame:
+                        event_slices: Optional[Dict[int, pd.DataFrame]] = None,
+                        liveability_raw: Optional[Dict[int, pd.DataFrame]] = None) -> pd.DataFrame:
     """
+    [2026-10-26] If `liveability_raw` is given (a dict), it is filled in place
+    with the raw hourly rows of each EVENT_TREND_PERIOD year that could become
+    a liveability hour after warming (see LIVEABILITY_PROJ_STORE_MARGIN) -- the
+    raw material of run_liveability_projection(), again at no extra API cost.
+
     Fetch + process each year and return a DataFrame indexed by year with
     columns T_air_max, WBT_max, WBGT_max, UTCI_max and a validity flag.
 
@@ -1538,6 +1455,12 @@ def build_annual_maxima(lat: float, lon: float, tz: str, city: Dict,
                 rec["n_days_over_mmt"] = n_over
             if ENABLE_LIVEABILITY and HEATLIM_AVAILABLE:
                 rec.update(liveability_year_metrics(proc))
+                rec["T_air_warm_season"] = warm_season_tmax(proc["T_air_rural"])
+                if (liveability_raw is not None
+                        and EVENT_TREND_PERIOD[0] <= year <= EVENT_TREND_PERIOD[1]):
+                    t_keep = (LIVEABILITY_TA_MIN - LIVEABILITY_PROJ_UHI_MAX
+                              - LIVEABILITY_PROJ_STORE_MARGIN)
+                    liveability_raw[year] = raw.loc[raw["T_air_rural"] >= t_keep].copy()
             if ENABLE_EVENT_WINDOW:
                 # Same processed year, no extra fetch -- see event_window_metrics().
                 rec.update(event_window_metrics(proc, year, tz))
@@ -1803,7 +1726,7 @@ def mann_kendall(x: np.ndarray) -> Dict:
 
 
 def add_trend_projection(ax, years: np.ndarray, mk: Dict, color: str = "r",
-                         legend: bool = True) -> None:
+                         legend: bool = True, floor: Optional[float] = None) -> None:
     """Extend a Theil-Sen trend line PROJECTION_YEARS into the future as a naive
     linear extrapolation, fanned out using Sen's slope 95% CI (slope_lo/slope_hi)
     anchored at the last observed point. This is a STATISTICAL extrapolation of
@@ -1820,6 +1743,11 @@ def add_trend_projection(ax, years: np.ndarray, mk: Dict, color: str = "r",
     t = np.arange(0, PROJECTION_YEARS + 1)
     future_years = last_year + t
     central = y_last + mk["slope"] * t
+    if floor is not None:
+        # [2026-10-26] a quantity with a physical lower bound (e.g. Mmax cannot
+        # fall below the resting metabolic rate) must not be extrapolated
+        # below that bound.
+        central = np.maximum(central, floor)
 
     proj_label = f"Projection +{PROJECTION_YEARS} yr (naive linear extrapolation)" if legend else None
     ax.plot(future_years, central, color=color, lw=2.0, ls=(0, (5, 3)), alpha=0.85,
@@ -1830,6 +1758,9 @@ def add_trend_projection(ax, years: np.ndarray, mk: Dict, color: str = "r",
         hi = y_last + mk["slope_hi"] * t
         band_lo = np.minimum(lo, hi)
         band_hi = np.maximum(lo, hi)
+        if floor is not None:
+            band_lo = np.maximum(band_lo, floor)
+            band_hi = np.maximum(band_hi, floor)
         ci_label = "Sen's slope 95% CI (projected)" if legend else None
         ax.fill_between(future_years, band_lo, band_hi, color=color, alpha=0.12, label=ci_label)
 
@@ -2772,8 +2703,11 @@ def plot_trect_co_reserve_scatter(res: Dict, city_name: str, outpath: str,
             # EHE's actual conjunctive criterion: T_rect>39.5 AND CO_reserve<0.
             # Coloured directly rather than left to the viewer to infer from
             # the two axes separately.
-            in_ehe = (t_arr > 39.5) & (c_arr < 0)
-            in_clinical = (t_arr >= 40.5) & (c_arr <= 0)
+            # [2026-10-19] 'at the cardiovascular ceiling' tolerance, see
+            # hestia_model.CO_RESERVE_CEILING_TOL (forced ceiling keeps COr ~0).
+            _tol = 0.05
+            in_ehe = (t_arr > 39.5) & (c_arr < _tol)
+            in_clinical = (t_arr >= 40.5) & (c_arr <= _tol)
             ax.scatter(c_arr[~in_ehe], t_arr[~in_ehe], s=10, color="steelblue",
                       alpha=0.5, zorder=2, label="Sampled timestep")
             ax.scatter(c_arr[in_ehe & ~in_clinical], t_arr[in_ehe & ~in_clinical],
@@ -3105,11 +3039,12 @@ def plot_liveability_timeseries(annual: pd.DataFrame, ref_window: Tuple[int, int
                                 city_name: str, outpath: str) -> None:
     """Annual worst-hour Mmax vs year for both profiles, with robust trend and
     activity-level reference lines."""
-    fig, ax = plt.subplots(figsize=(11, 6))
+    fig, ax = plt.subplots(figsize=(11, 6.6))
     colors = {"young": "tab:blue", "old": "tab:red"}
     plotted = False
     any_projected = False
     first_proj_legend = True
+    floors_hit = []
     for pkey in LIVEABILITY_PROFILES:
         col = f"minMmax_{pkey}"
         if col not in annual:
@@ -3120,23 +3055,48 @@ def plot_liveability_timeseries(annual: pd.DataFrame, ref_window: Tuple[int, int
         years = s.index.values.astype(float)
         ax.plot(years, s.values, "o-", ms=3, lw=1, color=colors[pkey], alpha=0.85,
                 label=LIVEABILITY_PROFILE_LABEL[pkey])
+        floor = rest_floor_met(LIVEABILITY_PROFILES[pkey])
+        n_floor = int(np.sum(s.values <= floor + LIVEABILITY_FLOOR_TOL))
+        if n_floor > 0:
+            floors_hit.append((LIVEABILITY_PROFILE_LABEL[pkey], n_floor, len(s)))
         mk = mann_kendall(s.values)
         if np.isfinite(mk["slope"]):
             x0 = np.arange(len(s))
-            ax.plot(years, mk["intercept"] + mk["slope"] * x0, "-", lw=2, color=colors[pkey],
-                    alpha=0.6)
-            add_trend_projection(ax, years, mk, color=colors[pkey], legend=first_proj_legend)
+            ax.plot(years, np.maximum(mk["intercept"] + mk["slope"] * x0, floor), "-", lw=2,
+                    color=colors[pkey], alpha=0.6)
+            add_trend_projection(ax, years, mk, color=colors[pkey], legend=first_proj_legend,
+                                 floor=floor)
             if mk.get("n", 0) >= PROJECTION_MIN_YEARS:
                 any_projected = True
                 first_proj_legend = False
         plotted = True
     if not plotted:
         plt.close(fig); return
-    for met, lab in [(1.5, "rest"), (2.5, "walking"), (3.3, "light chores"), (7.0, "running")]:
+    # rest is drawn as the floor below (HEAT-Lim's own resting rate, ~1.47 MET)
+    for met, lab in [(2.5, "walking"), (3.3, "light chores"), (7.0, "running")]:
         ax.axhline(met, color="grey", ls=":", lw=0.8)
         ax.text(ax.get_xlim()[0], met, f" {lab} ({met})", va="bottom", ha="left",
                 fontsize=7, color="grey")
     ax.axvspan(ref_window[0], ref_window[1], color="grey", alpha=0.10, label="reference period")
+    # [2026-10-26] Mmax = rest + heat that can still be lost, so it cannot fall
+    # below the resting rate: an hour worse than that is "not liveable" (Mmax
+    # NaN) and drops out of the minimum. Show the floor explicitly; once a
+    # series sits on it, this plot can no longer show further worsening --
+    # plot_liveability_hours() counts those hours instead.
+    floor_vals = sorted({round(rest_floor_met(p), 3) for p in LIVEABILITY_PROFILES.values()})
+    y0 = ax.get_ylim()[0]
+    ax.axhspan(min(y0, floor_vals[0] - 0.2), floor_vals[0], color="black", alpha=0.07,
+               label=f"below rest ({floor_vals[0]:.2f} MET): not reachable, see hours plot")
+    ax.set_ylim(bottom=min(y0, floor_vals[0] - 0.2))
+    ax.text(ax.get_xlim()[0], floor_vals[0], f" rest = floor ({floor_vals[0]:.2f})",
+            va="bottom", ha="left", fontsize=7, color="grey")
+    note = ("Mmax cannot fall below rest: an hour that is worse is 'not liveable' and drops out "
+            "of the minimum.")
+    if floors_hit:
+        note += "  Floor reached -- " + "; ".join(
+            f"{lab}: {n} of {tot} years" for lab, n, tot in floors_hit) + \
+            ". At the floor this plot cannot show further worsening: see the hours-per-year plot."
+    fig.text(0.01, 0.005, note, fontsize=8, color="dimgrey", ha="left", va="bottom", wrap=True)
     proj_note = f" (dashed: naive {PROJECTION_YEARS}-yr linear extrapolation, not a forecast)" \
         if any_projected else ""
     ax.set_title(f"Worst-hour liveability (max sustainable activity) - HEAT-Lim\n{city_name}"
@@ -3145,7 +3105,308 @@ def plot_liveability_timeseries(annual: pd.DataFrame, ref_window: Tuple[int, int
     ax.set_ylabel("Min. annual Mmax  [METs]")
     ax.legend(fontsize=8, loc="upper right")
     ax.grid(alpha=0.25)
-    fig.tight_layout()
+    fig.tight_layout(rect=(0, 0.05, 1, 1))
+    fig.savefig(outpath, dpi=130)
+    plt.close(fig)
+
+
+def rest_floor_met(profile: Dict) -> float:
+    """[2026-10-26] Lowest value Mmax can take, in METs: the resting metabolic
+    rate of the profile (HEAT-Lim: Mmax = Emax - Ereq + M_rest; M = M_rest).
+    Uses HEAT-Lim's own W -> MET conversion (1 MET = 1.225 W/kg)."""
+    mass = float(profile["Mass"])
+    return float(HEATLIM.MetabolicRate_W_to_MET_Mass(float(profile["M"]) * mass, mass))
+
+
+LIVEABILITY_HOURS_METRICS = {
+    "hrsBelow": f"hours below {LIVEABILITY_ACTIVITY_MET:g} MET (light activity not sustainable)",
+    "hrsNonLiv": "hours not liveable (even rest not sustainable)",
+}
+
+
+def warm_season_tmax(t_air: pd.Series, top_fraction: float = 0.25) -> float:
+    """[2026-10-26] Mean daily maximum air temperature of the warmest
+    `top_fraction` of the days of a year (default 25%, about the 91 warmest
+    days). Hemisphere-independent measure of warm-season heat; its trend
+    drives the temperature-shift projection of the liveability hours."""
+    dmax = t_air.resample("D").max().dropna()
+    if len(dmax) < 30:
+        return np.nan
+    thr = np.quantile(dmax.values, 1.0 - top_fraction)
+    return float(dmax[dmax >= thr].mean())
+
+
+def _shift_raw(raw: pd.DataFrame, dT: float, humidity: str) -> pd.DataFrame:
+    """Warm a raw hourly frame by dT [degC]; humidity per LIVEABILITY_PROJ_HUMIDITY."""
+    out = raw.copy()
+    t0 = out["T_air_rural"].values.astype(float)
+    out["T_air_rural"] = t0 + dT
+    if humidity == "constant_vapour":
+        out["RH"] = adjust_rh_for_uhi(out["RH"].values, t0, t0 + dT)
+    elif humidity != "constant_rh":
+        raise ValueError(f"LIVEABILITY_PROJ_HUMIDITY must be 'constant_rh' or "
+                         f"'constant_vapour', not {humidity!r}")
+    return out
+
+
+def run_liveability_projection(annual: pd.DataFrame, liveability_raw: Dict[int, pd.DataFrame],
+                               city: Dict, lat: float, lon: float, tz: str,
+                               apply_uhi: bool = APPLY_UHI,
+                               target_years: List[int] = None,
+                               trend_period: Tuple[int, int] = EVENT_TREND_PERIOD,
+                               shift_var: str = None, humidity: str = None) -> pd.DataFrame:
+    """[2026-10-26] Liveability hours in the target years by TEMPERATURE SHIFT.
+
+    For each trend-period year y and each target year T, all stored hours are
+    warmed by slope * (T - y), the thermal pipeline is recomputed
+    (process_weather_data) and liveability_year_metrics() counts the hours
+    again; the result for T is the mean over the years (so every observed
+    year's weather pattern is used, moved to T's climate). Slope variants:
+    central, low and high (Theil-Sen 95% CI of shift_var over trend_period).
+    The reference row is the unshifted mean over the same years (trend centre).
+    Also reported per row: the 10th and 90th percentile over the years (how
+    much a single year can differ).
+    Not a climate scenario: a straight-line continuation of the observed
+    warming, applied to the observed weather.
+    """
+    target_years = list(target_years or LIVEABILITY_HOURS_TARGET_YEARS)
+    shift_var = shift_var or LIVEABILITY_PROJ_SHIFT_VAR
+    humidity = humidity or LIVEABILITY_PROJ_HUMIDITY
+    if shift_var not in annual:
+        raise ValueError(f"{shift_var} not in annual data (re-run Klimatos)")
+    s = annual[shift_var].dropna()
+    s = s[(s.index >= trend_period[0]) & (s.index <= trend_period[1])]
+    years = [int(y) for y in s.index if int(y) in liveability_raw]
+    if len(years) < PROJECTION_MIN_YEARS:
+        raise ValueError(f"only {len(years)} trend-period years with stored hours")
+    slope, _, slo, shi = stats.theilslopes(s.values, s.index.values.astype(float), alpha=0.95)
+    mk = mann_kendall(s.values)
+    max_shift = max(abs(slo), abs(shi), abs(slope)) * (max(target_years) - min(years))
+    if max_shift > LIVEABILITY_PROJ_STORE_MARGIN:
+        print(f"  [liveability projection] warning: largest shift {max_shift:.1f} degC exceeds "
+              f"the stored margin {LIVEABILITY_PROJ_STORE_MARGIN:.0f} degC; the high variant "
+              f"may undercount hours.")
+    t_min = LIVEABILITY_TA_MIN - LIVEABILITY_PROJ_UHI_MAX
+
+    def _count(dT_by_year):
+        per_year = []
+        for y in years:
+            raw = _shift_raw(liveability_raw[y], dT_by_year(y), humidity)
+            raw = raw.loc[raw["T_air_rural"] >= t_min]
+            if raw.empty:
+                per_year.append({f"{m}_{p}": 0 for m in LIVEABILITY_HOURS_METRICS
+                                 for p in LIVEABILITY_PROFILES})
+                continue
+            proc = process_weather_data(raw, city, lat, lon, tz, apply_uhi=apply_uhi)
+            per_year.append(liveability_year_metrics(proc))
+        return pd.DataFrame(per_year, index=years)
+
+    scen = [("reference", None, 0.0)]
+    for ty in target_years:
+        for name, sl in (("central", slope), ("low", min(slo, shi)), ("high", max(slo, shi))):
+            scen.append((name, ty, sl))
+    rows = []
+    for name, ty, sl in scen:
+        df = _count((lambda y: 0.0) if ty is None else (lambda y, sl=sl, ty=ty: sl * (ty - y)))
+        for pkey in LIVEABILITY_PROFILES:
+            for mkey in LIVEABILITY_HOURS_METRICS:
+                v = df[f"{mkey}_{pkey}"].astype(float)
+                rows.append({"profile": pkey, "metric": mkey,
+                             "target_year": "reference" if ty is None else ty,
+                             "variant": name, "slope_degC_per_yr": sl,
+                             "mean_hours": float(v.mean()), "p10_hours": float(v.quantile(0.10)),
+                             "p90_hours": float(v.quantile(0.90))})
+    out = pd.DataFrame(rows)
+    out.attrs.update({"shift_var": shift_var, "humidity": humidity, "slope": float(slope),
+                      "slope_lo": float(min(slo, shi)), "slope_hi": float(max(slo, shi)),
+                      "mk_p": float(mk.get("p", np.nan)),
+                      "trend_period": f"{trend_period[0]}-{trend_period[1]}",
+                      "years": years, "centre_year": float(np.mean(years))})
+    return out
+
+
+def liveability_projection_table(proj: pd.DataFrame) -> pd.DataFrame:
+    """Wide table of run_liveability_projection(): one row per profile/metric,
+    reference and central/low/high per target year (Excel and report)."""
+    rows = []
+    for (p, m), g in proj.groupby(["profile", "metric"], sort=False):
+        ref = g[g.target_year == "reference"].iloc[0]
+        row = {"profile": p, "label": LIVEABILITY_PROFILE_LABEL[p], "metric": m,
+               "description": LIVEABILITY_HOURS_METRICS[m],
+               "reference_mean": ref.mean_hours, "reference_p10": ref.p10_hours,
+               "reference_p90": ref.p90_hours}
+        for ty in sorted(x for x in g.target_year.unique() if x != "reference"):
+            gg = g[g.target_year == ty].set_index("variant")
+            row[f"{ty}"] = gg.loc["central", "mean_hours"]
+            row[f"{ty}_lo"] = gg.loc["low", "mean_hours"]
+            row[f"{ty}_hi"] = gg.loc["high", "mean_hours"]
+            row[f"{ty}_p10"] = gg.loc["central", "p10_hours"]
+            row[f"{ty}_p90"] = gg.loc["central", "p90_hours"]
+        rows.append(row)
+    t = pd.DataFrame(rows)
+    for k in ("shift_var", "humidity", "slope", "slope_lo", "slope_hi", "mk_p", "trend_period",
+              "centre_year"):
+        t[k] = proj.attrs.get(k)
+    return t
+
+
+def liveability_hours_trend(annual: pd.DataFrame,
+                            trend_period: Tuple[int, int] = EVENT_TREND_PERIOD,
+                            target_years: List[int] = None,
+                            ref_window: Tuple[int, int] = REFERENCE_PERIOD) -> pd.DataFrame:
+    """[2026-10-26] Trend of the yearly NUMBER OF HOURS with limited
+    liveability, per profile, and a naive linear extrapolation to the target
+    years. Unlike the worst-hour Mmax, these counts have no floor that hides
+    further worsening.
+
+    Method: ordinary least squares over trend_period (same anchor as the
+    event-window projection, default 1995-2025), so the line passes through
+    the period mean at the mean year; band = 95% CI of the slope (t
+    distribution), fanned out from that anchor; projections clipped at 0
+    hours. Mann-Kendall p is reported for significance.
+    WHY NOT THEIL-SEN HERE: the hours "not liveable" are zero in most years
+    with a few hot years of 10-20 h; with that many ties Sen's slope is 0
+    (and its line 0 h) even when Mann-Kendall finds a significant increase.
+    A log-linear (Poisson) fit was tried and rejected for extrapolation: it
+    multiplies short noisy records into implausibly large 2040 values.
+    A STATISTICAL extrapolation of the observed trend, not a climate scenario.
+    """
+    target_years = list(target_years or LIVEABILITY_HOURS_TARGET_YEARS)
+    rows = []
+    for pkey in LIVEABILITY_PROFILES:
+        for mkey, mlabel in LIVEABILITY_HOURS_METRICS.items():
+            col = f"{mkey}_{pkey}"
+            if col not in annual:
+                continue
+            s = annual[col].dropna()
+            s = s[(s.index >= trend_period[0]) & (s.index <= trend_period[1])]
+            if len(s) < PROJECTION_MIN_YEARS:
+                continue
+            yrs = s.index.values.astype(float)
+            vals = s.values.astype(float)
+            ym, vm = float(yrs.mean()), float(vals.mean())
+            if np.ptp(vals) == 0:
+                slope = lo = hi = 0.0
+                p_ols = np.nan
+            else:
+                lr = stats.linregress(yrs, vals)
+                tq = stats.t.ppf(0.975, len(yrs) - 2)
+                slope, p_ols = float(lr.slope), float(lr.pvalue)
+                lo, hi = slope - tq * lr.stderr, slope + tq * lr.stderr
+            mk = mann_kendall(vals)
+            ref = annual[col].dropna()
+            ref = ref[(ref.index >= ref_window[0]) & (ref.index <= ref_window[1])]
+            row = {"profile": pkey, "label": LIVEABILITY_PROFILE_LABEL[pkey], "metric": mkey,
+                   "description": mlabel, "trend_period": f"{trend_period[0]}-{trend_period[1]}",
+                   "n_years": len(s), "mean_reference": float(ref.mean()) if len(ref) else np.nan,
+                   "mean_trend_period": vm, "method": "OLS, anchored at period mean",
+                   "slope_hours_per_yr": slope, "slope_lo": float(lo), "slope_hi": float(hi),
+                   "ols_p": p_ols, "mk_p": float(mk.get("p", np.nan)), "mk_trend": mk.get("trend", "")}
+            for ty in target_years:
+                row[f"proj_{ty}"] = max(0.0, vm + slope * (ty - ym))
+                row[f"proj_{ty}_lo"] = max(0.0, vm + min(lo, hi) * (ty - ym))
+                row[f"proj_{ty}_hi"] = max(0.0, vm + max(lo, hi) * (ty - ym))
+            row["_vm"], row["_ym"] = vm, ym
+            rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def plot_liveability_hours(annual: pd.DataFrame, ref_window: Tuple[int, int],
+                           city_name: str, outpath: str,
+                           trend_df: Optional[pd.DataFrame] = None,
+                           proj_table: Optional[pd.DataFrame] = None) -> None:
+    """[2026-10-26] Hours per year with limited liveability (HEAT-Lim), per
+    profile. Top: hours below LIVEABILITY_ACTIVITY_MET; bottom: hours not
+    liveable. Observed years, the least-squares trend over the trend period,
+    and the projection to the target years:
+      - proj_table given (run_liveability_projection, temperature shift):
+        diamonds at the target years (central slope), bars = low..high slope,
+        dashed line from the trend-period mean at the centre year;
+      - otherwise: the least-squares line extended (statistical fallback)."""
+    if trend_df is None:
+        trend_df = liveability_hours_trend(annual, ref_window=ref_window)
+    use_proj = proj_table is not None and len(proj_table) > 0
+    colors = {"young": "tab:blue", "old": "tab:red"}
+    fig, axes = plt.subplots(2, 1, figsize=(11, 9.5), sharex=True)
+    plotted = False
+    tys = LIVEABILITY_HOURS_TARGET_YEARS
+    for ax, (mkey, mlabel) in zip(axes, LIVEABILITY_HOURS_METRICS.items()):
+        for pkey in LIVEABILITY_PROFILES:
+            col = f"{mkey}_{pkey}"
+            if col not in annual:
+                continue
+            s = annual[col].dropna()
+            if len(s) < 4:
+                continue
+            ax.plot(s.index.values, s.values, "o-", ms=3, lw=1, color=colors[pkey], alpha=0.6,
+                    label=LIVEABILITY_PROFILE_LABEL[pkey])
+            plotted = True
+            r = trend_df[(trend_df.profile == pkey) & (trend_df.metric == mkey)] if len(trend_df) else []
+            if len(r) == 0:
+                continue
+            r = r.iloc[0]
+            t0, t1 = [int(x) for x in r["trend_period"].split("-")]
+            sl, ymed, vmed = r["slope_hours_per_yr"], r["_ym"], r["_vm"]
+            xt = np.array([t0, t1], float)
+            ax.plot(xt, np.maximum(vmed + sl * (xt - ymed), 0), "-", lw=2.2, color=colors[pkey])
+            if use_proj:
+                q = proj_table[(proj_table.profile == pkey) & (proj_table.metric == mkey)]
+                if len(q) == 0:
+                    continue
+                q = q.iloc[0]
+                xc = float(q["centre_year"])
+                xs = [xc] + list(tys)
+                ys = [q["reference_mean"]] + [q[f"{ty}"] for ty in tys]
+                ax.plot(xs, ys, ls=(0, (5, 3)), lw=2, color=colors[pkey])
+                ax.plot([xc], [q["reference_mean"]], "s", ms=6, color=colors[pkey])
+                for ty in tys:
+                    v, lo, hi = q[f"{ty}"], q[f"{ty}_lo"], q[f"{ty}_hi"]
+                    ax.errorbar([ty], [v], yerr=[[max(v - lo, 0)], [max(hi - v, 0)]], fmt="D",
+                                ms=6, color=colors[pkey], capsize=4, lw=1.5)
+                    ax.annotate(f"{v:.0f}" if v >= 10 else f"{v:.1f}", (ty, v),
+                                textcoords="offset points", xytext=(7, 4), fontsize=9,
+                                color=colors[pkey])
+            else:
+                xp = np.linspace(t1, max(tys), 50)
+                ax.plot(xp, np.maximum(vmed + sl * (xp - ymed), 0), lw=2, ls=(0, (5, 3)),
+                        color=colors[pkey])
+                lo = np.maximum(vmed + min(r.slope_lo, r.slope_hi) * (xp - ymed), 0)
+                hi = np.maximum(vmed + max(r.slope_lo, r.slope_hi) * (xp - ymed), 0)
+                ax.fill_between(xp, lo, hi, color=colors[pkey], alpha=0.12)
+                for ty in tys:
+                    v = r[f"proj_{ty}"]
+                    ax.plot([ty], [v], "D", ms=6, color=colors[pkey])
+                    ax.annotate(f"{v:.0f}" if v >= 10 else f"{v:.1f}", (ty, v),
+                                textcoords="offset points", xytext=(6, 4), fontsize=9,
+                                color=colors[pkey])
+        ax.axvspan(ref_window[0], ref_window[1], color="grey", alpha=0.10)
+        ax.set_ylabel("hours per year")
+        ax.set_title(mlabel, fontsize=10)
+        ax.set_ylim(bottom=0)
+        ax.grid(alpha=0.25)
+        ax.legend(fontsize=8, loc="upper left")
+    if not plotted:
+        plt.close(fig); return
+    axes[-1].set_xlabel("Year")
+    tp = trend_df["trend_period"].iloc[0] if len(trend_df) else ""
+    if use_proj:
+        a = proj_table.iloc[0]
+        hum = {"constant_rh": "relative humidity unchanged",
+               "constant_vapour": "water vapour unchanged"}.get(a["humidity"], a["humidity"])
+        proj_txt = (f"projection: every {a['trend_period']} year warmed to "
+                    f"{', '.join(str(t) for t in tys)} by the trend of {a['shift_var']} "
+                    f"({a['slope'] * 10:+.2f} degC/decade, 95% CI {a['slope_lo'] * 10:+.2f} to "
+                    f"{a['slope_hi'] * 10:+.2f}; {hum}) and recomputed; square = mean of the "
+                    f"unwarmed years, bars = slope CI. Straight-line warming, not a climate scenario.")
+    else:
+        proj_txt = (f"dashed + band (slope 95% CI): naive linear extrapolation of the hours to "
+                    f"{', '.join(str(t) for t in tys)}, not a forecast")
+    fig.suptitle(f"Hours per year with limited liveability - HEAT-Lim\n{city_name}"
+                 f"  [hours with Ta >= {LIVEABILITY_TA_MIN:g} degC; UHI-sensitive; sun={LIVEABILITY_SUN}]"
+                 f"; solid: least-squares trend {tp}; grey: reference period",
+                 fontsize=10)
+    fig.text(0.01, 0.005, proj_txt, fontsize=8, color="dimgrey", ha="left", va="bottom", wrap=True)
+    fig.tight_layout(rect=(0, 0.04, 1, 1))
     fig.savefig(outpath, dpi=130)
     plt.close(fig)
 
@@ -3357,7 +3618,9 @@ def save_results(annual: pd.DataFrame, stats_by_var: Dict[str, pd.DataFrame],
                  liveability_df: Optional[pd.DataFrame] = None,
                  event_df: Optional[pd.DataFrame] = None,
                  ehs_df: Optional[pd.DataFrame] = None,
-                 accel_df: Optional[pd.DataFrame] = None) -> str:
+                 accel_df: Optional[pd.DataFrame] = None,
+                 liveability_hours_df: Optional[pd.DataFrame] = None,
+                 liveability_proj_df: Optional[pd.DataFrame] = None) -> str:
     """Write annual maxima, per-variable window stats, metadata and plots to Excel."""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
     safe_city = "".join(ch for ch in meta["city"] if ch.isalnum() or ch in (" ", "_", "-")).strip()
@@ -3372,6 +3635,13 @@ def save_results(annual: pd.DataFrame, stats_by_var: Dict[str, pd.DataFrame],
             admissions_df.to_excel(writer, sheet_name="Heat_Admissions", index=False)
         if liveability_df is not None and not liveability_df.empty:
             liveability_df.to_excel(writer, sheet_name="Heat_Liveability", index=False)
+        if liveability_hours_df is not None and len(liveability_hours_df):
+            liveability_hours_df.drop(columns=[c for c in liveability_hours_df.columns
+                                               if c.startswith("_")]).to_excel(
+                writer, sheet_name="Liveability_Hours_Trend", index=False)
+        if liveability_proj_df is not None and len(liveability_proj_df):
+            liveability_proj_df.to_excel(writer, sheet_name="Liveability_Hours_Projection",
+                                         index=False)
         if event_df is not None and not event_df.empty:
             event_df.to_excel(writer, sheet_name="Event_Window", index=False)
         if ehs_df is not None and not ehs_df.empty:
@@ -3825,6 +4095,7 @@ def main():
     print("Fetching + processing hourly archive data per year")
     print("(this can take several minutes for a multi-decade run)\n")
     event_slices: Dict[int, pd.DataFrame] = {}
+    liveability_raw: Dict[int, pd.DataFrame] = {}
     ehs_summary_df = None
     ehs_ehe_resolvable = False
     ehs_res = None
@@ -3832,7 +4103,11 @@ def main():
                                  apply_uhi=apply_uhi,
                                  event_slices=(event_slices
                                                if (ENABLE_EVENT_WINDOW and
-                                                   ENABLE_EHS_EVOLUTION) else None))
+                                                   ENABLE_EHS_EVOLUTION) else None),
+                                 liveability_raw=(liveability_raw
+                                                  if (ENABLE_LIVEABILITY and HEATLIM_AVAILABLE
+                                                      and ENABLE_LIVEABILITY_PROJECTION)
+                                                  else None))
 
     available_first = int(annual.index.min())
     available_last = int(annual.index.max())
@@ -3991,18 +4266,39 @@ def main():
 
     # --- Physiological liveability (HEAT-Lim) -------------------------------
     liveability_df = None
+    liveability_hours_df = None
+    liveability_proj_df = None
     if ENABLE_LIVEABILITY and HEATLIM_AVAILABLE and f"minMmax_young" in annual.columns:
         liveability_df = analyze_liveability_windows(annual, windows, ref_window)
         pl1 = "plot_liveability_timeseries.png"
         pl2 = "plot_liveability_window_bar.png"
         _safe_plot(plot_liveability_timeseries, annual, ref_window, city["name"], pl1)
         _safe_plot(plot_liveability_window_bar, liveability_df, city["name"], pl2)
+        # [2026-10-26] hours per year with limited liveability + projection
+        try:
+            liveability_hours_df = liveability_hours_trend(annual, ref_window=ref_window)
+        except Exception as exc:
+            print(f"[liveability] hours trend failed: {exc}")
+            liveability_hours_df = None
+        liveability_proj_df = None
+        if ENABLE_LIVEABILITY_PROJECTION and liveability_raw:
+            print("\nLiveability hours: temperature-shift projection "
+                  f"({LIVEABILITY_PROJ_HUMIDITY}) ...")
+            try:
+                _proj = run_liveability_projection(annual, liveability_raw, city, lat, lon, tz,
+                                                   apply_uhi=apply_uhi)
+                liveability_proj_df = liveability_projection_table(_proj)
+            except Exception as exc:
+                print(f"[liveability] projection failed: {exc}")
+        pl5 = "plot_liveability_hours.png"
+        _safe_plot(plot_liveability_hours, annual, ref_window, city["name"], pl5,
+                   liveability_hours_df, liveability_proj_df)
         pl3 = "plot_survivability_matrix.png"
         pl4 = "plot_liveability_matrix.png"
         latest_window = windows[-1] if windows else ref_window
         _safe_plot(plot_survivability_matrix, annual, ref_window, latest_window, city["name"], pl3)
         _safe_plot(plot_liveability_matrix, annual, ref_window, latest_window, city["name"], pl4)
-        for p in (pl1, pl2, pl3, pl4):
+        for p in (pl1, pl2, pl5, pl3, pl4):
             if os.path.exists(p):
                 plot_paths.append(p)
     elif ENABLE_LIVEABILITY and not HEATLIM_AVAILABLE:
@@ -4040,7 +4336,7 @@ def main():
     }
     filepath = save_results(annual, stats_by_var, plot_paths, meta, admissions_df,
                             liveability_df, event_summary_df, ehs_summary_df,
-                            accel_summary_df)
+                            accel_summary_df, liveability_hours_df, liveability_proj_df)
 
     print_summary(stats_by_var, admissions_df, liveability_df, event_summary_df,
                   ehs_summary_df, ehs_ehe_resolvable, ehs_res)
@@ -4055,51 +4351,36 @@ def main():
     # separate generator (different underlying data: a climate trend +
     # EHS/EHE evolution, not one Monte Carlo population run) rather than a
     # literal reuse of the HESTIA report's section structure.
+    # [2026-10-27] Report data kept as a rapportpakket (start menu R = later).
+    import rapportpakket
+    safe_city = "".join(ch for ch in meta["city"] if ch.isalnum() or ch in (" ", "_", "-")).strip()
+    report_stam = f"Klimatos_Rapport_{safe_city}_{datetime.now().strftime('%Y%m%d_%H%M')}"
+    event_name = EVENT_NAME if ENABLE_EVENT_WINDOW else meta["city"]
+    proj_key = None
+    if ehs_res is not None and EHS_TARGET_YEARS:
+        proj_key = f"proj_{min(EHS_TARGET_YEARS)}_central"
+    if isinstance(ehs_res, dict) and proj_key:
+        ehs_res = {**ehs_res, "_report_proj_key": proj_key}
+    pakket_gegevens = dict(
+        event_name=event_name, meta=meta, annual=annual,
+        ref_window=ref_window, latest_window=(windows[-1] if windows else ref_window),
+        event_df=event_summary_df, ehs_df=ehs_summary_df,
+        admissions_df=admissions_df, liveability_df=liveability_df,
+        liveability_hours_df=liveability_hours_df,
+        liveability_proj_df=liveability_proj_df,
+        accel_df=accel_summary_df, ehs_evolution_res=ehs_res,
+        plot_paths=plot_paths,
+    )
+    pk = rapportpakket.bewaar("klimatos", pakket_gegevens, report_stam)
+    if pk:
+        print(f"Report data kept: {pk.name} (start menu R = make the report later)")
     try:
-        report_answer = input("\nGenerate event report (Markdown)? [y/n, default y]: ").strip().lower()
+        report_answer = input("\nGenerate report now? [y/n, default y]: ").strip().lower()
     except EOFError:
         report_answer = "y"
     if report_answer != "n":
-        from generate_klimatos_report import generate_klimatos_report
-        safe_city = "".join(ch for ch in meta["city"] if ch.isalnum() or ch in (" ", "_", "-")).strip()
-        report_path = f"Klimatos_Rapport_{safe_city}_{datetime.now().strftime('%Y%m%d_%H%M')}.md"
-        event_name = EVENT_NAME if ENABLE_EVENT_WINDOW else meta["city"]
-        proj_key = None
-        if ehs_res is not None and EHS_TARGET_YEARS:
-            proj_key = f"proj_{min(EHS_TARGET_YEARS)}_central"
-        if isinstance(ehs_res, dict) and proj_key:
-            ehs_res = {**ehs_res, "_report_proj_key": proj_key}
-        report_text = generate_klimatos_report(
-            event_name=event_name, meta=meta, annual=annual,
-            ref_window=ref_window, latest_window=(windows[-1] if windows else ref_window),
-            output_path=report_path,
-            event_df=event_summary_df, ehs_df=ehs_summary_df,
-            admissions_df=admissions_df, liveability_df=liveability_df,
-            accel_df=accel_summary_df, ehs_evolution_res=ehs_res,
-            plot_paths=plot_paths,
-        )
-        print(f"Report written to: {report_path}")
-
-        # [2026-08-30] Optional Word (.docx) export of the same report,
-        # via report_to_docx.py -- a shared styling layer used by all three
-        # of this suite's report generators (see that module's own
-        # docstring). Requires Node.js + the 'docx' npm package
-        # (package.json in this suite's root); failure here is reported but
-        # does not affect the Markdown report already written above.
-        try:
-            docx_answer = input("Also export as Word (.docx)? [y/n, default y]: ").strip().lower()
-        except EOFError:
-            docx_answer = "y"
-        if docx_answer != "n":
-            try:
-                from report_to_docx import export_report_docx
-                docx_path = report_path[:-3] + ".docx"
-                export_report_docx(report_text, docx_path, report_kind="facts",
-                                   event_name=event_name)
-                print(f"Word report written to: {docx_path}")
-            except Exception as e:
-                print(f"{Fore.YELLOW}Word export failed ({e}) -- the Markdown "
-                      f"report above is unaffected.{Style.RESET_ALL}")
+        rapportpakket.maak({"soort": "klimatos", "rapport_stam": report_stam,
+                            "gegevens": pakket_gegevens}, vraag_word=True)
 
 
 if __name__ == "__main__":

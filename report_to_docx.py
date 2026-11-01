@@ -241,17 +241,15 @@ def export_report_docx(md_text: str, output_path: str, report_kind: str = "facts
     # unless that folder was copied whole) surfaces as a raw Node.js stack
     # trace ("Cannot find module 'docx'", with a require() call stack) --
     # correct, but not something to expect a non-programmer to diagnose.
-    # This suite's own packaged .zip bundles node_modules directly for
-    # exactly this reason (see MANIFEST.md); this check is the fallback for
-    # whenever that bundling didn't happen or the folder was assembled by
-    # hand.
+    # [2026-10-25] The public release does NOT bundle node_modules (11 MB of
+    # third-party code); the one-time 'npm install' below installs the docx
+    # package from package.json.
     if not os.path.isfile(os.path.join(script_dir, "node_modules", "docx", "package.json")):
         raise RuntimeError(
             "Word export needs a one-time setup step in THIS folder: open a "
             "terminal here and run 'npm install' (requires Node.js -- "
-            "https://nodejs.org, the LTS version). This suite's own .zip "
-            "normally already includes this; if you copied only some files "
-            "out of it, node_modules did not come along."
+            "https://nodejs.org, the LTS version). The Markdown report is "
+            "written regardless; only the Word copy needs this step."
         )
     json_path = output_path + ".content.json"
     with open(json_path, "w", encoding="utf-8") as f:

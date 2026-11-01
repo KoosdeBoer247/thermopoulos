@@ -11,6 +11,8 @@ import os, tempfile
 # [2026-10-01, C6] tijdelijke map i.p.v. vast /tmp-pad: werkt ook op Windows
 # en faalt niet meer als de map nog niet bestaat.
 OUT = tempfile.mkdtemp(prefix="pyrox_report_test_")
+import atexit as _ax, shutil as _sh
+_ax.register(_sh.rmtree, OUT, True)  # [2026-10-25] clean up
 
 path = build_synthetic_excel(os.path.join(OUT, "Thermopoulos_Test.xlsx"))
 data = ThermopoulosData(path)
@@ -31,5 +33,12 @@ for p in sorted(pngs):
     print(" ", p)
 
 docx_path = os.path.join(OUT, "pyrox_report.docx")
-export_report_docx(text, docx_path, report_kind="facts", event_name="TestCity heatwave")
-print("Word-document geschreven:", docx_path)
+# [2026-10-25] The Word export needs 'npm install' (node_modules is not part of
+# the public release). Without it this step is reported as SKIPPED, not failed;
+# CI runs npm install first, so there it is always exercised.
+_here = os.path.dirname(os.path.abspath(__file__))
+if not os.path.isfile(os.path.join(_here, "node_modules", "docx", "package.json")) and not os.environ.get("HESTIA_REQUIRE_DOCX"):
+    print("SKIPPED: Word export (run 'npm install' in this folder to test it)")
+else:
+    export_report_docx(text, docx_path, report_kind="facts", event_name="TestCity heatwave")
+    print("Word-document geschreven:", docx_path)

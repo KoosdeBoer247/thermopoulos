@@ -1,0 +1,151 @@
+{
+ "date": "2026-10-31",
+ "note": "Daytime globe temperature by the Liljegren et al. (2008) energy balance (ISO 7726 h_c, D 0.15 m); T_air_urban paired with RH_urban. DtD reference file rewritten with the new radiation; Boston synthetic reference recomputed by the same globe code.",
+ "ehs": -9.567524,
+ "hospitalisation": -8.677948,
+ "first_aid": -7.471756,
+ "eac_ln_k": 3.970524,
+ "boston_seed42": {
+  "ehs": {
+   "intercept": -9.591404909394143,
+   "p_target": 0.00045,
+   "p_final": 0.0004500000000000007,
+   "error_final": 7.047314121155779e-19,
+   "n_iter": 7,
+   "converged": true,
+   "label": "Model risk calibrated on clinical EHS (Boston Marathon, Breslow 2021)",
+   "source": "Breslow RG, Collins JE, Troyanos C, et al. (2021) Med Sci Sports Exerc 53(9):1818-1825, doi:10.1249/MSS.0000000000002652",
+   "status": "PRIMARY",
+   "ref_conditions_key": "boston"
+  }
+ },
+ "dtd_seed42": {
+  "hospitalisation": {
+   "intercept": -8.616264322847455,
+   "p_target": 0.0014285714285714286,
+   "p_final": 0.001428571428571428,
+   "error_final": -6.505213034913027e-19,
+   "n_iter": 6,
+   "converged": true,
+   "label": "Hospital admission (DtD 2024)",
+   "source": "Data provided by GHOR Noord-Holland Noord and Le Champion (Dam tot Damloop 2024)",
+   "status": "PROVISIONAL",
+   "ref_conditions_key": "dtd"
+  },
+  "ehbo": {
+   "intercept": -7.437289785929807,
+   "p_target": 0.004285714285714286,
+   "p_final": 0.004285714285714285,
+   "error_final": -8.673617379884035e-19,
+   "n_iter": 6,
+   "converged": true,
+   "label": "First-aid contact, all incidents (DtD 2024 estimate)",
+   "source": "Data provided by GHOR Noord-Holland Noord and Le Champion (Dam tot Damloop 2024; first-aid count is an estimate)",
+   "status": "PROVISIONAL",
+   "ref_conditions_key": "dtd"
+  }
+ },
+ "eac_seed42": {
+  "ln_k": 3.9704467545387914,
+  "p_target": 0.0015,
+  "p_final": 0.0015000000000000007,
+  "n_standing": 5000,
+  "median_load_min": 15.9878,
+  "label": "EAC-staan (collapse on standing after the finish)",
+  "source": "Naidoo D, Sewry NA, Schwellnus MP e.a. (2022) J Sports Med Phys Fitness 62(11):1519-1525",
+  "eac_base_p": 0.001,
+  "eac_core_cap": 38.3,
+  "ref_conditions_key": "dtd",
+  "intercept": 3.9704467545387914,
+  "random_seed": 42,
+  "n_population": 5000
+ },
+ "boston_seed43": {
+  "ehs": {
+   "intercept": -9.543643201518446,
+   "p_target": 0.00045,
+   "p_final": 0.00045000000000000037,
+   "error_final": 3.7947076036992655e-19,
+   "n_iter": 7,
+   "converged": true,
+   "label": "Model risk calibrated on clinical EHS (Boston Marathon, Breslow 2021)",
+   "source": "Breslow RG, Collins JE, Troyanos C, et al. (2021) Med Sci Sports Exerc 53(9):1818-1825, doi:10.1249/MSS.0000000000002652",
+   "status": "PRIMARY",
+   "ref_conditions_key": "boston"
+  }
+ },
+ "dtd_seed43": {
+  "hospitalisation": {
+   "intercept": -8.739630967230125,
+   "p_target": 0.0014285714285714286,
+   "p_final": 0.0014285714285714286,
+   "error_final": 0.0,
+   "n_iter": 6,
+   "converged": true,
+   "label": "Hospital admission (DtD 2024)",
+   "source": "Data provided by GHOR Noord-Holland Noord and Le Champion (Dam tot Damloop 2024)",
+   "status": "PROVISIONAL",
+   "ref_conditions_key": "dtd"
+  },
+  "ehbo": {
+   "intercept": -7.506222869189298,
+   "p_target": 0.004285714285714286,
+   "p_final": 0.004285714285714285,
+   "error_final": -8.673617379884035e-19,
+   "n_iter": 6,
+   "converged": true,
+   "label": "First-aid contact, all incidents (DtD 2024 estimate)",
+   "source": "Data provided by GHOR Noord-Holland Noord and Le Champion (Dam tot Damloop 2024; first-aid count is an estimate)",
+   "status": "PROVISIONAL",
+   "ref_conditions_key": "dtd"
+  }
+ },
+ "eac_seed43": {
+  "ln_k": 3.9706013278174543,
+  "p_target": 0.0015,
+  "p_final": 0.0015000000000000011,
+  "n_standing": 5000,
+  "median_load_min": 15.982199999999999,
+  "label": "EAC-staan (collapse on standing after the finish)",
+  "source": "Naidoo D, Sewry NA, Schwellnus MP e.a. (2022) J Sports Med Phys Fitness 62(11):1519-1525",
+  "eac_base_p": 0.001,
+  "eac_core_cap": 38.3,
+  "ref_conditions_key": "dtd",
+  "intercept": 3.9706013278174543,
+  "random_seed": 43,
+  "n_population": 5000
+ },
+ "sensitivity_first_aid_seed42": {
+  "100": -7.8758330791430815,
+  "125": -7.635016645399049,
+  "150": -7.437289785929807,
+  "175": -7.26938096538128,
+  "200": -7.123346499868703,
+  "225": -6.994052820305892,
+  "250": -6.877989667873965
+ },
+ "population_trect_max": {
+  "dtd": {
+   "seed42": {
+    "P50": 39.747,
+    "P95": 40.584,
+    "pct_above_40_5": 6.66
+   },
+   "seed43": {
+    "P50": 39.744,
+    "P95": 40.585,
+    "pct_above_40_5": 6.92
+   }
+  },
+  "boston_seed42": {
+   "P50": 39.423,
+   "P95": 40.083,
+   "pct_above_40_5": 0.54
+  },
+  "boston_seed43": {
+   "P50": 39.41,
+   "P95": 40.081,
+   "pct_above_40_5": 0.52
+  }
+ }
+}

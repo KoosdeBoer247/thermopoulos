@@ -260,6 +260,15 @@ def main(argv=None):
     print(f"\n  klaar in {time.time() - t0:.0f} s. Signaal: {r.signaal['kleur']}")
     for w in r.afgeleid.waarschuwingen:
         print(f"  ! {w}")
+    # [2026-10-27] Rapportgegevens altijd bewaren (startmenu R = later maken);
+    # in een interactieve sessie eerst vragen of het rapport nu moet.
+    import rapportpakket
+    pk = rapportpakket.bewaar("loper", {"resultaat": r}, uit / stam)
+    if pk:
+        print(f"  Rapportgegevens bewaard: {pk.name} (startmenu R = rapport later maken)")
+    if sys.stdin is not None and sys.stdin.isatty() and not _vraag(
+            "Figuren, rapport en Excel nu maken? (j/n)", "j", bool):
+        return 0
     plots = maak_alle_plots(r, uit / f"{stam}_figuren")
     docx = maak_rapport(r, plots, uit / f"{stam}.docx")
     xlsx = exporteer_excel(r, uit / f"{stam}.xlsx")

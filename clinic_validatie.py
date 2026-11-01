@@ -5,7 +5,7 @@ clinic_validatie.py -- HESTIA tegen echte lopers (Thermo Clinic)
 
 Volgorde (afgedwongen, zodat de voorspelling echt vooraf is):
 
-  1. python clinic_validatie.py sjabloon  <map>   leeg deelnemers.xlsx voor Joost
+  1. python clinic_validatie.py sjabloon  <map>   leeg deelnemers.xlsx voor de clinic-organisatie
   2. python clinic_validatie.py voorspel  <map>   modus A: alleen deelnemers.xlsx
                                                   + weer; legt de voorspelling
                                                   vast met tijdstempel en
@@ -313,7 +313,7 @@ def _hr_maten(hrdf: pd.DataFrame, meting: iuf.Meting, hd: iuf.Hoofddeel) -> dict
 
 
 def vergelijk_loper(d: ci.Deelnemer, clinic: ci.Clinic, fit_map: Path, weer_df: Optional[pd.DataFrame],
-                    modus_a: dict, n: int, seed: int, varianten=("B1", "B2", "B3"),
+                    modus_a: dict, n: int, seed: int, varianten=("B1", "B2", "B3", "B4"),
                     weerbestand: Optional[str] = None) -> LoperVergelijking:
     from individual_engine import _default_vo2max
     from hestia_loper import weer_uit_excel
@@ -426,7 +426,7 @@ def vergelijk_loper(d: ci.Deelnemer, clinic: ci.Clinic, fit_map: Path, weer_df: 
     return lv
 
 
-def groep(lopers: list[LoperVergelijking], criteria: dict, varianten=("B1", "B2", "B3")) -> pd.DataFrame:
+def groep(lopers: list[LoperVergelijking], criteria: dict, varianten=("B1", "B2", "B3", "B4")) -> pd.DataFrame:
     """Groepsgemiddelde per maat en variant, met 95%-BI (t) en oordeel."""
     from scipy import stats
     nmin = criteria["min_lopers_groepsoordeel"]
@@ -435,7 +435,8 @@ def groep(lopers: list[LoperVergelijking], criteria: dict, varianten=("B1", "B2"
            "kern_dekking": "kern", "vocht_verschil": "vocht", "hr_bias": "hartslag",
            "hr_drift_verschil": "hartslag", "kern_max_verschil": "kern", "dyn_K_verhouding": "kern",
            "dyn_dode_tijd_verschil": "kern", "dyn_tau_verschil": "kern",
-           "dyn_hr_tau_verschil": "hartslag", "dyn_hr_na_model_verschil": "hartslag"}
+           "dyn_hr_tau_verschil": "hartslag", "dyn_hr_na_model_verschil": "hartslag",
+           "huid_borst_bias": "kern"}
     for maat, c in criteria["maten"].items():
         for v in (varianten if maat != "vo2max_verschil_pct" else ("-",)):
             for bron in (("populatie", "gemeten", "garmin") if maat.startswith("hr_") else ("",)):

@@ -27,7 +27,7 @@ Gebruik
         start_time="2026-04-19 09:00", duration_hours=3.5,
         activity_description="Marathon, wedstrijdtempo (MET 11.0)",
         n_simulations=1000,
-        output_path="/mnt/user-data/outputs/rapport_utrecht_2026.md",
+        output_path="rapport_utrecht_2026.md",
     )
 
 Het sjabloon is vast (dezelfde secties, dezelfde volgorde, ongeacht
@@ -41,6 +41,32 @@ import numpy as np
 import hestia_model as hestia
 from thermopoulos_loader import ThermopoulosData
 from hestia_bridge import margin_to_threshold_stats, format_margin_lines
+
+
+def _sig(x, n=2):
+    """[2026-10-25] Round to n significant digits, Dutch decimal comma.
+    Absolute model probabilities carry far less precision than 3-4 decimals
+    suggest (one reference event per endpoint), so they are shown rounded."""
+    try:
+        x = float(x)
+    except (TypeError, ValueError):
+        return "n.b."
+    if not np.isfinite(x):
+        return "n.b."
+    if x == 0:
+        return "0"
+    from math import floor, log10
+    d = max(0, n - 1 - int(floor(log10(abs(x)))))
+    return f"{round(x, d):.{d}f}".replace(".", ",")
+
+
+def _sig_band(x, lo, hi, scale=1.0, suffix=""):
+    """'value (band lo-hi)' with significant-digit rounding; the band is the
+    intercept-calibration uncertainty from hestia_model._intercept_sensitivity."""
+    v = _sig(None if x is None else float(x) * scale)
+    if lo is None or hi is None or v == "n.b.":
+        return v + suffix if v != "n.b." else v
+    return f"{v}{suffix} (bandbreedte {_sig(float(lo) * scale)}–{_sig(float(hi) * scale)}{suffix})"
 
 
 def _fmt(x, decimals=2, suffix=""):
@@ -74,7 +100,10 @@ def generate_report(event_name: str,
                      bridge_summary: dict = None,
                      plot_paths: list = None,
                      interp_data: list = None,
-                     sample_pace: bool = False) -> str:
+                     sample_pace: bool = False,
+                     event_dist_km: float = None,
+                     training_factor: float = None,
+                     acclimatization_factor: float = None) -> str:
     """
     Genereer een vast, feitelijk rapport en schrijf het weg als Markdown.
 
@@ -105,8 +134,8 @@ def generate_report(event_name: str,
         Pad waar het rapport (.md) wordt weggeschreven.
     documented_reference : str, optional
         Vrije tekst met het gedocumenteerde, werkelijke incidentiecijfer
-        voor dit evenement, indien bekend (bijv. "Gedocumenteerd: 9,0 per
-        10.000 (EHS, Breslow et al. 2021)"). Puur ter feitelijke vermelding
+        voor dit evenement, indien bekend (bijv. "Gedocumenteerd: 3,7 per
+        10.000 starters (EHS, Boston 2015-2019, Breslow et al. 2021)"). Puur ter feitelijke vermelding
         naast de modeluitkomst -- geen vergelijking of oordeel wordt
         toegevoegd; dat blijft aan de lezer.
     bridge_summary : dict, optional
@@ -115,16 +144,16 @@ def generate_report(event_name: str,
         pct_true_ehs_criterion, t_rect_co_reserve_pairs, ...) -- een analyse-
         laag die niet native in monte_carlo_adult()'s eigen stats-dict zit.
         None (de standaard) betekent: deze laag was niet beschikbaar voor
-        deze run, en sectie 10 vermeldt dat expliciet in plaats van de
+        deze run, en sectie 11 vermeldt dat expliciet in plaats van de
         cijfers te verzinnen of over te slaan zonder uitleg.
     plot_paths : list, optional
         [2026-09-01] Padnamen van al gegenereerde PNG-bestanden, zoals
         hestia_plots.generate_population_plots() teruggeeft (run_hestia.py's
         eigen "Generate plots?"-vraag, VÓÓR de rapportvraag zelf, roept die
         al aan). Elke bekende HESTIA_plotN_...-naam krijgt een eigen,
-        toegankelijke verklaring in sectie 11; een pad dat niet bij een
+        toegankelijke verklaring in sectie 12; een pad dat niet bij een
         bekend patroon past, wordt overgeslagen. None of een lege lijst laat
-        sectie 11 een "niet gegenereerd voor deze run"-vermelding tonen.
+        sectie 12 een "niet gegenereerd voor deze run"-vermelding tonen.
     interp_data : list, optional
         [2026-09] De geïnterpoleerde weerreeks voor het evenement-venster,
         zoals run_hestia.py's build_interpolated_weather() teruggeeft
@@ -177,7 +206,22 @@ def generate_report(event_name: str,
     A(f"| Evenement | {event_name} |")
     A(f"| Plaats | {meta['city']} ({meta['latitude']:.4f}, {meta['longitude']:.4f}) |")
     A(f"| Starttijd simulatie | {start_time} |")
-    A(f"| Duur simulatie | {duration_hours:.2f} uur |")
+    # [2026-10-14] Distance was missing from the report, and with
+    # sample_pace=True the displayed duration was the user-entered value,
+    # not the window actually simulated (run_hestia widens it to
+    # PACE_MIN_PER_KM_CEILING * event_dist_km so the slowest runner fits).
+    if event_dist_km:
+        A(f"| Afstand | {event_dist_km:g} km |")
+    _eff_hours = duration_hours
+    if sample_pace and event_dist_km:
+        _eff_hours = max(duration_hours, hestia.race_window_hours(event_dist_km))
+    if abs(_eff_hours - duration_hours) > 1e-6:
+        A(f"| Duur simulatie | {_eff_hours:.2f} uur (opgegeven {duration_hours:.2f} uur; "
+          f"verlengd zodat de langzaamste gesamplede deelnemer binnen het venster valt"
+          + (f", plus ruimte voor vertragen tot de bezemwagen (×{hestia.RACE_SWEEP_FACTOR:g})"
+             if hestia.RACE_DISTANCE_MODE else "") + ") |")
+    else:
+        A(f"| Duur simulatie | {duration_hours:.2f} uur |")
     A(f"| Activiteit | {activity_description} |")
     # [2026-09] Previously absent from the report entirely: whether
     # sample_pace was used changes the collapse-risk/CVS-index/EHE
@@ -191,6 +235,36 @@ def generate_report(event_name: str,
                 if sample_pace else
                 "Nee -- alle deelnemers delen de MET/duur hierboven")
     A(f"| Per-persoon pace/MET/duur (`sample_pace`) | {pace_note} |")
+    # [2026-10-14] With sample_pace the header MET above is nominal only;
+    # show the distribution that was actually simulated.
+    if results_df is not None and 'pct_vo2max' in getattr(results_df, 'columns', []):
+        _pv = results_df['pct_vo2max'].astype(float)
+        _met = results_df['implied_met_initial'].astype(float) if 'implied_met_initial' in results_df.columns else None
+        _txt = (f"mediaan {_pv.median()*100:.0f}% (P05-P95: {_pv.quantile(.05)*100:.0f}-"
+                f"{_pv.quantile(.95)*100:.0f}%)")
+        if _met is not None:
+            _txt += f"; MET mediaan {_met.median():.1f} (P05-P95: {_met.quantile(.05):.1f}-{_met.quantile(.95):.1f})"
+        A(f"| Gesimuleerde intensiteit (% VO2max; MET) | {_txt} |")
+        if 'finish_time_h' in results_df.columns and (results_df['finish_time_h'] > 0).any():
+            _ft = results_df['finish_time_h'].astype(float)
+            def _hm(h):
+                return f"{int(h)}:{int(round((h - int(h)) * 60)):02d}"
+            _line = f"mediaan {_hm(_ft.median())} (P05-P95: {_hm(_ft.quantile(.05))}-{_hm(_ft.quantile(.95))})"
+            if 'gender' in results_df.columns:
+                _parts = []
+                for _g, _lab in (('male', 'mannen'), ('female', 'vrouwen')):
+                    _sub = _ft[results_df['gender'] == _g]
+                    if len(_sub):
+                        _parts.append(f"{_lab} {_hm(_sub.median())}")
+                if _parts:
+                    _line += "; " + ", ".join(_parts)
+            A(f"| Gesimuleerde finishtijd (uu:mm) | {_line} |")
+    # [2026-10-15] Both shift MET, RPE and sweat response noticeably
+    # (training_offset = training_factor x 5% of MET) but were not shown,
+    # so two reports could not be compared on the same footing.
+    if training_factor is not None or acclimatization_factor is not None:
+        A(f"| Training / acclimatisatie (factor 0-1) | "
+          f"{_fmt(training_factor, 2)} / {_fmt(acclimatization_factor, 2)} |")
     A(f"| Aantal gesimuleerde deelnemers | {n_simulations:,} |")
     A(f"| Gebruikt collapse-risico-eindpunt | {ep_label} |")
     A(f"| Kalibratiestatus van dit eindpunt | {ep_status} |")
@@ -259,7 +333,7 @@ def generate_report(event_name: str,
         _stat_row("UTCI, stedelijk", "utci_precomputed", " degC")
         A("")
         A(f"Gebaseerd op {len(interp_data)} geïnterpoleerde tijdstappen over de volledige "
-          f"gesimuleerde periode ({start_time}, {duration_hours:.2f} uur). De simulatie zelf "
+          f"gesimuleerde periode ({start_time}, {_eff_hours:.2f} uur). De simulatie zelf "
           f"gebruikt de stedelijke waarden als invoer. \"n.b.\" betekent dat de brondata dit "
           f"veld niet meegaf; HESTIA valt in dat geval voor de simulatie zelf intern terug op "
           f"een eigen berekening die hier niet apart gerapporteerd wordt.")
@@ -268,18 +342,54 @@ def generate_report(event_name: str,
     A("")
 
     # ------------------------------------------------------------------ #
-    A("## 3. Thermische uitkomsten (populatie, aan het einde van de gesimuleerde periode)")
+    # [2026-10-14] Was "aan het einde van de gesimuleerde periode": with
+    # sample_pace=True the final timestep only contains the slowest
+    # runners still on course, so those values described a small,
+    # unrepresentative subgroup. Now: each participant's own PEAK value
+    # (finish-independent), from the per-participant export.
+    A("## 3. Thermische uitkomsten (populatie, per deelnemer de eigen piekwaarde)")
     A("")
     A("| Grootheid | Waarde |")
     A("|---|---|")
-    A(f"| Gemiddelde kern-temperatuur (T_rect) | {_fmt(stats.get('mean_t_rect'), 2, ' °C')} |")
-    A(f"| T_rect, onder-/bovengrens 90%-interval | {_fmt(stats.get('lower_t_rect'), 2)} – {_fmt(stats.get('upper_t_rect'), 2, ' °C')} |")
-    A(f"| T_rect, P97,5 | {_fmt(stats.get('t_rect_p975'), 2, ' °C')} |")
-    A(f"| T_rect, P99 | {_fmt(stats.get('t_rect_p99'), 2, ' °C')} |")
-    A(f"| Gemiddelde ervaren inspanning (RPE, Borg 6-20) | {_fmt(stats.get('mean_rpe'), 1)} |")
-    A(f"| % deelnemers gestopt (RPE-drempel) | {_fmt(stats.get('percent_stopped'), 1, '%')} |")
-    A(f"| % deelnemers met EHBO-contact | {_fmt(stats.get('percent_ehbo'), 1, '%')} |")
+    _has_df = results_df is not None and 'max_t_rect' in getattr(results_df, 'columns', [])
+    if _has_df:
+        _pk = results_df['max_t_rect'].astype(float)
+        A(f"| Piek T_rect tijdens de race, gemiddelde | {_pk.mean():.2f} °C |")
+        A(f"| Piek T_rect, P05 – P95 | {_pk.quantile(.05):.2f} – {_pk.quantile(.95):.2f} °C |")
+        A(f"| Piek T_rect, P97,5 | {_pk.quantile(.975):.2f} °C |")
+        A(f"| Piek T_rect, P99 | {_pk.quantile(.99):.2f} °C |")
+        if 'max_t_rect_incl_postfinish' in results_df.columns:
+            _pk2 = results_df['max_t_rect_incl_postfinish'].astype(float)
+            A(f"| Piek T_rect incl. 10 min na de finish, gemiddelde / P99 | "
+              f"{_pk2.mean():.2f} / {_pk2.quantile(.99):.2f} °C |")
+        if 'max_rpe' in results_df.columns:
+            A(f"| Piek ervaren inspanning (RPE, Borg 6-20), gemiddelde | {results_df['max_rpe'].astype(float).mean():.1f} |")
+        if 'pacing_reductie_pct' in results_df.columns:
+            _pr = results_df['pacing_reductie_pct'].astype(float)
+            A(f"| Tempo-aanpassing door de pacing-regelkring (max. MET-reductie), mediaan / P95 | "
+              f"{_pr.median():.1f}% / {_pr.quantile(.95):.1f}% |")
+    else:
+        A(f"| Gemiddelde kern-temperatuur (T_rect), laatste tijdstap | {_fmt(stats.get('mean_t_rect'), 2, ' °C')} |")
+    _stopped = stats.get('percent_stopped')
+    _stopped_max = (float(np.nanmax(np.asarray(_stopped, dtype=float)))
+                    if _stopped is not None and np.size(_stopped) and not np.all(np.isnan(np.asarray(_stopped, dtype=float)))
+                    else None)
+    A(f"| % deelnemers gestopt (RPE-drempel), hoogste waarde over de tijd | {_fmt(_stopped_max, 1, '%')} |")
+    # [2026-10-14] 'percent_ehbo' never existed in stats (always "n.b."),
+    # while plot 1 showed a "% First Aid" curve up to ~80%. That curve is
+    # hestia_model's broad screening flag (T_rect>=40.5 OR water loss>=2%
+    # OR RPE>=17), NOT a first-aid prediction. Reported under its real name.
+    _fa = stats.get('percent_first_aid')
+    _fa_max = (float(np.nanmax(np.asarray(_fa, dtype=float)))
+               if _fa is not None and np.size(_fa) and not np.all(np.isnan(np.asarray(_fa, dtype=float)))
+               else None)
+    A(f"| Screeningsvlag (T_rect≥40,5°C óf vochtverlies≥2% óf RPE≥17), hoogste aandeel van nog actieve deelnemers | "
+      f"{_fmt(_fa_max, 1, '%')} |")
     A(f"| % deelnemers in fysiologisch niet-vol te houden toestand | {_fmt(stats.get('percent_unliveable'), 1, '%')} |")
+    A("")
+    A("De screeningsvlag is een bewust ruime signaleringsgrens, geen voorspelling "
+      "van EHBO-contacten; een vochtverlies van 2% komt bij een lange inspanning "
+      "bij een groot deel van de deelnemers voor.")
     A("")
 
     # ------------------------------------------------------------------ #
@@ -298,20 +408,44 @@ def generate_report(event_name: str,
     # ------------------------------------------------------------------ #
     A("## 5. Collapse-risico")
     A("")
+    # [2026-10-17] Make explicit that this is a model quantity, not a
+    # diagnosis (external review 2026-10-17, point 4.1).
+    A("De collapse-kans is een **berekende modelkans**, geen klinische diagnose. "
+      "Ze volgt uit kerntemperatuur, cardiovasculaire reserve en vochtverlies van "
+      "elke gesimuleerde deelnemer, met een intercept die zo is gekalibreerd dat "
+      "het gemiddelde onder de referentieomstandigheden gelijk is aan het "
+      "waargenomen aantal gevallen van het gekozen eindpunt (zie sectie 1). "
+      "De drempelcriteria in sectie 6 en 11 zijn screeningscriteria, ook geen diagnose.")
+    A("")
     A("| Grootheid | Waarde |")
     A("|---|---|")
-    A(f"| Gemiddelde individuele collapse-kans | {_fmt(stats.get('p_collapse_mean'), 4, '%')} |")
-    A(f"| Collapse-kans, P95 | {_fmt(stats.get('p_collapse_p95'), 4, '%')} |")
-    A(f"| % deelnemers met individuele collapse-kans > 50% | {_fmt(stats.get('pct_high_collapse_risk'), 2, '%')} |")
-    A(f"| Verwacht aantal per 1.000 deelnemers | {_fmt(stats.get('expected_collapses_per_1000'), 3)} |")
+    # [2026-10-25] Rounded to 2 significant digits, with the calibration band.
+    _lo, _hi = stats.get('p_collapse_mean_lo'), stats.get('p_collapse_mean_hi')
+    A(f"| Gemiddelde individuele collapse-kans | {_sig_band(stats.get('p_collapse_mean'), _lo, _hi, 1.0, ' %')} |")
+    A(f"| Collapse-kans, P95 | {_sig(stats.get('p_collapse_p95'))} % |")
+    A(f"| % deelnemers met individuele collapse-kans > 50% | {_fmt(stats.get('pct_high_collapse_risk'), 1, '%')} |")
+    A(f"| Verwacht aantal per 1.000 deelnemers | {_sig_band(stats.get('p_collapse_mean'), _lo, _hi, 10.0)} |")
+    A("")
+    A("Deze absolute getallen zijn onzeker: elk eindpunt is gekalibreerd op één "
+      "referentie-evenement. Gebruik ze vooral om scenario's onderling te "
+      "vergelijken (dag tegen dag, starttijd tegen starttijd).")
     A("")
 
     # ------------------------------------------------------------------ #
-    A("## 6. Post-finish uitkomsten (tot 10 minuten na de finish)")
+    A("## 6. Post-finish uitkomsten (30 minuten na de finish)")
     A("")
     A("| Grootheid | Waarde |")
     A("|---|---|")
     A(f"| % deelnemers dat de conjunctieve grens (T_rect>40,5°C ÉN CO_reserve≤0) bereikt na de finish | {_fmt(stats.get('pct_ehs_postfinish'), 2, '%')} |")
+    # [2026-10-20 late] EAC-staan; above WBGT 28 degC no number, only "zeer hoog".
+    if stats.get('eac_buiten_bereik'):
+        _eac = (f"zeer hoog (WBGT {_fmt(stats.get('wbgt_race_max_p50'), 1)} °C; boven 28 °C "
+                f"bestaan geen praktijkgegevens, daarom geen getal)")
+    else:
+        _eac = _sig(stats.get('eac_per_1000'))
+        if _eac != "n.b.":
+            _eac += " (voorlopig: gekalibreerd op één referentiepunt, Dam tot Dam / Naidoo 2022; niet gevalideerd)"
+    A(f"| Collaps bij staan na de finish (EAC), verwacht per 1.000 deelnemers | {_eac} |")
     A("")
 
     # ------------------------------------------------------------------ #
@@ -326,7 +460,7 @@ def generate_report(event_name: str,
       f"{_fmt(stats.get('pct_thermal_only_critical'), 2, '%')} |")
     A("")
     A("De laatste regel hierboven staat los van het conjunctieve klinische "
-      "criterium in sectie 10 (dat CO_reserve≤0 vereist naast T_rect>40,5°C). "
+      "criterium in sectie 11 (dat CO_reserve≤0 vereist naast T_rect>40,5°C). "
       "Bij piek-kerntemperatuur boven ~42°C kan directe thermische celschade "
       "aan hersenweefsel optreden ongeacht cardiovasculaire status (Hubbard: "
       "humane kritieke-temperatuurgrens 41,6-42,0°C; Gähwiler et al. 1972: "
@@ -341,13 +475,24 @@ def generate_report(event_name: str,
     A("|---|---|")
     A(f"| Aantal deelnemers in deze groep | {stats.get('vulnerable_tail_n', 'n.b.')} |")
     A(f"| Gemiddelde leeftijd in deze groep | {_fmt(stats.get('vulnerable_tail_age_mean'), 1, ' jaar')} |")
-    A(f"| Gemiddelde piek T_rect in deze groep | {_fmt(stats.get('vulnerable_tail_mean_t_rect'), 2, ' °C')} |")
+    # [2026-10-14] Was _fmt(stats['vulnerable_tail_mean_t_rect']): that is
+    # a TIME SERIES whose last value is NaN once the whole tail group has
+    # finished -> always "n.b.". Now the mean of each member's own peak.
+    _tail_peak = None
+    if (results_df is not None and 'vulnerable_tail_top_2_5pct' in results_df.columns
+            and 'max_t_rect' in results_df.columns):
+        _sel = results_df['vulnerable_tail_top_2_5pct'] == 1
+        if _sel.any():
+            _tail_peak = float(results_df.loc[_sel, 'max_t_rect'].astype(float).mean())
+    A(f"| Gemiddelde piek T_rect in deze groep | {_fmt(_tail_peak, 2, ' °C')} |")
     A(f"| Minimale CO_reserve, mediaan, in deze groep | {_fmt(stats.get('vulnerable_tail_co_reserve_min_p50'), 2, ' L/min')} |")
-    A(f"| % NSAID-gebruik in deze groep | {_fmt(stats.get('vulnerable_tail_nsaid_pct'), 1, '%')} |")
+    # [2026-10-16] Row "% NSAID-gebruik in deze groep" removed: NSAID has no
+    # thermal effect in the model (K_P_NSAID_FACTOR = 1.0), so the share in a
+    # 2.5% group is pure sampling noise (12-44% across 20 seeds at n=1000).
     A("")
 
     # ------------------------------------------------------------------ #
-    # [2026-09-27, gevonden via onderzoek met Koos] collapse-kans, EHE en
+    # [2026-09-27, gevonden via onderzoek met de auteur] collapse-kans, EHE en
     # het klinisch criterium zijn stuk voor stuk gebouwd rond een CONJUNCTIE
     # (thermisch EN cardiovasculair moeten allebei over hun grens gaan) of
     # een GEWOGEN SOM daarvan. Een deelnemer die op precies één van de twee
@@ -372,7 +517,7 @@ def generate_report(event_name: str,
       f"maar niet al worden gesignaleerd door het EHE- of klinisch "
       f"criterium (die vereisen dat T_rect ÉN CO_reserve allebei over hun "
       f"grens gaan). Dit is een diagnostische aanvulling, geen apart "
-      f"risicocijfer -- zie sectie 10 voor de reeds bestaande, gevalideerde "
+      f"risicocijfer -- zie sectie 11 voor de bestaande (conjunctieve) "
       f"criteria.")
     A("")
     if heeft_kolommen:
@@ -436,7 +581,7 @@ def generate_report(event_name: str,
         A("| Grootheid | Waarde |")
         A("|---|---|")
         A(f"| Falmouth-EHS (epidemiologisch, temperatuur-alleen; DeMartini et al. 2014), per 1.000 | "
-          f"{_fmt(bridge_summary.get('falmouth_ehs_per_1000'), 3)} |")
+          f"{_sig(bridge_summary.get('falmouth_ehs_per_1000'))} |")
         n_ehe = bridge_summary.get('n_true_ehe_hits')
         n_ehs = bridge_summary.get('n_true_ehs_hits')
         A(f"| EHE-criterium (T_rect>39,5°C ÉN CO_reserve<0), % deelnemers | "
@@ -446,13 +591,25 @@ def generate_report(event_name: str,
           f"{_fmt(bridge_summary.get('pct_true_ehs_criterion'), 2, '%')} "
           f"({n_ehs if n_ehs is not None else '?'}/{n_simulations:,}) |")
         A("")
-        A("Een uitkomst van 0% op een van beide criteria hierboven betekent niet "
-          "vanzelfsprekend dat de drempel ver weg was -- zie de marge-analyse "
-          "hieronder, gebaseerd op dezelfde onderliggende steekproefmomenten "
-          "(T_rect, CO_reserve), voor hoe dichtbij het daadwerkelijk kwam. "
-          "Omdat een conjunctief criterium BEIDE grenzen tegelijk vereist, is "
-          "de bepalende marge steeds de as die als laatst zou sluiten, niet "
-          "een van beide assen los.")
+        # [2026-10-14] Definitions made explicit: both criteria require the
+        # two conditions at the SAME moment; EHE counts the race only, the
+        # clinical criterion the race plus the 10-min post-finish window.
+        A("Beide criteria vereisen dat de twee voorwaarden op hetzelfde moment "
+          "gelden. Het EHE-criterium telt alleen de race; het klinisch "
+          "criterium telt de race én de 10 minuten na de finish.")
+        A("")
+        if not n_ehe or not n_ehs:
+            A("Een uitkomst van 0% op een van beide criteria hierboven betekent niet "
+              "vanzelfsprekend dat de drempel ver weg was -- zie de marge-analyse "
+              "hieronder, gebaseerd op dezelfde onderliggende steekproefmomenten "
+              "(T_rect, CO_reserve), voor hoe dichtbij het daadwerkelijk kwam. "
+              "Omdat een conjunctief criterium BEIDE grenzen tegelijk vereist, is "
+              "de bepalende marge steeds de as die als laatst zou sluiten, niet "
+              "een van beide assen los.")
+        else:
+            A("De marge-analyse hieronder laat zien hoe de onderliggende "
+              "steekproefmomenten (T_rect, CO_reserve) zich tot beide drempels "
+              "verhouden.")
         A("")
         pairs = bridge_summary.get('t_rect_co_reserve_pairs') or []
         for label, tt, ct in (("EHE-drempel", 39.5, 0.0), ("Klinische drempel", 40.5, 0.0)):
@@ -475,7 +632,12 @@ def generate_report(event_name: str,
          "uitdroging/stopfrequentie van de hele gesimuleerde groep, over de "
          "tijd heen. De kerntemperatuur-lijn toont ook het gemiddelde traject "
          "van de kwetsbaarste 2,5% (naar piek-kerntemperatuur) apart, naast "
-         "het populatiegemiddelde."),
+         "het populatiegemiddelde. Dat staartgemiddelde wordt per tijdstap "
+         "berekend over de groepsleden die op dat moment nog onderweg zijn; "
+         "als de groep uitstroomt, rust het op steeds minder deelnemers. De "
+         "magenta lijn rechtsonder is de ruime screeningsvlag uit sectie 3 "
+         "(T_rect≥40,5°C óf vochtverlies≥2% óf RPE≥17), geen voorspelling van "
+         "EHBO-contacten."),
         ("plot2_", "Spreiding in piekwaarden (kerntemperatuur, ervaren "
          "inspanning, vochtverlies) per leeftijdsgroep en geslacht -- laat "
          "zien of bepaalde groepen structureel hoger uitkomen dan andere, "
@@ -484,7 +646,7 @@ def generate_report(event_name: str,
          "elke deelnemer tijdens de race bereikte. De oranje lijn markeert "
          "de drempel voor decompensatierisico (2,0 L/min), de rode lijn het "
          "punt waarop de reserve daadwerkelijk op is (0 L/min, onderdeel van "
-         "het EHE/klinisch-criterium uit sectie 10)."),
+         "het EHE/klinisch-criterium uit sectie 11)."),
         ("plot4_", "Histogram van de individueel berekende collapse-kans per "
          "deelnemer (het gekalibreerde model uit sectie 5) -- laat zien of "
          "het risico geconcentreerd is bij een kleine groep met een hoge "

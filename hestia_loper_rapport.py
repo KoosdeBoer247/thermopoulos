@@ -14,6 +14,7 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 from docx import Document
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -220,7 +221,9 @@ def maak_rapport(r: LoperResultaat, plots: dict, pad: str | Path) -> Path:
              ["Trainingsomvang", f"{inv.trainingskm_per_week:g} km per week"],
              ["Hitte-gewend", "ja" if inv.hitte_geacclimatiseerd else "nee"],
              ["Drinkt bij elke post", "ja" if inv.drinkt_bij_elke_post else "nee, pas bij dorst"],
-             ["Pijnstillers (NSAID)", "ja" if inv.nsaid_voor_of_tijdens else "nee"],
+             ["Pijnstillers (NSAID)", ("ja (geen effect op de berekende temperatuur; wel extra "
+                                       "belasting voor darm en nieren en kans op een te laag "
+                                       "natriumgehalte)") if inv.nsaid_voor_of_tijdens else "nee"],
              ["Kleding", f"{inv.kleding} (clo {nl(af.clo)})"]]
     _tabel(doc, rijen, breedtes=[6.5, 10])
     _p(doc, "Afgeleid door het model:", vet=True)
@@ -243,7 +246,34 @@ def maak_rapport(r: LoperResultaat, plots: dict, pad: str | Path) -> Path:
             f"stralingstemperatuur tot {nl(np.nanmax(m['mrt']))} °C. Het model rekent niet "
             f"met WBGT of UTCI maar met de onderliggende metingen (temperatuur, vocht, wind, "
             f"zon); de indices staan hier ter vergelijking.")
-    _figuur(doc, plots.get("weer"), "Figuur 1. Weer langs het tijdvenster van je loop (stadsklimaat meegerekend).")
+    _figuur(doc, plots.get("weer"), "Figuur 1. Weer tijdens je loop: temperaturen (boven), vocht en wind "
+            "(midden), zon en bewolking (onder); stadsklimaat meegerekend.")
+    # [2026-10-31] het weer over de hele dag en de meetwaarden in een tabel
+    if plots.get("weer_dag"):
+        _figuur(doc, plots.get("weer_dag"), "Figuur 1b. Het weer over de hele dag; de blauwe band is de loop.")
+    from hestia_loper import weer_tabellen
+    wl, wd = weer_tabellen(r)
+    if wl is not None and len(wl):
+        stap = max(1, int(round(len(wl) / 14)))
+        sel = wl.iloc[::stap]
+        if sel.index[-1] != wl.index[-1]:
+            sel = pd.concat([sel, wl.iloc[[-1]]])
+        kols = [c for c in ("Lucht (°C)", "RV (%)", "Wind 1,5 m (m/s)", "Zon (W/m²)", "Bewolking (%)",
+                            "Natte bol (°C)", "MRT (°C)", "WBGT (°C)", "UTCI (°C)") if c in sel]
+        rijen = [["Tijd"] + [k.replace(" (", "\n(") for k in kols]]
+        for _, rw in sel.iterrows():
+            rijen.append([f"{rw['tijd']:%H:%M}"] + [nl(float(rw[k]), 0 if "Zon" in k or "Bewolking" in k or "RV" in k else 1)
+                                                    for k in kols])
+        _p(doc, "Tabel 1. Het weer tijdens de loop (uit het weerbestand, stadsklimaat meegerekend). "
+                "Alle waarden per 10 minuten en per uur over de hele dag staan in het Excel-bestand "
+                "(tabbladen Weer_loop en Weer_dag).", cursief=True, pt=11)
+        _tabel(doc, rijen, pt=9)
+    if wd is not None and len(wd) and "Lucht (°C)" in wd:
+        _p(doc, f"Over de hele dag: luchttemperatuur {nl(float(wd['Lucht (°C)'].min()))} tot "
+                f"{nl(float(wd['Lucht (°C)'].max()))} °C"
+                + (f", WBGT tot {nl(float(wd['WBGT (°C)'].max()))} °C" if "WBGT (°C)" in wd else "")
+                + (f", zon tot {nl(float(wd['Zon (W/m²)'].max()), 0)} W/m²" if "Zon (W/m²)" in wd else "")
+                + ".")
 
     # ------------------------------------------------------------ temperatuur
     doc.add_heading("4. Je kerntemperatuur", level=1)
@@ -313,7 +343,7 @@ def maak_rapport(r: LoperResultaat, plots: dict, pad: str | Path) -> Path:
               "Klassen 5/20/60 zijn niet gevalideerd"],
              ["Hitte-uitputting (EHE: > 39,5 °C en reserve < 0)",
               _frac_tekst(s["f_ehe"]), "Signaal, niet gekalibreerd"],
-             ["Collaps na de finish (EAC)", _frac_tekst(s["f_eac"]), "Signaal, niet gekalibreerd"],
+             ["Collaps na de finish (EAC)", _frac_tekst(s["f_eac"]), "Voorlopig: gekalibreerd op één punt (1,5 per 1000), niet gevalideerd"],
              ["Collapsekans (model)",
               f"{_per1000(p_['mean'])} per 1000 lopers zoals jij "
               f"(runs: {_per1000(p_['lo'])}–{_per1000(p_['hi'])})",
@@ -381,6 +411,19 @@ def maak_rapport(r: LoperResultaat, plots: dict, pad: str | Path) -> Path:
         "nawarmte werkelijk is, is een open vraag in de suite.",
         "Het model gaat uit van een gezond lichaam, normaal uitgerust en goed gehydrateerd aan de start.",
     ])
+
+    # ------------------------------------------------------------ [2026-10-31] alle grafieken
+    if any(plots.get(k) for k in ("dashboard", "alle_runs", "uitkomsten", "samenhang")):
+        doc.add_heading("Bijlage: alle gegevens in grafieken", level=1)
+        _p(doc, "Deze bijlage laat zoveel mogelijk van de berekening zien. Blauw is steeds de mediaan "
+                f"met de band waarin 95 % van de {s['n']} runs valt; de stippellijnen zijn dezelfde "
+                "grenzen als in de rest van het rapport.")
+        for k, onder in (("dashboard", "Figuur B1. Alle modelwaarden in de tijd, met de WBGT (oranje) als achtergrond."),
+                         ("alle_runs", "Figuur B2. Elke afzonderlijke run als dunne lijn: zo is te zien hoe ver de runs uiteenlopen."),
+                         ("uitkomsten", "Figuur B3. Verdeling van de belangrijkste uitkomsten over alle runs."),
+                         ("samenhang", "Figuur B4. Per run de hoogste kerntemperatuur tegen de laagste hartreserve.")):
+            if plots.get(k):
+                _figuur(doc, plots.get(k), onder)
 
     # ------------------------------------------------------------ bijlage
     doc.add_heading("Bijlage: kerngetallen", level=1)

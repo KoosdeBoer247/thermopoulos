@@ -73,7 +73,8 @@ def plot_strain_trajectories(heat_loads: List[float],
                              title: str,
                              pre_heatwave_load: Optional[float] = None,
                              dates: Optional[list] = None,
-                             forecast_start: Optional[int] = None) -> plt.Figure:
+                             forecast_start: Optional[int] = None,
+                             sleep_quality: Optional[List[float]] = None) -> plt.Figure:
     """Σ(t) for several groups on one axis, with zone thresholds and the heat
     load shown as a background band. This is the plot that shows divergence.
 
@@ -112,7 +113,8 @@ def plot_strain_trajectories(heat_loads: List[float],
     cmap = plt.cm.viridis(np.linspace(0, 0.92, len(group_names)))
     for colour, name in zip(cmap, group_names):
         g = TARGET_GROUPS[name]
-        res = PyroxModel(g).simulate(heat_loads, pre_heatwave_heat_load=pre_heatwave_load)
+        res = PyroxModel(g).simulate(heat_loads, pre_heatwave_heat_load=pre_heatwave_load,
+                                     sleep_quality_series=sleep_quality)
         ax.plot(np.arange(len(res["cumulative_strain"])), res["cumulative_strain"],
                 lw=2, color=colour, label=g.display_name, zorder=3)
 
@@ -138,7 +140,8 @@ def plot_feedback_race(heat_loads: List[float],
                        title: str,
                        pre_heatwave_load: Optional[float] = None,
                        dates: Optional[list] = None,
-                       forecast_start: Optional[int] = None) -> plt.Figure:
+                       forecast_start: Optional[int] = None,
+                       sleep_quality: Optional[List[float]] = None) -> plt.Figure:
     """For one (usually vulnerable) group, show the forcing's two effects
     (a direct path into strain, and a delayed one via acclimatization) and
     the single feedback loop that can undermine the acclimatization path.
@@ -161,6 +164,7 @@ def plot_feedback_race(heat_loads: List[float],
     res = PyroxModel(g).simulate(
         heat_loads,
         pre_heatwave_heat_load=pre_heatwave_load if pre_heatwave_load else heat_loads[0],
+        sleep_quality_series=sleep_quality,
     )
     diags = res["diagnostics"]
     days = np.arange(1, len(diags) + 1)
@@ -332,12 +336,13 @@ def plot_feedback_race(heat_loads: List[float],
 # 3. VALIDATION: Paris-2003 strain vs. observed mortality
 # ============================================================================
 
-def plot_paris_validation(title: str = "PYROX validation — Paris August 2003") -> plt.Figure:
+def plot_paris_validation(title: str = "PYROX validation — Paris August 2003",
+                          show_nocturnal: bool = True) -> plt.Figure:
     """Overlay PYROX strain for older groups on the observed Fouillet daily
     excess-death curve. If the strain build-up tracks the mortality curve in
     shape and timing, the model reproduces the real event."""
     from paris2003 import (paris_2003_heat_loads, paris_2003_excess_deaths,
-                           PARIS_2003_DATES)
+                           PARIS_2003_DATES, paris_2003_sleep_quality)
 
     loads = paris_2003_heat_loads(per_degree=0.10)
     deaths = paris_2003_excess_deaths()
@@ -357,14 +362,26 @@ def plot_paris_validation(title: str = "PYROX validation — Paris August 2003")
                          ("very_elderly_85plus", "#e8702a")]:
         g = TARGET_GROUPS[name]
         res = PyroxModel(g).simulate(loads, pre_heatwave_heat_load=loads[0])
-        ax.plot(np.arange(len(res["cumulative_strain"])) + 1,
-                res["cumulative_strain"], lw=2.5, color=colour,
+        # [2026-10-17] x = day index: 0 = state before 1 Aug, d = after day d.
+        # Was arange+1, which drew every strain value one day too late
+        # relative to the mortality bars (and to emergency_day etc.).
+        # [2026-10-17] solid = with nocturnal recovery (the suite default),
+        # from the measured Paris-Montsouris night minima (night after each day)
+        res_n = PyroxModel(g).simulate(loads, pre_heatwave_heat_load=loads[0],
+                                       sleep_quality_series=paris_2003_sleep_quality("night_after"))
+        ax.plot(np.arange(len(res_n["cumulative_strain"])),
+                res_n["cumulative_strain"], lw=2.5, color=colour,
                 label=f"PYROX Σ — {g.display_name}", zorder=3)
+        if show_nocturnal:
+            # dashed = without nocturnal recovery (the paper's assumption)
+            ax.plot(np.arange(len(res["cumulative_strain"])),
+                    res["cumulative_strain"], lw=1.6, ls="--", color=colour,
+                    label="idem, zonder nachtelijk herstel (paper)", zorder=3)
 
-    ax.set_xlabel("day of August 2003")
+    ax.set_xlabel("day of August 2003 (strain at the end of the day; 0 = before 1 Aug)")
     ax.set_ylabel("cumulative strain  Σ")
     ax.set_title(title)
-    ax.set_xlim(1, 16)
+    ax.set_xlim(0, 16.5)
     ax.set_ylim(0, 2.1)
     # combined legend
     lines1, labels1 = ax.get_legend_handles_labels()
@@ -385,7 +402,8 @@ def plot_risk_heatmap(heat_loads: List[float],
                       title: str,
                       pre_heatwave_load: Optional[float] = None,
                       dates: Optional[list] = None,
-                      forecast_start: Optional[int] = None) -> plt.Figure:
+                      forecast_start: Optional[int] = None,
+                      sleep_quality: Optional[List[float]] = None) -> plt.Figure:
     """Grid of group (y, ordered resilient→vulnerable) × day (x), coloured by
     strain zone. The at-a-glance operational picture: who is at risk when."""
     zone_index = {"safe": 0, "caution": 1, "danger": 2, "emergency": 3}
@@ -396,7 +414,8 @@ def plot_risk_heatmap(heat_loads: List[float],
     for row, name in enumerate(group_names):
         g = TARGET_GROUPS[name]
         labels.append(g.display_name)
-        res = PyroxModel(g).simulate(heat_loads, pre_heatwave_heat_load=pre_heatwave_load)
+        res = PyroxModel(g).simulate(heat_loads, pre_heatwave_heat_load=pre_heatwave_load,
+                                     sleep_quality_series=sleep_quality)
         traj = res["cumulative_strain"][1:]  # drop initial state, align with days
         for col in range(n_days):
             grid[row, col] = zone_index[_strain_zone(traj[col], g.critical_strain)]
@@ -620,7 +639,8 @@ def plot_forecast_uncertainty(heat_loads: List[float],
                               dates: Optional[list] = None,
                               forecast_start: Optional[int] = None,
                               temp_uncertainty_c: float = 2.0,
-                              pre_heatwave_load: Optional[float] = None) -> plt.Figure:
+                              pre_heatwave_load: Optional[float] = None,
+                              sleep_quality: Optional[List[float]] = None) -> plt.Figure:
     """Strain trajectories with a forecast-uncertainty band.
 
     A forecast a few days out carries a temperature uncertainty of roughly
@@ -655,9 +675,11 @@ def plot_forecast_uncertainty(heat_loads: List[float],
     for i, name in enumerate(group_names):
         g = TARGET_GROUPS[name]
         col = palette[i % len(palette)]
-        central = PyroxModel(g).simulate(shifted(0), pre_heatwave_heat_load=pre)["cumulative_strain"]
-        low = PyroxModel(g).simulate(shifted(-1), pre_heatwave_heat_load=pre)["cumulative_strain"]
-        high = PyroxModel(g).simulate(shifted(+1), pre_heatwave_heat_load=pre)["cumulative_strain"]
+        # [2026-10-17] the night series is kept fixed across the band (the
+        # band shifts daytime temperatures only)
+        central = PyroxModel(g).simulate(shifted(0), pre_heatwave_heat_load=pre, sleep_quality_series=sleep_quality)["cumulative_strain"]
+        low = PyroxModel(g).simulate(shifted(-1), pre_heatwave_heat_load=pre, sleep_quality_series=sleep_quality)["cumulative_strain"]
+        high = PyroxModel(g).simulate(shifted(+1), pre_heatwave_heat_load=pre, sleep_quality_series=sleep_quality)["cumulative_strain"]
         x = np.arange(len(central))
         ax.fill_between(x, low, high, color=col, alpha=0.18)
         ax.plot(x, central, color=col, lw=2.3, label=g.display_name)

@@ -99,13 +99,18 @@ def main():
         "projection changed the spread -- it should only shift the centre"
     print("  OK: projection shifts the centre and preserves observed spread\n")
 
+    import tempfile
+    _d = tempfile.mkdtemp(prefix="hestia_test_plots_")   # [2026-10-25] not in the suite folder
+    import atexit, shutil
+    atexit.register(shutil.rmtree, _d, True)
+    _p = lambda n: os.path.join(_d, n)
     outs = []
     K.plot_warming_stripes(annual, K.REFERENCE_PERIOD, "T_air_max", "TestCity",
-                           "t_stripes_annual.png"); outs.append("t_stripes_annual.png")
+                           _p("t_stripes_annual.png")); outs.append(_p("t_stripes_annual.png"))
     K.plot_warming_stripes(annual, K.REFERENCE_PERIOD, "T_air_event", "TestCity",
-                           "t_stripes_event.png"); outs.append("t_stripes_event.png")
-    K.plot_event_window_trend(ev, "TestCity", "t_event_trend.png"); outs.append("t_event_trend.png")
-    K.plot_event_window_distributions(ev, "TestCity", "t_event_dist.png"); outs.append("t_event_dist.png")
+                           _p("t_stripes_event.png")); outs.append(_p("t_stripes_event.png"))
+    K.plot_event_window_trend(ev, "TestCity", _p("t_event_trend.png")); outs.append(_p("t_event_trend.png"))
+    K.plot_event_window_distributions(ev, "TestCity", _p("t_event_dist.png")); outs.append(_p("t_event_dist.png"))
     for p in outs:
         assert os.path.exists(p) and os.path.getsize(p) > 5000, f"{p} not written properly"
         print(f"  wrote {p} ({os.path.getsize(p)//1024} kB)")

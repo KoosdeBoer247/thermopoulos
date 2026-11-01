@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+<defs>
+  <linearGradient id="ringgrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#1E7FD8"/><stop offset="100%" stop-color="#2FA66B"/></linearGradient>
+  <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+    <feGaussianBlur stdDeviation="34" result="blur"/>
+    <feMerge><feMergeNode in="blur"/><feMergeNode in="blur"/></feMerge>
+  </filter>
+</defs>
+<rect width="1024" height="1024" fill="#2B3541"/>
+<circle cx="512" cy="340" r="130" fill="#2E9E7E" filter="url(#glow)" opacity="0.55"/>
+<circle cx="512" cy="340" r="192" fill="none" stroke="url(#ringgrad)" stroke-width="13"/>
+
+<circle cx="512" cy="345" r="96" fill="none" stroke="url(#ringgrad)" stroke-width="7" opacity="0.30"/>
+<circle cx="512" cy="345" r="70" fill="none" stroke="url(#ringgrad)" stroke-width="7" opacity="0.45"/>
+<path d="M432,388 L462,362 L488,378 L514,322 L540,344 L566,292 L592,304"
+      fill="none" stroke="#FFFFFF" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="592" cy="304" r="9" fill="#FFFFFF"/>
+
+<text x="512" y="680" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="800"
+      font-size="108" letter-spacing="4" fill="#FFFFFF">KLIMATOS</text>
+<text x="512" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="400" font-size="34" fill="#FFFFFF" opacity="0.88"><tspan x="512" y="830">Climate-trend analysis for</tspan><tspan x="512" y="876">recurring heat exposure</tspan></text>
+</svg>
