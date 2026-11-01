@@ -154,7 +154,21 @@ FITNESS_CURVE_ENABLED = True
 FIT_FULL_DECREMENT = 0.80
 FIT_NO_DECREMENT = 1.00
 HEAT_ACCLIM_REDUCTION = 0.5
-_PERSON = {"factor": 1.0}
+_PERSON = {"factor": 1.0, "acc": 0.0}
+
+# -----------------------------------------------------------------------------
+# [2026-11-01] HEAT-ACCLIMATION SWEAT GAIN (author's decision).
+# Heat acclimation raises whole-body sweat rate by about 20 % (Buono et al.
+# 2009, J Therm Biol 34:127: 0.55 -> 0.66, 8 days humid heat; Tyler et al.
+# 2024 meta-analysis: small effect, g = 0.4). Until 2026-11-01 HESTIA put the
+# acclimation effect only in the fluid bookkeeping (sweat_factor 0.8 -> 1.1,
+# +37.5 % water loss) while JOS-3 itself sweated the same, so an acclimatised
+# runner lost more water and gained no cooling. Now the JOS-3 sweat signal is
+# multiplied by 1 + ACCLIM_SWEAT_GAIN x acclimatisation (0..1); the extra
+# sweat cools where it can evaporate (JOS-3 caps wettedness at 1) and is
+# counted in JOS-3's own water loss. The sweat_factor no longer depends on
+# acclimatisation.
+ACCLIM_SWEAT_GAIN = 0.20
 
 
 def vo2max_norm(age: float, sex: str) -> float:
@@ -178,11 +192,18 @@ def person_factor(vo2max, age, sex, acclimatisation=0.0) -> float:
 
 def set_person(vo2max, age, sex, acclimatisation=0.0) -> float:
     _PERSON["factor"] = person_factor(vo2max, age, sex, acclimatisation)
+    _PERSON["acc"] = float(np.clip(acclimatisation or 0.0, 0.0, 1.0))
     return _PERSON["factor"]
 
 
 def reset_person() -> None:
     _PERSON["factor"] = 1.0
+    _PERSON["acc"] = 0.0
+
+
+def sweat_gain() -> float:
+    """[2026-11-01] Multiplier on the JOS-3 sweat signal for heat acclimation."""
+    return 1.0 + ACCLIM_SWEAT_GAIN * _PERSON["acc"]
 
 
 def current_person_factor() -> float:
@@ -219,7 +240,7 @@ def ci_factor(age: float) -> float:
     return 1.0 - _PERSON["factor"] * (1.0 - ci_age)
 
 
-def _rebuild(fn, var, anchor):
+def _rebuild(fn, var, anchor, gain=False):
     src = textwrap.dedent(inspect.getsource(fn))
     if src.count("if age < 60:") != 1 or src.count(anchor) != 1:
         raise RuntimeError(f"{fn.__name__}: source layout differs from pythermalcomfort 4.6.x")
@@ -227,11 +248,13 @@ def _rebuild(fn, var, anchor):
     src = src.replace("if age < 60:", "if False:  # jos3_leeftijd: gradual decrement below")
     src = src.replace(
         anchor,
-        f"    {var} = 1.0 - _JOS3_AGE_WEIGHT(age) * (1.0 - np.asarray({var}))\n" + anchor,
+        f"    {var} = 1.0 - _JOS3_AGE_WEIGHT(age) * (1.0 - np.asarray({var}))\n"
+        + (f"    {var} = {var} * _JOS3_SWEAT_GAIN()\n" if gain else "") + anchor,
         1,
     )
     ns = dict(_threg.__dict__)
     ns["_JOS3_AGE_WEIGHT"] = weight
+    ns["_JOS3_SWEAT_GAIN"] = sweat_gain
     exec(compile(src, f"<jos3_leeftijd.{fn.__name__}>", "exec"), ns)
     return ns[fn.__name__]
 
@@ -245,7 +268,7 @@ def _bfb_rate(height, weight, bsa_equation, age, ci):
 
 
 try:
-    _EVAP = _rebuild(_ORIG["evaporation"], "sd_sweat", "    e_sweat = skin_sweat")
+    _EVAP = _rebuild(_ORIG["evaporation"], "sd_sweat", "    e_sweat = skin_sweat", gain=True)
     _SBF = _rebuild(_ORIG["skin_blood_flow"], "sd_dilat", "    # Skin blood flow [L/h]")
     _BUILD_OK = True
 except Exception as _e:   # pragma: no cover -- only on an incompatible pythermalcomfort

@@ -34,7 +34,8 @@ Onzekerheid (ensemble, per variant dezelfde trekkingen):
   straling          tr = tdb + f x (MRT - tdb), f ~ U(0, 1)  (schaduw..zon)
   windrichting      hoek ~ U(0, 2 pi) t.o.v. de looprichting
   kleding in rust   + U(0; 0,3) clo in minuten met MET < 2 (jas aan voor de start)
-  zweetfactor       N(0,8 (+0,3 hittegewend); 0,15), geknipt op [0,4; 1,5]
+  zweetfactor       N(0,8; 0,15), geknipt op [0,4; 1,5]  [2026-11-01: hitte-
+                    gewenning zit nu in JOS-3 zelf, +20 % zweetsignaal]
                     (zelfde verdeling als hestia_model, alleen voor het vochtverlies)
 De centrale run: geen afwijkingen, f = 1 (MRT van de Data Engine, zoals de
 suite), hoek 90 graden, zweetfactor = het midden.
@@ -194,7 +195,8 @@ def _jos3_run(p: Persoon, met: np.ndarray, v_loop: np.ndarray, w: pd.DataFrame,
 def hartslag(p: Persoon, snaps: list, vo2max: float) -> pd.DataFrame:
     """CVR-module over een vastgelegde JOS-3-reeks, voor een gegeven VO2max."""
     prof = RunnerProfile(mass=p.gewicht_kg, height=p.lengte_cm, age=p.leeftijd, sex=p.sex,
-                         vo2max=float(vo2max), hr_max=p.hr_max, hr_rest=p.hr_rust)
+                         vo2max=float(vo2max), hr_max=p.hr_max, hr_rest=p.hr_rust,
+                         acclimatisation=1.0 if p.hitte_gewend else 0.0)   # [2026-11-01]
     cvr = CVRModel(prof)
     uit = []
     for s in snaps:
@@ -215,7 +217,7 @@ class Reconstructie:
 
 def trekkingen(n: int, seed: int, hitte_gewend: bool) -> list[Trekking]:
     rng = np.random.default_rng(seed)
-    loc = 0.8 + (0.3 if hitte_gewend else 0.0)
+    loc = 0.8   # [2026-11-01] hittegewenning nu in JOS-3 (jos3_leeftijd.ACCLIM_SWEAT_GAIN)
     return [Trekking(dT=float(rng.normal(0, 1.0)), dRH=float(rng.normal(0, 5.0)),
                      f_mrt=float(rng.uniform(0, 1)), hoek=float(rng.uniform(0, 2 * math.pi)),
                      clo_rust_extra=float(rng.uniform(0, 0.3)),
@@ -245,7 +247,7 @@ def reconstrueer_varianten(p: Persoon, minuten: pd.DataFrame, weer: pd.DataFrame
     v = minuten["snelheid_ms"].fillna(0.0).to_numpy(dtype=float)
     w = weer_per_minuut(weer, start, len(met))
     trk = trekkingen(n_ensemble, seed, p.hitte_gewend)
-    centr = Trekking(zweetfactor=0.8 + (0.3 if p.hitte_gewend else 0.0))
+    centr = Trekking(zweetfactor=0.8)
     # [2026-10-23] age decrement scaled by fitness and heat acclimatisation
     # (jos3_leeftijd.set_person). Fitness: the HESTIA estimate from heart rate
     # and speed, else Garmin, else the population mean (= factor 0 by definition).

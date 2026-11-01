@@ -68,6 +68,9 @@ class RunnerProfile:
     # more individual but was not itself part of that validation.
     hr_max:      Optional[float] = None  # beats/min, measured
     hr_rest:     Optional[float] = None  # beats/min, measured
+    # [2026-11-01] Heat acclimation 0..1 (author's decision): plasma volume
+    # expansion raises stroke volume, see CVRModel.ACCLIM_SV_GAIN.
+    acclimatisation: float = 0.0
 
 
 @dataclass
@@ -222,6 +225,18 @@ class CVRModel:
     DECOMPENSATION_RESERVE = 2.0    # L/min
     AVA_CLOSURE_THRESHOLD  = 0.10   # L/h -- AVA essentially closed
     RER                    = 0.7    # respiratory exchange ratio (Lloyd 2022, Eq. 4.1/4.2)
+    # [2026-11-01, author's decision] Heat acclimation expands plasma volume:
+    # +7.3 % after 5 days (Snape et al. 2026, PLoS One 21:e0345346), +2.9 %
+    # on average and +5 % in summer (Loeppky 2015, Acta Physiol Hung
+    # 102:282), > 5 % within 4-5 days (Corbett et al. 2023, J Physiol Sci
+    # 73:26). MODEL CHOICE: +5 % plasma volume, mapped 1:1 onto stroke volume
+    # (rest and maximum), times the acclimatisation factor 0..1. Resting
+    # cardiac output is kept, so an equation-based resting heart rate falls
+    # by the same factor; a measured resting heart rate already contains the
+    # effect and is left alone (SV_rest then unchanged as well). VO2max is
+    # not changed. Snape et al. measured resting HR -8 bpm with +7.3 % plasma
+    # volume, i.e. more than this 1:1 mapping gives (conservative choice).
+    ACCLIM_SV_GAIN         = 0.05
 
     def __init__(self, runner: RunnerProfile):
         self.runner = runner
@@ -243,13 +258,18 @@ class CVRModel:
         CO_rest (Eq. 11):             SV_rest x HR_rest / 1000
         """
         v = self._vo2max_abs
+        acc = float(np.clip(getattr(self.runner, "acclimatisation", 0.0) or 0.0, 0.0, 1.0))
+        g_sv = 1.0 + self.ACCLIM_SV_GAIN * acc    # [2026-11-01] plasma volume
 
-        self.SV_max  = 40.59 + 24.81 * v         # mL/beat
+        self.SV_max  = (40.59 + 24.81 * v) * g_sv  # mL/beat
         self.SV_rest = 85.1                        # mL/beat
         self.HR_max  = (float(self.runner.hr_max) if self.runner.hr_max
                         else 208 - 0.7 * self.runner.age)
-        self.HR_rest = (max(30.0, float(self.runner.hr_rest)) if self.runner.hr_rest
-                        else max(40.0, 90.93 - 0.64 * self.runner.vo2max))
+        if self.runner.hr_rest:
+            self.HR_rest = max(30.0, float(self.runner.hr_rest))
+        else:
+            self.SV_rest = 85.1 * g_sv
+            self.HR_rest = max(40.0, 90.93 - 0.64 * self.runner.vo2max) / g_sv
         self.CO_max  = (self.SV_max  / 1000) * self.HR_max
         self.CO_rest = (self.SV_rest / 1000) * self.HR_rest
 

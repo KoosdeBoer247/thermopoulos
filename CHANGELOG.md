@@ -11,6 +11,32 @@ results of individual field-test participants by group-level statements.
 ## [2026.10.27] Release
 
 Second public release. Contains everything since 2026.10.25 (entries below), and:
+- **Heat acclimation in JOS-3 sweating and in the cardiac model** (author's
+  decision, 2026-11-01, after a group run in which the two heat-acclimatised
+  runners had the highest fluid loss and heart rate). Until now acclimation
+  raised only the fluid bookkeeping (sweat factor 0.8 -> 1.1, +37.5 % water
+  loss) and JOS-3 sweated the same: more water lost, no cooling. Now the
+  JOS-3 sweat signal is x (1 + 0.20 x acclimatisation)
+  (`jos3_leeftijd.ACCLIM_SWEAT_GAIN`; Buono et al. 2009: +20 %), and the CVR
+  module raises stroke volume by 5 % x acclimatisation (plasma volume;
+  `CVRModel.ACCLIM_SV_GAIN`; Snape et al. 2026 +7.3 %, Loeppky 2015 +2.9-5 %,
+  1:1 onto stroke volume as a model choice); an equation-based resting heart
+  rate falls by the same factor, a measured one is left alone. The sweat
+  factor is 0.8 for everybody. Non-acclimatised runners are bit-identical.
+  Group run (45 km, dry heat), the two acclimatised runners: core -0.12 degC,
+  heart rate -10 /min, lowest reserve +1.6/+2.0 L/min, fluid loss 3.0/3.3
+  -> 1.5/1.6 %. Emmen clinic (B3, six of eleven acclimatised): peak core
+  +0.35 -> +0.34 degC, heart rate +0.9 -> +0.4 /min, fluid loss +0.09 ->
+  -0.07 %-point (model median 0.98 -> 0.82 % against 1.00 % measured), chest
+  skin -0.6 -> -0.9 degC.
+  Recalibrated (N=5000): ehs -9.130380 (was -9.567524; seed 42 only, author's
+  decision), hospitalisation -8.490417 (was -8.677948), first_aid -7.262350
+  (was -7.471756; sensitivity table refreshed), `EAC_LN_K` 3.891821 (was
+  3.970524); DtD seeds 42/43. DtD population T_rect max P50 39.64 degC,
+  > 40.5 degC 5.3-5.5 %. Raw results `intercept_controle_2026-11-01.json`.
+  New test `test_hittegewenning.py`; golden reference regenerated.
+  Not modelled: lower sweat onset and set point, sweat sodium, decay and
+  build-up of acclimation over days.
 - **Globe temperature by the Liljegren et al. (2008) energy balance; urban
   humidity with urban temperature** (author's decision, 2026-10-31, after
   the question whether JOS-3 receives the correct globe temperature). JOS-3

@@ -81,11 +81,11 @@ Model minus measurement with the current release, group level:
 
 | Quantity | n | Mean | 95 % prediction interval |
 |---|---|---|---|
-| Peak core temperature | 10 | +0.35 °C | −0.2 to +0.9 °C |
-| Core temperature, mean during the run | 10 | +0.19 °C | −0.3 to +0.7 °C |
-| Heart rate (fitness estimated from the run) | 10 | +0.9 /min | −5 to +7 /min |
-| Fluid loss | 11 | +0.09 %-point | −0.8 to +1.0 %-point |
-| Chest skin temperature against the CORE skin reading | 10 | −0.6 °C | −4.0 to +2.8 °C |
+| Peak core temperature | 10 | +0.34 °C | −0.3 to +0.9 °C |
+| Core temperature, mean during the run | 10 | +0.20 °C | −0.3 to +0.7 °C |
+| Heart rate (fitness estimated from the run) | 10 | +0.4 /min | −5 to +6 /min |
+| Fluid loss | 11 | −0.07 %-point | −1.0 to +0.8 %-point |
+| Chest skin temperature against the CORE skin reading | 10 | −0.9 °C | −4.5 to +2.6 °C |
 
 **Read these numbers with two caveats** (details: `CORE_SENSOR.md`):
 
@@ -100,7 +100,7 @@ Model minus measurement with the current release, group level:
 - **The model may run warm on cool days.** JOS-3 can let the skin cool too
   much when running in cool weather, which suppresses skin blood flow and
   sweating and raises the core (Known issue 9). In Emmen the model chest skin
-  was on average 0.6 °C colder than the CORE skin reading, with a wide spread
+  was on average 0.9 °C colder than the CORE skin reading, with a wide spread
   between runners; the skin temperature was not used to tune anything.
 
 Per runner, the model peak follows running speed (heat production per kg,

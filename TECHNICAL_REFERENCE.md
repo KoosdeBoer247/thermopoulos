@@ -667,6 +667,67 @@ Cardiac Heat Strain Index (CHSI).
   to definitional differences between the two years' source studies, not
   fully resolved).
 
+### 4.2.1 Heat acclimation: sweating and plasma volume [2026-11-01, author's decision]
+
+**Problem.** Until 2026-11-01 heat acclimation acted in HESTIA through the
+fluid bookkeeping only: the sweat factor that multiplies JOS-3's water loss
+was drawn around 0.8 + 0.3 × acclimatisation (0.8 → 1.1, +37.5 % water
+loss). JOS-3 itself sweated the same, so an acclimatised runner lost more
+water and gained no cooling; via the dehydration term of the cardiac heat
+strain index (§4.2) the heart rate rose and the cardiac reserve fell. In a
+group run (45 km, dry desert weather) the two acclimatised runners came out
+with the highest fluid loss (3.0 and 3.3 %), the highest heart rates and an
+orange signal: the opposite of what acclimation does.
+
+**Literature** (magnitudes; text read where marked *, abstract otherwise).
+Exercise heart rate −17 bpm (154 → 137) and end-exercise rectal temperature
+−0.5 °C (38.9 → 38.4) after 8 days in humid heat, whole-body sweat rate +20 %
+(Buono et al. 2009, J Therm Biol 34:127*). Resting heart rate −8 bpm and
+plasma volume +7.3 % after 5 days, endurance athletes (Snape et al. 2026,
+PLoS One 21:e0345346*). Plasma volume +2.9 % on average, +5 % in summer;
+reported range 0–30 % (Loeppky 2015, Acta Physiol Hung 102:282*). Plasma
+volume > 5 % within 4–5 days, sweating needs > 10 days (Corbett et al. 2023,
+J Physiol Sci 73:26*). Meta-analysis of 135 studies: resting core and heart
+rate fall, plasma volume rises (moderate or larger effects), the rise in
+sweat rate is smaller than earlier thought (g = 0.4) (Tyler et al. 2024,
+J Sci Sport Exerc 6:195). Drinking does not rise by itself: one small study
+found fewer drinks after 6 weeks (Ormerod et al. 2003, Int J Sport Nutr
+Exerc Metab 13:15).
+
+**What HESTIA does now.**
+1. *Sweating in JOS-3.* `jos3_leeftijd` multiplies the JOS-3 sweat signal by
+   1 + `ACCLIM_SWEAT_GAIN` × acclimatisation, with `ACCLIM_SWEAT_GAIN` = 0.20
+   (Buono et al. 2009). The extra sweat cools where it can evaporate; JOS-3
+   caps skin wettedness at 1, so in humid heat it hardly helps (as in
+   reality, the excess drips). It is counted in JOS-3's own water loss. The
+   sweat factor of the fluid bookkeeping no longer depends on acclimation
+   (0.8 for everybody; `hestia_model`, `individual_engine`,
+   `hestia_reconstructie`). The thirst threshold is unchanged.
+2. *Plasma volume in the CVR module.* `CVRModel.ACCLIM_SV_GAIN` = 0.05:
+   plasma volume +5 %, mapped 1:1 onto stroke volume at rest and at maximum,
+   times the acclimatisation factor. Resting cardiac output is kept, so an
+   equation-based resting heart rate falls by the same factor; a measured
+   resting heart rate already contains the effect and is left alone
+   (SV_rest then unchanged too). VO2max is not changed. MODEL CHOICE: the
+   1:1 mapping is conservative; Snape et al. measured −8 bpm at rest with
+   +7.3 % plasma volume, which is more than this gives.
+3. Acclimatisation 0 gives bit-identical results to before.
+
+**Effect.** JOS-3, 35 y, 75 kg, 9 MET, 2 h: dry heat (30 °C, RH 30 %,
+3 m/s) pelvic core 38.64 → 38.52 °C, mean skin 35.69 → 35.26 °C, water loss
++2 % (a cooler body sweats less, which offsets most of the 20 %); humid heat
+(30 °C, RH 80 %, 1 m/s) no change. Group run above, the two acclimatised
+runners: core −0.12 °C, peak heart rate −10 /min, lowest cardiac reserve
++1.6 and +2.0 L/min, fluid loss 3.0/3.3 → 1.5/1.6 %; non-acclimatised
+runners unchanged. The reference populations carry partial acclimatisation
+(Boston 0.35, Dam tot Damloop 0.60), so all endpoints were recalibrated
+(§4.4.3).
+
+**Not modelled.** Lower sweat onset threshold and lower set point (part of
+the −0.5 °C of Buono et al. follows from points 1 and 2), lower sweat sodium,
+decay of acclimation, and the build-up over days (PYROX uses a FIR kernel
+for that, §3; a candidate for HESTIA). Test: `test_hittegewenning.py`.
+
 ### 4.3 EHS / EHE / EAC — three distinct, non-interchangeable endpoints
 
 A prior single "collapse" concept was split into three properly-grounded,
@@ -1417,9 +1478,33 @@ conditions stays the same; on hot, sunny days the predicted risks rise
 relative to cool, overcast ones. The first_aid sensitivity table was
 refreshed. Raw results: `intercept_controle_2026-10-31.json`.
 
+*These intercepts were superseded on 2026-11-01 (heat acclimation), see §4.4.3.*
+
 Reference: Liljegren JC, Carhart RA, Lawday P, Tschopp S, Sharp R (2008).
 Modeling the wet bulb globe temperature using standard meteorological
 measurements. J Occup Environ Hyg 5(10):645–655. doi:10.1080/15459620802310770
+
+### 4.4.3 Recalibration after the heat-acclimation change [2026-11-01]
+
+Heat acclimation now acts in JOS-3's sweating and in the CVR module's stroke
+volume (§4.2.1). The reference populations carry partial acclimatisation
+(Boston 0.35, Dam tot Damloop 0.60), so all endpoints were rerun; targets
+unchanged. Boston with seed 42 only (author's decision; the workspace had
+two CPU cores and both seeds no longer fitted the run time).
+
+| Endpoint | New | Was (2026-10-31) | Runs |
+|---|---|---|---|
+| ehs (Boston) | −9.130380 | −9.567524 | seed 42 |
+| hospitalisation (DtD) | −8.490417 | −8.677948 | seeds 42 / 43: −8.429063 / −8.551770 |
+| first_aid (DtD) | −7.262350 | −7.471756 | seeds 42 / 43: −7.231262 / −7.293437 |
+| `EAC_LN_K` (DtD) | 3.891821 | 3.970524 | seeds 42 / 43: 3.891628 / 3.892014 |
+
+Population T_rect max, DtD: P50 39.64 °C (was 39.75), P95 40.52 (was 40.58),
+> 40.5 °C 5.3–5.5 % (was 6.7–6.9 %). Boston: P50 39.37 °C (was 39.41–39.42),
+P95 40.04 (was 40.08), > 40.5 °C 0.44 % (was 0.52–0.54 %). The partially
+acclimatised reference populations now run a little cooler, so the
+intercepts rise again. The first_aid sensitivity table was refreshed. Raw
+results: `intercept_controle_2026-11-01.json`.
 
 ### 4.5 The Thermoregulatory Control Failure (TCF) metric
 

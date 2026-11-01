@@ -104,10 +104,10 @@ This is an inference from the studies above, not a measurement.
 
 | Assumption about CORE | Model minus true core, peak | Model minus true core, mean during run |
 |---|---|---|
-| CORE correct | +0.35 °C | +0.19 °C |
-| CORE 0.2 °C low | +0.15 °C | −0.01 °C |
-| CORE 0.3 °C low | +0.05 °C | −0.11 °C |
-| CORE 0.5 °C low | −0.15 °C | −0.31 °C |
+| CORE correct | +0.34 °C | +0.20 °C |
+| CORE 0.2 °C low | +0.14 °C | 0.00 °C |
+| CORE 0.3 °C low | +0.04 °C | −0.10 °C |
+| CORE 0.5 °C low | −0.16 °C | −0.30 °C |
 
 If the working assumption holds, HESTIA is close to the true peak core
 temperature at group level, not a third of a degree too high. "The model errs on
@@ -139,12 +139,12 @@ in cool weather the model skin ends up far below set point and the core
 settles higher in the cold than at 20 °C, contrary to the "prescriptive zone"
 in which exercise core temperature hardly depends on ambient temperature
 (Nielsen 1938; Lind 1963). JOS-3 was validated only at rest (Takahashi et
-al. 2020). In Emmen the model chest skin was on average **0.6 °C colder**
+al. 2020). In Emmen the model chest skin was on average **0.9 °C colder**
 than the CORE skin reading (−2.7 to +2.2 °C per runner; CORE reads the skin
 under the sensor, which may be warmer than bare skin). With the cold-skin
 signal limited to 2 K (diagnostic, `jos3_leeftijd.COLD_SKIN_LIMIT_K`) the
-model skin is 0.8 °C warmer than CORE's and the model peak core comes to
-+0.16 °C above CORE. The sun on the clinic day (globe temperature by the
+model skin is 0.6 °C warmer than CORE's and the model peak core comes to
++0.13 °C above CORE. The sun on the clinic day (globe temperature by the
 Liljegren et al. 2008 energy balance) accounts for much of the skin
 temperature, so this clinic gives little evidence for a cold-skin error.
 

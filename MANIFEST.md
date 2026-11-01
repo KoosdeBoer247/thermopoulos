@@ -52,7 +52,8 @@ Every file in the release and what it does. History of individual files:
 | `local_storage.py` | local-only persistence for the personal app |
 | `hestia_bridge.py` | adapter for Klimatos and the app (weather to engine input, summaries) |
 | `intercept_estimation.py` | calibration of the collapse-risk intercepts per endpoint (Boston, Dam tot Damloop 2024 with real weather) |
-| `intercept_controle_2026-10-31.json` | raw results of the current calibration |
+| `intercept_controle_2026-11-01.json` | raw results of the current calibration |
+| `intercept_controle_2026-10-31.json` | raw results of the calibration of 31 October |
 | `intercept_controle_2026-10-24.json` | raw results of the previous calibration |
 | `DtD2024_Amsterdam_hindcast.xlsx` | real hourly weather of 22–23 Sept 2024 (Amsterdam), reference of the Dam tot Damloop calibration |
 
@@ -118,13 +119,14 @@ Every file in the release and what it does. History of individual files:
 | `start_thermopoulos.py` | main menu for the whole suite (Dutch): HESTIA, PYROX, Klimatos, FIT files, weather, reports |
 | `rapportpakket.py` | keeps the report data of every calculation (`*_rapportpakket.pkl`) and makes the report later (menu choice R) |
 | `test_aanmelding.py` | sign-up list conversion with invented names/addresses: column recognition, linking, codes, no personal data in outputs, tempo override |
+| `test_hittegewenning.py` | heat acclimation: JOS-3 sweat gain (dry and humid heat), plasma volume in the CVR module, sweat factor independent of acclimation |
 | `test_globe_liljegren.py` | globe temperature against the Liljegren et al. (2008) C reference, recomputing older weather files, urban humidity |
 | `test_herladen.py` | the suite keeps working when modules are reloaded between runs (Spyder) |
 | `test_groep_lopers.py` | group what-if run on synthetic weather, overview and per-runner reports |
 | `test_fit_loop.py` | FIT-loop analysis, report packages and a scripted walk through the main menu |
 | `run_all_tests.py` | runs every test script with a summary |
 | `tests/test_scripts.py` | the same scripts under pytest (slow ones marked `slow`) |
-| `tests/test_golden.py`, `tests/golden_dump.py`, `tests/golden_reference.json` | golden-output regression test against the 2026-10-31 calibration version |
+| `tests/test_golden.py`, `tests/golden_dump.py`, `tests/golden_reference.json` | golden-output regression test against the 2026-11-01 calibration version |
 | `suite_smoke_test.py` | end-to-end smoke test |
 | `test_koude_huid.py` | cold-skin limit of JOS-3 (off by default, effect in cold, none in heat, clinic variant B4) |
 | `test_leefbaarheid_uren.py` | Klimatos liveability: rest floor of the worst-hour Mmax, hours-per-year trend and projection, report section |

@@ -1342,7 +1342,8 @@ COLLAPSE_ENDPOINTS = {
         'p_obs':        4.5 / 10_000,           # 0.00045
         'n_obs':        4.5,
         'n_participants': 10_000,
-        'intercept_kal': -9.567524,  # [2026-10-31] Liljegren globe + RH_urban; mean of N=5000 seeds 42/43 (-9.591405/-9.543643; was -8.892508)
+        'intercept_kal': -9.130380,  # [2026-11-01] heat acclimation in JOS-3 sweating + plasma volume; N=5000 seed 42 (was -9.567524)
+                                       # [2026-10-31]: -9.567524; Liljegren globe + RH_urban; mean of seeds 42/43 (was -8.892508)
                                        # [2026-10-23]: -8.892508; rest core 37.0 + fitness/heat age curve; N=5000 seed 42 (was -9.210416)
                                        # [2026-10-20 evening]: -9.210416; JOS-3 finish zone (5 min walk + 5 min standing), no standing deficit; N=5000 seed 42 (was -9.428980)
                                        # [2026-10-20] + heart lag, collapse extremes over race + finish zone; N=5000 seed 42: -9.428980 (was -9.151532)
@@ -1433,7 +1434,8 @@ COLLAPSE_ENDPOINTS = {
         'p_obs':        50.0 / 35_000,          # 0.00143
         'n_obs':        50.0,
         'n_participants': 35_000,
-        'intercept_kal': -8.677948,  # [2026-10-31] Liljegren globe + RH_urban; mean of N=5000 seeds 42/43 (-8.616264/-8.739631; was -7.922109)
+        'intercept_kal': -8.490417,  # [2026-11-01] heat acclimation in JOS-3 sweating + plasma volume; mean of N=5000 seeds 42/43 (-8.429063/-8.551770; was -8.677948)
+                                       # [2026-10-31]: -8.677948; Liljegren globe + RH_urban (was -7.922109)
                                        # [2026-10-23] rest core 37.0 + fitness/heat age curve; mean of N=5000 seeds 42/43 (-7.506197/-7.514014; was -8.080096)
                                        # [2026-10-20 evening]: -8.080096; JOS-3 finish zone + EAC-staan; fresh mean of N=5000 seeds 42/43 (was -8.553130)
                                        # [2026-10-16 evening] -7.266031, PACE_FITNESS_ABSOLUTE + jos3_leeftijd, mean of N=5000 seeds 42/43 (-7.2688/-7.2632); was -7.279916
@@ -1513,7 +1515,8 @@ COLLAPSE_ENDPOINTS = {
         'p_obs':        150.0 / 35_000,         # 0.00429; central estimate
         'n_obs':        150.0,                   # uncertain: range 100-250
         'n_participants': 35_000,
-        'intercept_kal': -7.471756,  # [2026-10-31] Liljegren globe + RH_urban; mean of N=5000 seeds 42/43 (-7.437290/-7.506223; was -6.771391)
+        'intercept_kal': -7.262350,  # [2026-11-01] heat acclimation in JOS-3 sweating + plasma volume; mean of N=5000 seeds 42/43 (-7.231262/-7.293437; was -7.471756)
+                                       # [2026-10-31]: -7.471756; Liljegren globe + RH_urban (was -6.771391)
                                        # [2026-10-23] rest core 37.0 + fitness/heat age curve; mean of N=5000 seeds 42/43 (-6.398324/-6.405754; was -6.926663)
                                        # [2026-10-20 evening]: -6.926663; JOS-3 finish zone + EAC-staan; fresh mean of N=5000 seeds 42/43 (was -7.355230)
                                        # [2026-10-16 evening] -6.162057, PACE_FITNESS_ABSOLUTE + jos3_leeftijd, mean of N=5000 seeds 42/43 (-6.1643/-6.1598); was -6.175971
@@ -1553,14 +1556,14 @@ COLLAPSE_ENDPOINTS = {
                          '(N=800). The sensitivity table below has NOT been '
                          're-run under sample_pace=True and should not be trusted '
                          'until it is.'),
-        'sensitivity': {   # [2026-10-31] Liljegren globe + RH_urban: mean of N=5000 seeds 42/43, sample_pace=True (whole table refreshed)
-            100: -7.919479,
-            125: -7.673452,
-            150: -7.471756,
-            175: -7.300697,
-            200: -7.152082,
-            225: -7.020624,
-            250: -6.902710,
+        'sensitivity': {   # [2026-11-01] heat acclimation (JOS-3 sweating + plasma volume): mean of N=5000 seeds 42/43, sample_pace=True (whole table refreshed)
+            100: -7.718354,
+            125: -7.467810,
+            150: -7.262350,
+            175: -7.088052,
+            200: -6.936592,
+            225: -6.802597,
+            250: -6.682398,
         },
     },
 }
@@ -1909,7 +1912,8 @@ EAC_SIGMA    = 0.35    # spread of individual tolerance (log units), model choic
 EAC_CORE_CAP = 38.3    # degC, upper end of the tested core range (Pearson 2017)
 EAC_BASE_P   = 0.0010  # heat-independent EAC probability per standing runner (model choice)
 EAC_WBGT_VALID_MAX = 28.0  # degC; above this (ACSM black flag, no field data) EAC is reported as "zeer hoog", not as a number. Name kept for compatibility: nothing below it is validated either.
-EAC_LN_K     = 3.970524  # [2026-10-31] Liljegren globe + RH_urban, seeds 42 (3.970447) / 43 (3.970601); was 3.803705
+EAC_LN_K     = 3.891821  # [2026-11-01] heat acclimation (JOS-3 sweating + plasma volume), seeds 42 (3.891628) / 43 (3.892014); was 3.970524
+# [2026-10-31]: 3.970524; Liljegren globe + RH_urban (was 3.803705)
 # [2026-10-23] was 3.786865 = rest core 37.0 + fitness/heat age curve, seeds 42 (3.786517) / 43 (3.787212); was 3.808518
 # previous: 3.808518 calibrated 2026-10-20 late (core cap 38.3, base 1.0/1000): 1.5/1000 on the DtD reference, N=5000, mean of seeds 42 (3.808401) and 43 (3.808634); was 4.234274 without cap/base
 
@@ -2614,7 +2618,10 @@ def generate_base_population(
         # ------------------------------------------------------------------
         # Acclimatized runners sweat earlier and at higher rates (higher factor).
         # Ref: Periard et al. (2016) Comprehensive Physiology.
-        sweat_loc = 0.8 + (acclimatization_factor * 0.3)  # range [0.80, 1.10]
+        # [2026-11-01] The acclimation effect on sweating now sits in JOS-3
+        # itself (jos3_leeftijd.ACCLIM_SWEAT_GAIN, +20 %, with cooling); here it
+        # was +37.5 % water loss without cooling (was 0.8 + 0.3 x acclimatisation).
+        sweat_loc = 0.8
         sweat_factor = float(np.clip(
             np.random.normal(loc=sweat_loc, scale=0.15),
             0.4, 1.5
@@ -4332,6 +4339,7 @@ def calculate_indices_jos3_adult(interp_data, lat, lon, met_value, clo_value,
             age=runner_age, sex=gender, vo2max=vo2max,
             hr_max=(getattr(participant_params, 'hr_max_known', 0.0) or None),
             hr_rest=(getattr(participant_params, 'hr_rest_known', 0.0) or None),
+            acclimatisation=float(acclimatization_factor or 0.0),   # [2026-11-01] plasma volume
         )
         jos3_cvr_series          = []
         cvr_water_loss_kg        = 0.0

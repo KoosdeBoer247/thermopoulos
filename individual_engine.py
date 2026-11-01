@@ -217,7 +217,9 @@ def _build_profile(inputs: PersonalInputs, rng: np.random.Generator) -> AdultPar
     pct_vo2max_det = vo2_at_pace / vo2max
     pct_vo2max = float(np.clip(rng.normal(pct_vo2max_det, 0.04), 0.15, 0.95))
 
-    sweat_loc = 0.8 + (0.3 if inputs.heat_acclimatized else 0.0)
+    # [2026-11-01] acclimation now raises the JOS-3 sweat signal itself
+    # (jos3_leeftijd.ACCLIM_SWEAT_GAIN); was 0.8 + 0.3 here (water only, no cooling).
+    sweat_loc = 0.8
     sweat_factor = float(np.clip(rng.normal(sweat_loc, 0.15), 0.4, 1.5))
 
     # Thirst threshold: mapped from the plain drinking-habit question,
