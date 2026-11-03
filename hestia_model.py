@@ -2061,11 +2061,17 @@ MET_ACTIVITIES_ADULT = {
     9:  {"description": "Interval sprints, high intensity (professional)", "met": 18.0, "speed_kmh": 20.0},
     10: {"description": "Marathon, competition pace (professional)",   "met": 13.5, "speed_kmh": 15.0},
     11: {"description": "Running, average (general)",                  "met": 10.0, "speed_kmh": 10.0},
+    # [2026-11-02, author's decision] Level walking rows 12-16 follow the 2024
+    # Adult Compendium of Physical Activities (pacompendium.com, codes 17152,
+    # 17170, 17190, 17200, 17220). Until 2026-11-02 rows 13-16 were one speed
+    # step too high (e.g. 4.8 km/h had 4.3 MET, the value for 5.6 km/h in the
+    # 2011 Compendium). Four Days Marches walkers: 4.6-4.8 km/h (Terink et al.
+    # 2018) -> row 14, 3.8 MET. Rows 17-18 unchanged, not re-checked.
     12: {"description": "Walking, 3.2 km/h (slow, recreational)",     "met": 2.8,  "speed_kmh": 3.2},
-    13: {"description": "Walking, 4.0 km/h (moderate, recreational)", "met": 3.5,  "speed_kmh": 4.0},
-    14: {"description": "Walking, 4.8 km/h (brisk, recreational)",    "met": 4.3,  "speed_kmh": 4.8},
-    15: {"description": "Walking, 5.6 km/h (fast, fitness)",          "met": 5.0,  "speed_kmh": 5.6},
-    16: {"description": "Walking, 6.4 km/h (very fast, fitness)",     "met": 6.0,  "speed_kmh": 6.4},
+    13: {"description": "Walking, 4.0 km/h (moderate, recreational)", "met": 3.0,  "speed_kmh": 4.0},
+    14: {"description": "Walking, 4.8 km/h (moderate, e.g. Four Days Marches)", "met": 3.8,  "speed_kmh": 4.8},
+    15: {"description": "Walking, 5.6 km/h (brisk, fitness)",         "met": 4.8,  "speed_kmh": 5.6},
+    16: {"description": "Walking, 6.4 km/h (very brisk, fitness)",    "met": 5.5,  "speed_kmh": 6.4},
     17: {"description": "Walking uphill, 4.0 km/h (3-5% incline)",   "met": 5.3,  "speed_kmh": 4.0},
     18: {"description": "Walking with backpack, 4.0 km/h (moderate)", "met": 4.5,  "speed_kmh": 4.0},
     19: {"description": "Sitting outdoors",                            "met": 1.2,  "speed_kmh": 0.0},
@@ -2213,6 +2219,76 @@ def calculate_uhi_effect(population, wind_speed, is_daytime):
 #  as a .pkl with save_population() for reuse without re-sampling.
 # =============================================================================
 
+# =============================================================================
+# [2026-11-02] WALKERS' POPULATION (author's decision)
+# -----------------------------------------------------------------------------
+# generate_base_population(population="wandelaars") draws participants of a
+# mass walking event (Nijmegen Four Days Marches type) instead of recreational
+# runners. Only who is drawn changes; JOS-3, the CVR module and the risk
+# logistic are the same. The runners' population (default) is bit-identical.
+#   Sex     58 % men: Vierdaagse statistics 2019, 26,095 of 44,702.
+#   Age     the finishers' age bands of 2019 per sex (16-20 band scaled to
+#           18-20 by 3/5), uniform within a band; 33 % are over 60.
+#   BMI     men N(27.3, 3.3), women N(23.5, 3.0), clipped 18-40: Terink et
+#           al. 2018, Eur J Appl Physiol 118:2349 (98 walkers, 2015).
+#   Fat %   Deurenberg et al. 1991 (Br J Nutr 65:105) from BMI, age and sex,
+#           plus N(0, 4), clipped 8-50. MODEL CHOICE.
+#   VO2max  up to 65 y the median equations of the LowLands Fitness Registry
+#           (van der Steeg & Takken 2021, Eur J Appl Physiol 121:1189; Dutch/
+#           Flemish, cycle ergometer); from 65 y linear to the Four Days
+#           walkers aged 69-87 of de Wild et al. 1995 (Eur J Appl Physiol
+#           72:134; men 26.8 at 76.7 y, women 24.6 at 72.8 y, cycle) and
+#           beyond with their annual decline (0.46 / 0.38 per year).
+#           SD = 0.19 x mean (both sources: CV 18-20 %), clipped 15-70.
+# =============================================================================
+WALKER_MALE_SHARE = 0.58
+_WALKER_AGE_BANDS = (   # (lowest age, highest age, men, women), finishers 2019
+    (18, 20, 893 * 3 / 5, 519 * 3 / 5),
+    (21, 30, 3331, 2725), (31, 40, 2400, 1672), (41, 50, 2334, 2399),
+    (51, 60, 5558, 4376), (61, 70, 6149, 3805), (71, 80, 2532, 979),
+    (81, 85, 176, 51), (86, 90, 19, 3),
+)
+WALKER_BMI = {"male": (27.3, 3.3), "female": (23.5, 3.0)}
+WALKER_VO2MAX_CV = 0.19
+_WALKER_DEWILD = {"male": (76.7, 26.8, 0.46), "female": (72.8, 24.6, 0.38)}
+
+
+def _is_walker_population(population) -> bool:
+    return str(population or "lopers").strip().lower() in ("wandelaars", "walkers", "w")
+
+
+def _walker_age(gender: str) -> int:
+    col = 2 if gender == "male" else 3
+    w = np.array([b[col] for b in _WALKER_AGE_BANDS], dtype=float)
+    k = int(np.random.choice(len(w), p=w / w.sum()))
+    lo, hi = _WALKER_AGE_BANDS[k][0], _WALKER_AGE_BANDS[k][1]
+    return int(np.random.randint(lo, hi + 1))
+
+
+def _lowlands_vo2max_median(age: float, gender: str) -> float:
+    a = float(age)
+    if gender == "male":
+        return -0.0049 * a * a + 0.0884 * a + 48.263
+    return -0.0021 * a * a - 0.1407 * a + 43.066
+
+
+def walker_vo2max_mean(age: float, gender: str) -> float:
+    """[2026-11-02] Mean VO2max (mL/kg/min) of a walking-event participant."""
+    a = float(age)
+    if a <= 65.0:
+        return _lowlands_vo2max_median(a, gender)
+    a_dw, v_dw, slope = _WALKER_DEWILD["male" if gender == "male" else "female"]
+    v65 = _lowlands_vo2max_median(65.0, gender)
+    if a <= a_dw:
+        return v65 + (v_dw - v65) * (a - 65.0) / (a_dw - 65.0)
+    return v_dw - slope * (a - a_dw)
+
+
+def walker_body_fat(bmi: float, age: float, gender: str) -> float:
+    """Deurenberg et al. 1991: 1.20 BMI + 0.23 age - 10.8 sex - 5.4 (sex 1 = male)."""
+    return 1.20 * bmi + 0.23 * age - 10.8 * (1 if gender == "male" else 0) - 5.4
+
+
 def generate_base_population(
     n_simulations: int = 5000,
     training_factor: float = 0.0,
@@ -2221,6 +2297,7 @@ def generate_base_population(
     met_value: float = None,
     sample_pace: bool = False,
     event_dist_km: float = 16.1,
+    population: str = "lopers",
 ) -> list:
     """
     Generate a fixed base population of adult marathon runners for Monte Carlo
@@ -2307,6 +2384,10 @@ def generate_base_population(
     Jones AM & Carter H (2000) Sports Med 29:373-386.
     RunRepeat European marathon statistics (2023).
     """
+    walkers = _is_walker_population(population)   # [2026-11-02]
+    if walkers and sample_pace:
+        raise ValueError("sample_pace samples running paces; it is not available for the "
+                         "walkers' population (use one shared walking MET)")
     if random_seed is not None:
         np.random.seed(random_seed)
         random.seed(random_seed)
@@ -2368,7 +2449,10 @@ def generate_base_population(
         # Recreational marathon runners: median ~40, skewed right (more older
         # runners than younger). N(40, 10) clipped [18, 65] approximates the
         # observed finish-start age distribution for NL events (DtD, AMS, RTD).
-        age = int(np.clip(np.random.normal(loc=40.0, scale=10.0), 18, 65))
+        if walkers:
+            age = _walker_age(gender)   # [2026-11-02] Vierdaagse 2019 age bands
+        else:
+            age = int(np.clip(np.random.normal(loc=40.0, scale=10.0), 18, 65))
 
         # ------------------------------------------------------------------
         # STEP 3: VO2max -- conditioned on age AND gender
@@ -2391,6 +2475,10 @@ def generate_base_population(
             vo2max_base_mu = 44.0
             vo2max_sigma   = 7.0
             vo2max_clip    = (24.0, 68.0)
+        if walkers:   # [2026-11-02] LowLands / de Wild, age-dependent mean
+            vo2max_base_mu = walker_vo2max_mean(age, gender)
+            vo2max_sigma   = WALKER_VO2MAX_CV * vo2max_base_mu
+            vo2max_clip    = (15.0, 70.0)
 
         # [2026-09] An earlier version of this fix raised vo2max_clip's
         # floor here (derived from the event's own time limit) when
@@ -2410,7 +2498,7 @@ def generate_base_population(
         # e.g. the BMI check above).
 
         # Deterministic age correction (Tanaka 2001)
-        age_correction = 0.5 * max(0, age - 35)
+        age_correction = 0.0 if walkers else 0.5 * max(0, age - 35)
         vo2max_mu = vo2max_base_mu - age_correction
 
         vo2max = float(np.clip(
@@ -2438,8 +2526,12 @@ def generate_base_population(
             bmi_target = np.clip(np.random.normal(loc=23.0, scale=2.0), 18.0, 30.0)
         else:
             bmi_target = np.clip(np.random.normal(loc=21.5, scale=2.0), 18.0, 28.0)
+        if walkers:   # [2026-11-02] Terink et al. 2018
+            _mb, _sb = WALKER_BMI["male" if gender == "male" else "female"]
+            bmi_target = np.clip(np.random.normal(loc=_mb, scale=_sb), 18.0, 40.0)
 
-        weight = float(np.clip(bmi_target * height ** 2, 45.0, 105.0))
+        weight = float(np.clip(bmi_target * height ** 2,
+                               40.0 if walkers else 45.0, 150.0 if walkers else 105.0))
 
         # BMI filter: hard rejection for implausible combinations.
         # NOTE (rev11): bmi_target is already clipped to [18,30]/[18,28], so
@@ -2449,8 +2541,11 @@ def generate_base_population(
         # which is the actual path that triggers this rejection. The check is
         # retained to guard against such edge cases.
         bmi = weight / (height ** 2)
-        if not (18.0 <= bmi <= 32.0):
+        if not (18.0 <= bmi <= (40.0 if walkers else 32.0)):
             continue
+        if walkers:   # [2026-11-02] fat % from BMI, age, sex (Deurenberg 1991)
+            body_fat_pct = float(np.clip(walker_body_fat(bmi, age, gender)
+                                         + np.random.normal(0.0, 4.0), 8.0, 50.0))
 
         # ------------------------------------------------------------------
         # STEP 6: %VO2max at race pace -- conditioned on VO2max via event pace
@@ -5267,7 +5362,8 @@ def run_monte_carlo_adult(interp_data, lat, lon, met_value, clo_value,
                            random_seed=None,
                            run_control_failure=False,
                            sample_pace=False,
-                           event_dist_km=16.1):
+                           event_dist_km=16.1,
+                           population="lopers"):
     """
     Manages the entire adult Monte Carlo simulation process.
 
@@ -5343,6 +5439,7 @@ def run_monte_carlo_adult(interp_data, lat, lon, met_value, clo_value,
             met_value          = met_value,
             sample_pace        = sample_pace,
             event_dist_km      = event_dist_km,
+            population         = population,
         )
 
     n_simulations = len(simulations_params_base)

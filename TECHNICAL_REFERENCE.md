@@ -1776,6 +1776,47 @@ fixed-pace calibration population (ehs) does not use this path. Tested in
 
 ---
 
+### 4.6.3 Walkers' population [2026-11-02, author's decision]
+
+`generate_base_population(population="wandelaars")` (and the question
+"Population: runners or walkers" in `run_hestia.py`) draws participants of a
+mass walking event of the Nijmegen Four Days Marches type instead of
+recreational runners. JOS-3, the CVR module, the pacing loop and the risk
+logistic are unchanged; only who is drawn differs. The runners' population
+stays the default and is bit-identical, so the calibration is unaffected.
+
+| Property | Runners (default) | Walkers |
+|---|---|---|
+| Sex | 58 % men | 58 % men (Vierdaagse 2019: 26,095 of 44,702) |
+| Age | N(40, 10), 18–65 | finishers' age bands 2019 per sex, 18–90; 35 % over 60 |
+| BMI men / women | 23.0 / 21.5 (± 2) | 27.3 ± 3.3 / 23.5 ± 3.0 (Terink et al. 2018) |
+| Body fat | 17.7 / 19.6 % | Deurenberg et al. 1991 from BMI, age, sex, ± 4 % (model choice) |
+| VO2max | 52 / 44 − 0.5 per year over 35 | LowLands median to 65 y, then to de Wild et al. 1995; SD 0.19 × mean |
+
+VO2max of walkers: up to 65 y the median equations of the LowLands Fitness
+Registry (van der Steeg & Takken 2021, Eur J Appl Physiol 121:1189; 4,612
+Dutch/Flemish healthy subjects, cycle ergometer): men
+−0.0049·a² + 0.0884·a + 48.263, women −0.0021·a² − 0.1407·a + 43.066. From
+65 y linear to the 153 Four Days walkers aged 69–87 of de Wild et al. 1995
+(Eur J Appl Physiol 72:134; cycle ergometer; men 26.8 ± 4.9 at 76.7 y, women
+24.6 ± 4.7 at 72.8 y) and beyond with their decline (0.46 and 0.38 per
+year). At 65 y the two sources agree within 1–2.5 mL/kg/min. SD = 0.19 × mean
+(coefficient of variation 18–20 % in both). Both sources used cycle
+ergometry, which gives somewhat lower values than a treadmill, so the walkers
+are if anything slightly unfit in the model. Generated population (seed 42,
+N = 4000): men 40–49 y 41.8, men 69–87 y 28.0 mL/kg/min.
+
+Sources read: Vierdaagse statistics 2019 (official PDF); Terink R et al.
+2018, Eur J Appl Physiol 118:2349–2357 (98 walkers, 2015: age 58.9 / 50.9 y,
+speed day 1 4.8 / 4.6 km/h, 67 % of HRmax); van der Steeg & Takken 2021
+(text); de Wild et al. 1995 (abstract). Not read: Deurenberg et al. 1991
+(formula from the general literature). Not covered: clothing and daypack
+(set clo and MET; level walking at 4.6–4.8 km/h is 3.8 MET, activity 14, after
+the walking rows were aligned with the 2024 Compendium of Physical Activities
+on 2026-11-02), the military with load, and individual walking speeds
+(`sample_pace` samples running paces and is refused for walkers). Test:
+`test_wandelaars.py`.
+
 ## 5. Klimatos.ClimateShift — climate-trend analysis
 
 ![Klimatos](branding/klimatos.png){width=1.3in}

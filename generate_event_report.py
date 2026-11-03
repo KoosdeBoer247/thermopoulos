@@ -103,7 +103,8 @@ def generate_report(event_name: str,
                      sample_pace: bool = False,
                      event_dist_km: float = None,
                      training_factor: float = None,
-                     acclimatization_factor: float = None) -> str:
+                     acclimatization_factor: float = None,
+                     population: str = None) -> str:
     """
     Genereer een vast, feitelijk rapport en schrijf het weg als Markdown.
 
@@ -235,6 +236,11 @@ def generate_report(event_name: str,
                 if sample_pace else
                 "Nee -- alle deelnemers delen de MET/duur hierboven")
     A(f"| Per-persoon pace/MET/duur (`sample_pace`) | {pace_note} |")
+    if population:   # [2026-11-02]
+        A("| Populatie | " + ("wandelaars (Vierdaagse-type: leeftijd, BMI en VO2max van "
+                              "wandelaars, zie TECHNICAL_REFERENCE \u00a74.6.3)"
+                              if str(population).lower().startswith("w") else
+                              "recreatieve hardlopers") + " |")
     # [2026-10-14] With sample_pace the header MET above is nominal only;
     # show the distribution that was actually simulated.
     if results_df is not None and 'pct_vo2max' in getattr(results_df, 'columns', []):

@@ -379,7 +379,8 @@ def monte_carlo_adult(data: ThermopoulosData,
                       random_seed: Optional[int] = hestia.DEFAULT_RANDOM_SEED,
                       run_control_failure: bool = True,
                       sample_pace: bool = False,
-                      event_dist_km: float = 16.1) -> Tuple:
+                      event_dist_km: float = 16.1,
+                      population: str = "lopers") -> Tuple:
     """Run HESTIA's adult Monte Carlo over a virtual population for the window,
     using Thermopoulos weather.
 
@@ -430,6 +431,7 @@ def monte_carlo_adult(data: ThermopoulosData,
         run_control_failure=run_control_failure,
         sample_pace=sample_pace,
         event_dist_km=event_dist_km,
+        population=population,
     )
 
 
@@ -631,6 +633,14 @@ def _run_cli():
             f"sharing MET {met_value}/{duration_hours}h for everyone? (y/n)",
             "n",
         ).lower().startswith("y")
+        # [2026-11-02] Who is drawn: recreational runners (default) or the
+        # participants of a mass walking event (Vierdaagse type).
+        population = "wandelaars" if _prompt(
+            "Population: runners (r) or walkers, Four Days Marches type (w)?", "r"
+        ).strip().lower().startswith("w") else "lopers"
+        if population == "wandelaars" and sample_pace:
+            print("  Individual pace is for runners only; walkers share one walking MET.")
+            sample_pace = False
         # [2026-10-25] Reproducible by default: seed 42 unless the user types
         # another number, or "random" for a different draw each run.
         seed_raw = _prompt("Random seed (42 = reproducible default; 'random' = different each run)", "42")
@@ -646,6 +656,7 @@ def _run_cli():
             use_parallel=use_parallel, random_seed=random_seed,
             run_control_failure=run_control_failure,
             sample_pace=sample_pace, event_dist_km=event_dist_km,
+            population=population,
         )
         if all_results is None:
             print(f"{Fore.RED}Population generation failed (0 valid profiles). "
@@ -703,6 +714,7 @@ def _run_cli():
             sample_pace=sample_pace, event_dist_km=event_dist_km,
             training_factor=training_factor,
             acclimatization_factor=acclimatization_factor,
+            population=population,
         )
         pk = rapportpakket.bewaar("hestia", pakket_gegevens, report_stam)
         if pk:

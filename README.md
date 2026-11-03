@@ -9,7 +9,7 @@ heatwaves. It starts from the human body, not from a weather index alone.
 
 | Component | Scale | What it does |
 |---|---|---|
-| **HESTIA** | individual and event population | JOS-3 thermophysiology (pythermalcomfort) plus a cardiovascular module: core temperature, sweat and fluid loss, heart rate, cardiac-output reserve (CO_reserve), exertional heat-illness endpoints, a personal runner analysis and a field-validation chain |
+| **HESTIA** | individual and event population (runners, or walkers of a Four Days Marches type event) | JOS-3 thermophysiology (pythermalcomfort) plus a cardiovascular module: core temperature, sweat and fluid loss, heart rate, cardiac-output reserve (CO_reserve), exertional heat-illness endpoints, a personal runner analysis and a field-validation chain |
 | **PYROX** | population groups | control-theoretic heat-strain dynamics for 23 population groups during heatwaves ([preprint](https://doi.org/10.21203/rs.3.rs-8626369/v1)) |
 | **Klimatos** | climate | trends in WBGT, UTCI and related indices over sliding 30-year windows, with HESTIA risk evolution for recurring events |
 | **Thermopoulos Data Engine** | weather | fetches forecast and archive weather (Open-Meteo) and computes solar position, globe temperature, MRT, wet-bulb, WBGT and UTCI into one Excel format that HESTIA and PYROX read |
@@ -126,6 +126,7 @@ runners, a reference pill for part of them, and preferably a warm day.
 | 9 | **Core too warm when running in cool weather (JOS-3 cold skin).** JOS-3 (validated at rest only) lets the skin cool far below its set point at running intensity, which suppresses skin blood flow and sweating. Below WBGT ≈ 18 (race intensity; ≈ 20 for slow running) the peak core is several tenths too high, 0.6–1.3 °C below WBGT 12. A cold-skin limit exists as a setting (`jos3_leeftijd.COLD_SKIN_LIMIT_K`, off by default) and as clinic variant B4. | Cool-day individual results too warm; warm-event risk results and the calibration are unaffected. |
 | 10 | **The field reference (CORE sensor) is itself an estimate.** Expected to read 0.2–0.5 °C low during outdoor running, with ±0.5 °C scatter per reading (`CORE_SENSOR.md`). | Model-minus-CORE differences contain the sensor's error; a pill reference is needed to separate them. |
 | 11 | **Radiation simplified.** Globe temperature follows the Liljegren et al. (2008) energy balance with ground at air temperature, a clear-sky atmosphere for long-wave radiation, and no shade. | Hot ground (sand, asphalt) and shaded courses are not represented; long-wave load under cloud slightly low. |
+| 12 | **Walkers' population: risk calibrated on running events.** The walkers' option draws age, BMI and VO2max from Four Days Marches data, but the collapse-risk intercepts come from the Boston Marathon and the Dam tot Damloop. Walking speed is the same for everyone (no individual walking pace). | Absolute risk numbers for walking events are more uncertain than for runs; the physiology itself (from the MET of the walk) is the same. |
 
 `TECHNICAL_REFERENCE.md` §8 and §8a and `CHANGELOG.md` give the full history,
 including errors found and fixed.

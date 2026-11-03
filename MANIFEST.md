@@ -119,6 +119,7 @@ Every file in the release and what it does. History of individual files:
 | `start_thermopoulos.py` | main menu for the whole suite (Dutch): HESTIA, PYROX, Klimatos, FIT files, weather, reports |
 | `rapportpakket.py` | keeps the report data of every calculation (`*_rapportpakket.pkl`) and makes the report later (menu choice R) |
 | `test_aanmelding.py` | sign-up list conversion with invented names/addresses: column recognition, linking, codes, no personal data in outputs, tempo override |
+| `test_wandelaars.py` | walkers' population (Four Days Marches type): runners unchanged, sex, age, BMI and VO2max as in the sources |
 | `test_hittegewenning.py` | heat acclimation: JOS-3 sweat gain (dry and humid heat), plasma volume in the CVR module, sweat factor independent of acclimation |
 | `test_globe_liljegren.py` | globe temperature against the Liljegren et al. (2008) C reference, recomputing older weather files, urban humidity |
 | `test_herladen.py` | the suite keeps working when modules are reloaded between runs (Spyder) |

@@ -11,6 +11,24 @@ results of individual field-test participants by group-level statements.
 ## [2026.10.27] Release
 
 Second public release. Contains everything since 2026.10.25 (entries below), and:
+- **Walkers' population** (author's decision, 2026-11-02, after a population
+  run of the Four Days Marches day 1, 18-07-2006, with the runners'
+  population: nobody over 65, runners' fitness and BMI).
+  `generate_base_population(population="wandelaars")` and a question in
+  `run_hestia.py`: sex 58 % men and the finishers' age bands of the
+  Vierdaagse 2019 (18-90 y, 35 % over 60); BMI of Terink et al. 2018;
+  body fat from Deurenberg et al. 1991; VO2max from the LowLands Fitness
+  Registry up to 65 y and from de Wild et al. 1995 (Four Days walkers
+  69-87 y) above, SD 0.19 x mean. The runners' population is bit-identical;
+  calibration unchanged. The event report states the population. New test
+  `test_wandelaars.py`. TECHNICAL_REFERENCE §4.6.3.
+- **Walking rows of the activity table aligned with the 2024 Compendium of
+  Physical Activities** (author's decision, 2026-11-02). Rows 13-16 were one
+  speed step too high: 4.0 km/h 3.5 -> 3.0 MET, 4.8 km/h 4.3 -> 3.8,
+  5.6 km/h 5.0 -> 4.8, 6.4 km/h 6.0 -> 5.5 (codes 17170, 17190, 17200,
+  17220). Four Days Marches walkers (4.6-4.8 km/h, Terink et al. 2018): row
+  14, 3.8 MET. Rows 17-18 (uphill, backpack) not re-checked. Runs that chose
+  a walking row from the table give lower heat production than before.
 - **Heat acclimation in JOS-3 sweating and in the cardiac model** (author's
   decision, 2026-11-01, after a group run in which the two heat-acclimatised
   runners had the highest fluid loss and heart rate). Until now acclimation
