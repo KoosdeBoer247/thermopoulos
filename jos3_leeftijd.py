@@ -170,6 +170,92 @@ _PERSON = {"factor": 1.0, "acc": 0.0}
 # acclimatisation.
 ACCLIM_SWEAT_GAIN = 0.20
 
+# -----------------------------------------------------------------------------
+# [2026-11-04] MAXIMUM SKIN WETTEDNESS AND DRIPPING SWEAT, as in HUTAS
+# (author's decision). Source: the HUTAS "Thermal Audit Simulation" equations
+# (N. Ravanelli, nicholasravanelli.ca/hutas; after Parsons, Human Thermal
+# Environments 3rd ed., and The Biophysics of Human Heat Exchange 2019):
+#   * maximum skin wettedness w_max 0.72 unacclimatised, 0.84 partly
+#     acclimatised (Ravanelli et al. 2018), 1.0 fully acclimatised (Candas
+#     et al. 1979). JOS-3 capped every segment at 1.0 for everybody. Here
+#     w_max is interpolated linearly over the acclimatisation factor
+#     (0 -> 0.72, 0.5 -> 0.84, 1 -> 1.0) and caps the WHOLE-BODY wettedness
+#     (author's decision, as in HUTAS): sum(w E_max) / sum(E_max) <= w_max.
+#     When the cap binds, the sweating part of every segment is scaled by the
+#     same factor; segments stay capped at 1.0 as in JOS-3.
+#   * sweating efficiency eta = 1 - w_req^2/2 (w_req < 1), (2 - w_req)^2/2
+#     otherwise; required sweat = required evaporation / eta. JOS-3 counted
+#     only evaporated sweat; the dripping part (required - evaporated) is now
+#     added to the fluid loss. It does NOT cool (HUTAS: E_sk = E_req below
+#     the cap, the extra sweat drips). Guards as in the ISO 7933 PHS model in
+#     pythermalcomfort 4.6.2 (models/phs.py): eta >= 0.05, w_req >= 1.7 ->
+#     maximum sweat rate; maximum sweat rate 400 W/m2 unacclimatised, 500 W/m2
+#     acclimatised (ISO 7933:2023 branch), interpolated over the factor.
+#     HUTAS states a maximum sweat rate but not its value.
+# In JOS-3 terms w_req is the whole-body uncapped wettedness, the E_max-weighted
+# mean of 0.06 + 0.94 E_sw/E_max, and the required sweat evaporation is the
+# summed sweat signal E_sw.
+# Dripped sweat is accumulated per JOS-3 call; the engine takes it after each
+# simulate() call with drip_take_rate(n_steps) (g/s, averaged over the steps).
+# HUTAS_SWEAT_ENABLED = False gives JOS-3 as before (w_max 1, no drip).
+HUTAS_SWEAT_ENABLED = True
+WMAX_POINTS = ((0.0, 0.72), (0.5, 0.84), (1.0, 1.0))
+SWMAX_W_M2 = (400.0, 500.0)          # unacclimatised, acclimatised
+JOS3_LATENT_HEAT_J_G = 2418.0        # as in pythermalcomfort jos3 (weight loss)
+_DRIP = {"w": 0.0}
+
+
+def wettedness_max() -> float:
+    """[2026-11-04] Maximum skin wettedness for the current person."""
+    if not HUTAS_SWEAT_ENABLED:
+        return 1.0
+    xs, ys = zip(*WMAX_POINTS)
+    return float(np.interp(_PERSON["acc"], xs, ys))
+
+
+def _wmax_apply(wet, e_max):
+    """Cap the whole-body wettedness at wettedness_max() (segments already <= 1)."""
+    if not HUTAS_SWEAT_ENABLED:
+        return wet
+    w = np.asarray(wet, dtype=float)
+    e = np.maximum(np.asarray(e_max, dtype=float), 0.0)
+    e_tot = float(e.sum())
+    if e_tot <= 0.0:
+        return wet
+    cap = wettedness_max() * e_tot
+    if float((w * e).sum()) <= cap:
+        return wet
+    sweat_part = float(((w - 0.06) * e).sum())
+    f = (cap - 0.06 * e_tot) / sweat_part if sweat_part > 0 else 0.0
+    return 0.06 + (w - 0.06) * min(max(f, 0.0), 1.0)
+
+
+def _drip(raw_sweat, w_seg_uncapped, e_max, e_sweat_eff, bsa) -> None:
+    if not HUTAS_SWEAT_ENABLED:
+        return
+    e = np.maximum(np.asarray(e_max, dtype=float), 0.0)
+    e_tot = float(e.sum())
+    w = float((np.asarray(w_seg_uncapped, dtype=float) * e).sum() / e_tot) if e_tot > 0 else 2.0
+    w = max(w, 0.0)
+    eff = max((2.0 - w) ** 2 / 2.0 if w > 1.0 else 1.0 - w ** 2 / 2.0, 0.05)
+    acc = _PERSON["acc"]
+    swmax = (SWMAX_W_M2[0] + (SWMAX_W_M2[1] - SWMAX_W_M2[0]) * acc) * float(np.sum(bsa))
+    raw = float(np.maximum(np.asarray(raw_sweat, dtype=float), 0.0).sum())
+    s_req = swmax if w >= 1.7 else min(raw / eff, swmax)
+    _DRIP["w"] += max(s_req - float(np.sum(e_sweat_eff)), 0.0)
+
+
+def drip_reset() -> None:
+    _DRIP["w"] = 0.0
+
+
+def drip_take_rate(n_steps: int = 1) -> float:
+    """Dripped sweat since the last call, as g/s averaged over n_steps JOS-3 steps."""
+    rate = _DRIP["w"] / JOS3_LATENT_HEAT_J_G / max(1, int(n_steps))
+    _DRIP["w"] = 0.0
+    return rate
+
+
 
 def vo2max_norm(age: float, sex: str) -> float:
     mu = 52.0 if str(sex).lower() in ("male", "man", "m") else 44.0
@@ -244,6 +330,16 @@ def _rebuild(fn, var, anchor, gain=False):
     src = textwrap.dedent(inspect.getsource(fn))
     if src.count("if age < 60:") != 1 or src.count(anchor) != 1:
         raise RuntimeError(f"{fn.__name__}: source layout differs from pythermalcomfort 4.6.x")
+    if gain:   # [2026-11-04] HUTAS maximum wettedness and dripping sweat
+        cap = "    wet = np.minimum(wet, 1)  # Wettedness' upper limit\n"
+        ret = "    return wet, e_sk, e_max, e_sweat\n"
+        if src.count(cap) != 1 or src.count(ret) != 1:
+            raise RuntimeError("evaporation: wettedness/return layout differs from pythermalcomfort 4.6.x")
+        src = src.replace(cap, "    _w_req = np.array(wet, dtype=float)\n"
+                               "    _raw = np.array(e_sweat, dtype=float)\n"
+                               + cap +
+                               "    wet = _JOS3_WMAX_APPLY(wet, e_max)\n", 1)
+        src = src.replace(ret, "    _JOS3_DRIP(_raw, _w_req, e_max, e_sweat, bsa)\n" + ret, 1)
     # Always build the >=60 array, then scale it by the age weight.
     src = src.replace("if age < 60:", "if False:  # jos3_leeftijd: gradual decrement below")
     src = src.replace(
@@ -255,6 +351,8 @@ def _rebuild(fn, var, anchor, gain=False):
     ns = dict(_threg.__dict__)
     ns["_JOS3_AGE_WEIGHT"] = weight
     ns["_JOS3_SWEAT_GAIN"] = sweat_gain
+    ns["_JOS3_WMAX_APPLY"] = _wmax_apply
+    ns["_JOS3_DRIP"] = _drip
     exec(compile(src, f"<jos3_leeftijd.{fn.__name__}>", "exec"), ns)
     return ns[fn.__name__]
 

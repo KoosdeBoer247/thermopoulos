@@ -1,7 +1,7 @@
 """Golden-output regression test.
 
 tests/golden_reference.json was produced by the calibration version of
-2026-11-01 (heat acclimation in JOS-3 and the CVR module). This test
+2026-11-04 (HUTAS maximum skin wettedness and dripping sweat in JOS-3). This test
 re-runs the same seeded computations (weather pipelines, HESTIA event engine,
 runner module, clinic reconstruction, calibration reference weather, PYROX)
 and requires every number to match within a relative tolerance of 1e-9, so a

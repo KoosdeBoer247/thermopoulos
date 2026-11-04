@@ -11,6 +11,35 @@ results of individual field-test participants by group-level statements.
 ## [2026.10.27] Release
 
 Second public release. Contains everything since 2026.10.25 (entries below), and:
+- **Maximum skin wettedness and dripping sweat as in HUTAS** (author's
+  decision, 2026-11-04, after a comparison of HESTIA with HUTAS, N. Ravanelli,
+  nicholasravanelli.ca/hutas). In JOS-3's evaporation (`jos3_leeftijd.py`):
+  the whole-body skin wettedness is capped at w_max 0.72 unacclimatised,
+  0.84 partly and 1.0 fully acclimatised (linear over the factor; JOS-3 had
+  1.0 for everybody); sweat that does not evaporate (sweating efficiency
+  1 - w^2/2, required sweat = required evaporation / efficiency; guards from
+  the ISO 7933 PHS model in pythermalcomfort 4.6.2) drips and is added to the
+  fluid loss in the main engine, the finish zone and the clinic
+  reconstruction; it does not cool. `HUTAS_SWEAT_ENABLED = False` restores
+  JOS-3. Emmen clinic (B3, cool): core unchanged, fluid loss -0.07 ->
+  +0.09 %-point (model median 0.82 -> 1.04 % against 1.00 % measured),
+  heart rate +0.4 -> +0.5 /min. Reference events (humid enough for the cap to
+  bind): population T_rect max P95 DtD 40.52 -> 40.99 degC, Boston
+  40.04 -> 40.55 degC; > 40.5 degC DtD 5.3-5.5 -> 15.2-16.1 %, Boston
+  0.44 -> 5.66 %.
+  Recalibrated (N=5000): ehs -11.082597 (was -9.130380; seed 42),
+  hospitalisation -10.660990 (was -8.490417), first_aid -9.264148 (was
+  -7.262350; sensitivity table refreshed), `EAC_LN_K` 3.972239 (was
+  3.891821); DtD seeds 42/43. Raw results `intercept_controle_2026-11-04.json`.
+  New test `test_hutas_zweet.py`; golden reference regenerated. Four tests
+  adjusted to the change: `test_zweet_fix.py` now counts the dripped sweat;
+  `test_hittegewenning.py` checks the sweat gain in humid heat with the cap
+  off and adds the w_max effect (acclimatised 41.75 -> 40.42 degC);
+  `test_cvr_freeze_fix.py` seeds both runs (the runner now drinks, randomly
+  120-180 g); in `test_cv_ceiling.py` one non-drinking runner reaches the end
+  of the 6.5-h weather window at 41.8 km.
+  TECHNICAL_REFERENCE §4.2.2 and §4.4.4; README Known issue 13 (the cap is
+  not yet checked against measurements in humid heat).
 - **Walkers' population** (author's decision, 2026-11-02, after a population
   run of the Four Days Marches day 1, 18-07-2006, with the runners'
   population: nobody over 65, runners' fitness and BMI).

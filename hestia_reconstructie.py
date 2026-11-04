@@ -50,6 +50,7 @@ import numpy as np
 import pandas as pd
 
 from hestia_model import maak_jos3, wind_speed_at_height
+import jos3_leeftijd as _jl   # [2026-11-04] dripped sweat
 from HESTIA_CVR_Module_v2 import CVRModel, JOS3Outputs, RunnerProfile
 
 MET_W_M2 = 58.2
@@ -163,10 +164,11 @@ def _jos3_run(p: Persoon, met: np.ndarray, v_loop: np.ndarray, w: pd.DataFrame,
         clo = p.clo + (tr.clo_rust_extra if met[i] < 2.0 else 0.0)
         m.par, m.tdb, m.tr, m.rh, m.v, m.clo = par, T, t_r, rh, v_lucht, clo
         m.simulate(times=1, dtime=60)
+        _drip_g_s = _jl.drip_take_rate(1)   # [2026-11-04] dripped sweat (HUTAS)
         h = m._history[-1]
         tc = np.asarray(m.t_core, dtype=float)
         ts = np.asarray(m.t_skin, dtype=float)
-        g_per_s = _veld(h, "weight_loss_by_evap_and_res")
+        g_per_s = _veld(h, "weight_loss_by_evap_and_res") + _drip_g_s
         zweet = g_per_s * 60.0 * tr.zweetfactor
         zweet_cum += zweet
         netto_cum = max(0.0, netto_cum + zweet - drank_per_min_g)

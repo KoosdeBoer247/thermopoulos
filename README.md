@@ -83,8 +83,8 @@ Model minus measurement with the current release, group level:
 |---|---|---|---|
 | Peak core temperature | 10 | +0.34 °C | −0.3 to +0.9 °C |
 | Core temperature, mean during the run | 10 | +0.20 °C | −0.3 to +0.7 °C |
-| Heart rate (fitness estimated from the run) | 10 | +0.4 /min | −5 to +6 /min |
-| Fluid loss | 11 | −0.07 %-point | −1.0 to +0.8 %-point |
+| Heart rate (fitness estimated from the run) | 10 | +0.5 /min | −5 to +6 /min |
+| Fluid loss | 11 | +0.09 %-point | −0.8 to +1.0 %-point |
 | Chest skin temperature against the CORE skin reading | 10 | −0.9 °C | −4.5 to +2.6 °C |
 
 **Read these numbers with two caveats** (details: `CORE_SENSOR.md`):
@@ -127,6 +127,7 @@ runners, a reference pill for part of them, and preferably a warm day.
 | 10 | **The field reference (CORE sensor) is itself an estimate.** Expected to read 0.2–0.5 °C low during outdoor running, with ±0.5 °C scatter per reading (`CORE_SENSOR.md`). | Model-minus-CORE differences contain the sensor's error; a pill reference is needed to separate them. |
 | 11 | **Radiation simplified.** Globe temperature follows the Liljegren et al. (2008) energy balance with ground at air temperature, a clear-sky atmosphere for long-wave radiation, and no shade. | Hot ground (sand, asphalt) and shaded courses are not represented; long-wave load under cloud slightly low. |
 | 12 | **Walkers' population: risk calibrated on running events.** The walkers' option draws age, BMI and VO2max from Four Days Marches data, but the collapse-risk intercepts come from the Boston Marathon and the Dam tot Damloop. Walking speed is the same for everyone (no individual walking pace). | Absolute risk numbers for walking events are more uncertain than for runs; the physiology itself (from the MET of the walk) is the same. |
+| 13 | **Maximum skin wettedness not yet tested in humid heat.** The HUTAS limit (0.72 unacclimatised to 1.0 fully acclimatised) caps evaporation; in the humid reference events (Dam tot Damloop 2024, Boston 2017) it raises the population's peak core (share above 40.5 °C about 16 % and 6 %). The only field comparison (Emmen) was cool, where the limit does not bind. | Core results in warm, humid weather for non-acclimatised people rest on HUTAS values not yet checked against measurements; the risk calibration absorbs the shift at the two reference events. |
 
 `TECHNICAL_REFERENCE.md` §8 and §8a and `CHANGELOG.md` give the full history,
 including errors found and fixed.
@@ -160,8 +161,8 @@ python verify.py           # PYROX reproduces the paper
 `tests/test_golden.py` re-runs fixed, seeded computations (weather pipelines,
 event engine, runner module, clinic reconstruction, calibration reference,
 PYROX) and requires every number to equal the frozen calibration version of
-2026-10-24 within a relative tolerance of 1e-9. The restructuring for this
-release changed no result. GitHub Actions runs both test sets
+2026-11-04 within a relative tolerance of 1e-9, so a refactoring cannot
+silently change a result. GitHub Actions runs both test sets
 (`.github/workflows/tests.yml`).
 
 ## Quick start

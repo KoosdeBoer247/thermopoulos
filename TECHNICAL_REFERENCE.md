@@ -698,8 +698,9 @@ Exerc Metab 13:15).
 1. *Sweating in JOS-3.* `jos3_leeftijd` multiplies the JOS-3 sweat signal by
    1 + `ACCLIM_SWEAT_GAIN` × acclimatisation, with `ACCLIM_SWEAT_GAIN` = 0.20
    (Buono et al. 2009). The extra sweat cools where it can evaporate; JOS-3
-   caps skin wettedness at 1, so in humid heat it hardly helps (as in
-   reality, the excess drips). It is counted in JOS-3's own water loss. The
+   caps skin wettedness (since 2026-11-04 at the whole-body w_max of §4.2.2),
+   so in humid heat it hardly helps; the excess drips and is counted as fluid
+   loss (§4.2.2). The
    sweat factor of the fluid bookkeeping no longer depends on acclimation
    (0.8 for everybody; `hestia_model`, `individual_engine`,
    `hestia_reconstructie`). The thirst threshold is unchanged.
@@ -727,6 +728,42 @@ runners unchanged. The reference populations carry partial acclimatisation
 the −0.5 °C of Buono et al. follows from points 1 and 2), lower sweat sodium,
 decay of acclimation, and the build-up over days (PYROX uses a FIR kernel
 for that, §3; a candidate for HESTIA). Test: `test_hittegewenning.py`.
+
+### 4.2.2 Maximum skin wettedness and dripping sweat [2026-11-04, author's decision]
+
+Taken from HUTAS (N. Ravanelli, nicholasravanelli.ca/hutas, "Thermal Audit
+Simulation"; equations after Parsons, *Human Thermal Environments*, 3rd ed.,
+and *The Biophysics of Human Heat Exchange*, 2019; equation list supplied by
+the author). Implemented in `jos3_leeftijd.py` inside the JOS-3 evaporation
+function; `HUTAS_SWEAT_ENABLED = False` restores JOS-3.
+
+1. **Maximum skin wettedness.** HUTAS: w_max 0.72 unacclimatised, 0.84
+   partly acclimatised (Ravanelli et al. 2018), 1.0 fully acclimatised
+   (Candas et al. 1979). JOS-3 capped every segment at 1.0 for everybody.
+   Now the whole-body wettedness, Σ(w·E_max)/ΣE_max, is capped at w_max,
+   interpolated linearly over the acclimatisation factor (0 → 0.72,
+   0.5 → 0.84, 1 → 1.0). When the cap binds, the sweating part of every
+   segment is scaled by the same factor (whole body, as in HUTAS; author's
+   choice over a per-segment cap).
+2. **Dripping sweat.** Sweating efficiency η = 1 − w²/2 for w < 1 and
+   (2 − w)²/2 above; required sweat = required evaporation / η. In JOS-3 terms
+   w is the uncapped whole-body wettedness and the required evaporation is the
+   summed sweat signal. The part that does not evaporate drips: it is added to
+   the fluid loss (main engine, finish zone, clinic reconstruction) and does
+   not cool, as in HUTAS (E_sk = E_req below the cap). Guards from the ISO 7933
+   PHS model as implemented in pythermalcomfort 4.6.2 (`models/phs.py`):
+   η ≥ 0.05; w ≥ 1.7 gives the maximum sweat rate; maximum sweat rate
+   400 W/m² unacclimatised and 500 W/m² acclimatised (ISO 7933:2023 branch),
+   interpolated over the factor. HUTAS names a maximum sweat rate but not its
+   value.
+
+**Effect** (JOS-3, 35 y, 75 kg, 9 MET, 90 min): 20 °C/50 % and 30 °C/30 %
+with 3 m/s wind: core unchanged, fluid loss +8 % and +15–25 %. 30 °C/80 %
+with 1 m/s: unacclimatised core 40.43 → 41.75 °C, acclimatisation 0.35
+→ 41.29 °C, fully acclimatised unchanged; dripping sweat 0.6–0.8 kg.
+
+Not read: Ravanelli et al. 2018 and Candas et al. 1979 themselves (values as
+given by HUTAS). Test: `test_hutas_zweet.py`.
 
 ### 4.3 EHS / EHE / EAC — three distinct, non-interchangeable endpoints
 
@@ -1486,6 +1523,8 @@ measurements. J Occup Environ Hyg 5(10):645–655. doi:10.1080/15459620802310770
 
 ### 4.4.3 Recalibration after the heat-acclimation change [2026-11-01]
 
+*Superseded by §4.4.4 (2026-11-04); kept as history.*
+
 Heat acclimation now acts in JOS-3's sweating and in the CVR module's stroke
 volume (§4.2.1). The reference populations carry partial acclimatisation
 (Boston 0.35, Dam tot Damloop 0.60), so all endpoints were rerun; targets
@@ -1505,6 +1544,37 @@ P95 40.04 (was 40.08), > 40.5 °C 0.44 % (was 0.52–0.54 %). The partially
 acclimatised reference populations now run a little cooler, so the
 intercepts rise again. The first_aid sensitivity table was refreshed. Raw
 results: `intercept_controle_2026-11-01.json`.
+
+### 4.4.4 Recalibration after the wettedness and dripping-sweat change [2026-11-04]
+
+The HUTAS maximum skin wettedness and dripping sweat (§4.2.2) change the core
+temperature in humid heat and the fluid loss everywhere, so all endpoints
+were rerun with unchanged targets. Boston with seed 42 only (author's
+decision of 2026-11-01).
+
+| Endpoint | New | Was (2026-11-01) | Runs |
+|---|---|---|---|
+| ehs (Boston) | −11.082597 | −9.130380 | seed 42 |
+| hospitalisation (DtD) | −10.660990 | −8.490417 | seeds 42 / 43: −10.553809 / −10.768171 |
+| first_aid (DtD) | −9.264148 | −7.262350 | seeds 42 / 43: −9.210233 / −9.318062 |
+| `EAC_LN_K` (DtD) | 3.972239 | 3.891821 | seeds 42 / 43: 3.972088 / 3.972391 |
+
+Population T_rect max, DtD (20–23 °C, RH 73 %, 9.8 MET, acclimatisation 0.60,
+so w_max 0.88): P50 39.75 °C (was 39.64), P95 40.99 (was 40.52), > 40.5 °C
+15.2–16.1 % (was 5.3–5.5 %); end dehydration P50 1.55–1.57 % (was 1.52 %).
+Boston (18–22 °C, RH 55 %, 11 MET, acclimatisation 0.35, so w_max 0.80):
+P50 39.40 °C (was 39.37), P95 40.55 (was 40.04), > 40.5 °C 5.66 % (was
+0.44 %); end dehydration P50 2.55 % (was 2.34 %). In both reference events
+evaporation is limited by the new wettedness cap, so the upper tail of the
+core distribution rises by about 0.5 °C and the intercepts fall by about 2
+to keep the observed rates. The first_aid sensitivity table was refreshed.
+Raw results: `intercept_controle_2026-11-04.json`.
+
+Emmen clinic (B3, cool day, cap not reached): core unchanged (peak +0.34,
+mean +0.20 °C), heart rate +0.4 → +0.5 /min, fluid loss −0.07 → +0.09
+%-point (model median 0.82 → 1.04 % against 1.00 % measured), chest skin
+unchanged. No field data in humid heat exist yet to check the cap itself
+(README, Known issue 13).
 
 ### 4.5 The Thermoregulatory Control Failure (TCF) metric
 

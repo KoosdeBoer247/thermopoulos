@@ -98,12 +98,12 @@ np.random.seed(999); _r2 = H.worker_monte_carlo_adult(_args)
 check("identical water loss for two different RNG states",
       _r1[-1]["water"] == _r2[-1]["water"], f"{_r1[-1]['water']:.1f} / {_r2[-1]['water']:.1f} g")
 
-print("\n   Intercepts after recalibration (2026-11-01)")
-check("ehs intercept -9.130380", abs(H.COLLAPSE_ENDPOINTS["ehs"]["intercept_kal"] - (-9.130380)) < 1e-6)
+print("\n   Intercepts after recalibration (2026-11-04)")
+check("ehs intercept -11.082597", abs(H.COLLAPSE_ENDPOINTS["ehs"]["intercept_kal"] - (-11.082597)) < 1e-6)
 check("ehs target 4.5/10,000 (2026-10-17)", H.COLLAPSE_ENDPOINTS["ehs"]["p_obs"] == 4.5 / 10_000)
 check("ehs source is Breslow 2021 MSSE, not the non-existent AJSM reference",
       "1818-1825" in H.COLLAPSE_ENDPOINTS["ehs"]["source"] and "2696" not in H.COLLAPSE_ENDPOINTS["ehs"]["source"])
-check("hospitalisation intercept -8.490417", abs(H.COLLAPSE_ENDPOINTS["hospitalisation"]["intercept_kal"] - (-8.490417)) < 1e-6)
+check("hospitalisation intercept -10.660990", abs(H.COLLAPSE_ENDPOINTS["hospitalisation"]["intercept_kal"] - (-10.660990)) < 1e-6)
 
 print("\n3. Post-finish after-glow")
 # WBGT 35 -> passive cooling term is exactly 0, so the rise is the after-glow alone.

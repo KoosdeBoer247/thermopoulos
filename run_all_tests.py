@@ -41,6 +41,7 @@ TESTS = [  # (script, slow?)
     ("test_globe_liljegren.py", False),
     ("test_hittegewenning.py", False),
     ("test_wandelaars.py", False),
+    ("test_hutas_zweet.py", False),
     ("test_plausibility_2026_10_14.py", True),
     ("test_individual_engine.py", True),
     ("test_loper.py", True),

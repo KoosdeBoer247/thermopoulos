@@ -182,7 +182,11 @@ def test_unaffected_participants_are_unchanged() -> bool:
         mf_score=0.5, sweat_factor=1.0, thirst_threshold=1.8, kp_pacing=0.1,
         nsaid_gebruik=False, wind_angle_rad=0.0,
     )
+    # [2026-11-04] With dripping sweat this runner now reaches the thirst
+    # threshold and drinks a random 120-180 g, so both runs get the same seed.
+    np.random.seed(11)
     res_a = calculate_indices_jos3_adult(interp_data, 52.0, 5.0, met_ref, 0.5, profile, 0.5, 0.0)
+    np.random.seed(11)
     res_b = calculate_indices_jos3_adult(interp_data, 52.0, 5.0, met_ref, 0.5, profile, 0.5, 0.0)
     ok = _check("no participant froze in this mild scenario (sanity)",
                not any(r.get("stopped") for r in res_a))

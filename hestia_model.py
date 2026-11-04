@@ -928,6 +928,7 @@ def maak_jos3(**kwargs) -> JOS3:
         model.options["ava_zero"] = False
     if JOS3_REST_CORE_SHIFT:
         _shift_rest_core(model, JOS3_REST_CORE_C)
+    jos3_leeftijd.drip_reset()   # [2026-11-04] set-point runs above are not sweat
     return model
 
 
@@ -1342,7 +1343,8 @@ COLLAPSE_ENDPOINTS = {
         'p_obs':        4.5 / 10_000,           # 0.00045
         'n_obs':        4.5,
         'n_participants': 10_000,
-        'intercept_kal': -9.130380,  # [2026-11-01] heat acclimation in JOS-3 sweating + plasma volume; N=5000 seed 42 (was -9.567524)
+        'intercept_kal': -11.082597,  # [2026-11-04] HUTAS max. skin wettedness + dripping sweat; N=5000 seed 42 (was -9.130380)
+                                       # [2026-11-01]: -9.130380; heat acclimation in JOS-3 sweating + plasma volume; N=5000 seed 42 (was -9.567524)
                                        # [2026-10-31]: -9.567524; Liljegren globe + RH_urban; mean of seeds 42/43 (was -8.892508)
                                        # [2026-10-23]: -8.892508; rest core 37.0 + fitness/heat age curve; N=5000 seed 42 (was -9.210416)
                                        # [2026-10-20 evening]: -9.210416; JOS-3 finish zone (5 min walk + 5 min standing), no standing deficit; N=5000 seed 42 (was -9.428980)
@@ -1434,7 +1436,8 @@ COLLAPSE_ENDPOINTS = {
         'p_obs':        50.0 / 35_000,          # 0.00143
         'n_obs':        50.0,
         'n_participants': 35_000,
-        'intercept_kal': -8.490417,  # [2026-11-01] heat acclimation in JOS-3 sweating + plasma volume; mean of N=5000 seeds 42/43 (-8.429063/-8.551770; was -8.677948)
+        'intercept_kal': -10.660990,  # [2026-11-04] HUTAS max. skin wettedness + dripping sweat; mean of N=5000 seeds 42/43 (-10.553809/-10.768171; was -8.490417)
+                                       # [2026-11-01]: -8.490417; heat acclimation in JOS-3 sweating + plasma volume; mean of N=5000 seeds 42/43 (-8.429063/-8.551770; was -8.677948)
                                        # [2026-10-31]: -8.677948; Liljegren globe + RH_urban (was -7.922109)
                                        # [2026-10-23] rest core 37.0 + fitness/heat age curve; mean of N=5000 seeds 42/43 (-7.506197/-7.514014; was -8.080096)
                                        # [2026-10-20 evening]: -8.080096; JOS-3 finish zone + EAC-staan; fresh mean of N=5000 seeds 42/43 (was -8.553130)
@@ -1515,7 +1518,8 @@ COLLAPSE_ENDPOINTS = {
         'p_obs':        150.0 / 35_000,         # 0.00429; central estimate
         'n_obs':        150.0,                   # uncertain: range 100-250
         'n_participants': 35_000,
-        'intercept_kal': -7.262350,  # [2026-11-01] heat acclimation in JOS-3 sweating + plasma volume; mean of N=5000 seeds 42/43 (-7.231262/-7.293437; was -7.471756)
+        'intercept_kal': -9.264148,  # [2026-11-04] HUTAS max. skin wettedness + dripping sweat; mean of N=5000 seeds 42/43 (-9.210233/-9.318062; was -7.262350)
+                                       # [2026-11-01]: -7.262350; heat acclimation in JOS-3 sweating + plasma volume; mean of N=5000 seeds 42/43 (-7.231262/-7.293437; was -7.471756)
                                        # [2026-10-31]: -7.471756; Liljegren globe + RH_urban (was -6.771391)
                                        # [2026-10-23] rest core 37.0 + fitness/heat age curve; mean of N=5000 seeds 42/43 (-6.398324/-6.405754; was -6.926663)
                                        # [2026-10-20 evening]: -6.926663; JOS-3 finish zone + EAC-staan; fresh mean of N=5000 seeds 42/43 (was -7.355230)
@@ -1556,14 +1560,14 @@ COLLAPSE_ENDPOINTS = {
                          '(N=800). The sensitivity table below has NOT been '
                          're-run under sample_pace=True and should not be trusted '
                          'until it is.'),
-        'sensitivity': {   # [2026-11-01] heat acclimation (JOS-3 sweating + plasma volume): mean of N=5000 seeds 42/43, sample_pace=True (whole table refreshed)
-            100: -7.718354,
-            125: -7.467810,
-            150: -7.262350,
-            175: -7.088052,
-            200: -6.936592,
-            225: -6.802597,
-            250: -6.682398,
+        'sensitivity': {   # [2026-11-04] HUTAS max. skin wettedness + dripping sweat: mean of N=5000 seeds 42/43, sample_pace=True (whole table refreshed; 2026-11-01 table had 150: -7.262350)
+            100: -9.789630,
+            125: -9.502286,
+            150: -9.264148,
+            175: -9.060112,
+            200: -8.881173,
+            225: -8.721521,
+            250: -8.577182,
         },
     },
 }
@@ -1912,7 +1916,8 @@ EAC_SIGMA    = 0.35    # spread of individual tolerance (log units), model choic
 EAC_CORE_CAP = 38.3    # degC, upper end of the tested core range (Pearson 2017)
 EAC_BASE_P   = 0.0010  # heat-independent EAC probability per standing runner (model choice)
 EAC_WBGT_VALID_MAX = 28.0  # degC; above this (ACSM black flag, no field data) EAC is reported as "zeer hoog", not as a number. Name kept for compatibility: nothing below it is validated either.
-EAC_LN_K     = 3.891821  # [2026-11-01] heat acclimation (JOS-3 sweating + plasma volume), seeds 42 (3.891628) / 43 (3.892014); was 3.970524
+EAC_LN_K     = 3.972239  # [2026-11-04] HUTAS max. skin wettedness + dripping sweat, seeds 42 (3.972088) / 43 (3.972391); was 3.891821
+# [2026-11-01]: 3.891821, heat acclimation (JOS-3 sweating + plasma volume), seeds 42 (3.891628) / 43 (3.892014); was 3.970524
 # [2026-10-31]: 3.970524; Liljegren globe + RH_urban (was 3.803705)
 # [2026-10-23] was 3.786865 = rest core 37.0 + fitness/heat age curve, seeds 42 (3.786517) / 43 (3.787212); was 3.808518
 # previous: 3.808518 calibrated 2026-10-20 late (core cap 38.3, base 1.0/1000): 1.5/1000 on the DtD reference, N=5000, mean of seeds 42 (3.808401) and 43 (3.808634); was 4.234274 without cap/base
@@ -3770,6 +3775,7 @@ def simulate_post_finish_jos3(jos3_model, cvr_model, weather_steps, *, t_rect_fi
         jos3_model.v = max(0.1, float(wind) + (0.8 if walking else 0.0))
         jos3_model.clo = clo_value
         jos3_model.simulate(times=1, dtime=int(round(dt * 60)))
+        _drip_g_s = jos3_leeftijd.drip_take_rate(1)   # [2026-11-04] dripped sweat
         t_rect = jos3_t_rect(jos3_model)
         # fluid: sweat continues, drinking as in the race
         try:                                    # last step only (dict_results() rebuilds the whole history)
@@ -3778,7 +3784,7 @@ def simulate_post_finish_jos3(jos3_model, cvr_model, weather_steps, *, t_rect_fi
         except Exception:
             _wl = np.asarray(jos3_model.dict_results().get('weight_loss_by_evap_and_res', [0.0]), dtype=float).ravel()
             g_s = float(_wl[-1]) if _wl.size else 0.0
-        water += g_s * 60.0 * dt * sweat_factor
+        water += (g_s + _drip_g_s) * 60.0 * dt * sweat_factor
         if (water / 1000.0) / weight_kg * 100.0 >= thirst_threshold and can_drink:
             water = max(0.0, water - np.random.uniform(120, 180))
             can_drink = False
@@ -4650,6 +4656,8 @@ def calculate_indices_jos3_adult(interp_data, lat, lon, met_value, clo_value,
         jos3_model.clo = clo_value
         if i > 0:
             jos3_model.simulate(times=int(round(dt_i)), dtime=60)
+        # [2026-11-04] dripping sweat (HUTAS), g/s over this step
+        drip_g_per_s = jos3_leeftijd.drip_take_rate(int(round(dt_i)) if i > 0 else 1)
 
         t_rect = jos3_t_rect(jos3_model)  # [2026-10-19] pelvis core (was mean of 17 + 0.5)
 
@@ -4674,6 +4682,7 @@ def calculate_indices_jos3_adult(interp_data, lat, lon, met_value, clo_value,
             _wl = np.asarray(results_jos3['weight_loss_by_evap_and_res'], dtype=float).ravel()
             _n_stap = max(1, int(round(dt_i))) if i > 0 else 1
             water_loss_rate_g_per_s = float(np.mean(_wl[-_n_stap:])) if _wl.size else 0.0
+            water_loss_rate_g_per_s += drip_g_per_s   # [2026-11-04] + dripped sweat
         else:
             metabolic_heat_flux     = jos3_model.par * 58.2
             evap_fraction           = 0.6

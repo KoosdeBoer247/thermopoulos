@@ -2,7 +2,9 @@
 
 1. JOS-3 sweat signal x (1 + 0.20 x acclimatisation): factor, reset, and the
    effect in dry heat (more cooling) and in humid heat (evaporation already at
-   its maximum, so hardly any effect).
+   its maximum, so hardly any effect). [2026-11-04] The humid-heat check of the
+   sweat gain alone runs with the HUTAS wettedness cap switched off; with it on,
+   acclimatisation also raises w_max (0.72 -> 1.0), checked separately.
 2. CVR module: plasma volume +5 % -> stroke volume x 1.05, equation-based
    resting heart rate / 1.05 with the same resting cardiac output; a measured
    resting heart rate is left alone; acclimatisation 0 changes nothing.
@@ -50,9 +52,15 @@ k0, h0, w0 = jos3_run(0.0, 30, 30, 3.0)
 k1, h1, w1 = jos3_run(1.0, 30, 30, 3.0)
 check("dry heat: acclimatised core lower", k1 < k0 - 0.05, f"{k0:.2f} -> {k1:.2f}")
 check("dry heat: acclimatised skin lower", h1 < h0 - 0.1, f"{h0:.2f} -> {h1:.2f}")
+jl.HUTAS_SWEAT_ENABLED = False
 k0h, _, _ = jos3_run(0.0, 30, 80, 1.0)
 k1h, _, _ = jos3_run(1.0, 30, 80, 1.0)
-check("humid heat: evaporation capped, hardly any effect", abs(k1h - k0h) < 0.05, f"{k0h:.2f} -> {k1h:.2f}")
+jl.HUTAS_SWEAT_ENABLED = True
+check("humid heat, sweat gain alone (HUTAS cap off): evaporation capped, hardly any effect",
+      abs(k1h - k0h) < 0.05, f"{k0h:.2f} -> {k1h:.2f}")
+k0w, _, _ = jos3_run(0.0, 30, 80, 1.0)
+k1w, _, _ = jos3_run(1.0, 30, 80, 1.0)
+check("humid heat with HUTAS w_max: acclimatised clearly cooler", k1w < k0w - 0.5, f"{k0w:.2f} -> {k1w:.2f}")
 jl.reset_person()
 
 print("\n2. CVR module: plasma volume")
