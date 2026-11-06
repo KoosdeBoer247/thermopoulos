@@ -907,6 +907,20 @@ def _get_with_rate_limit_retry(url: str, params: Dict, year: int) -> "requests.R
     raise RuntimeError(f"unreachable rate-limit path for {year}")
 
 
+# [2026-11-06] Fixed reanalysis source (author's decision). Without models=
+# the archive serves Open-Meteo's "Best Match": up to and including 2016 that
+# was exactly ERA5-Seamless (temperature/humidity from ERA5-Land, wind from
+# ERA5), from 2017 a different, finer grid (consistent with the ECMWF IFS
+# 9-km archive, which starts in 2017). Measured on 7 locations, 2007-2025
+# (klimatos_bronnen_test.py): a step in 2017 of -0.3 to +1.5 degC in the mean
+# July daily maximum, growing further after 2017 at some sites, which added
+# up to about +1 degC/decade of spurious trend. Open-Meteo itself advises
+# ERA5 or ERA5-Land only for multi-decade climate studies. era5_seamless keeps
+# every year up to 2016 identical and removes the step.
+ARCHIVE_MODEL = "era5_seamless"
+ARCHIVE_CELL_SELECTION = "land"
+
+
 def fetch_hourly_year(lat: float, lon: float, tz: str, year: int) -> pd.DataFrame:
     """
     Fetch one calendar year of hourly historical weather from the Open-Meteo
@@ -935,6 +949,8 @@ def fetch_hourly_year(lat: float, lon: float, tz: str, year: int) -> pd.DataFram
         "hourly": REQUIRED_HOURLY_FIELDS,
         "timezone": "GMT",        # request in GMT/UTC; we convert to local below.
         "wind_speed_unit": "ms",
+        "models": ARCHIVE_MODEL,                  # [2026-11-06] one source for all years
+        "cell_selection": ARCHIVE_CELL_SELECTION,  # was the default; now explicit
     }
 
     last_problem = None

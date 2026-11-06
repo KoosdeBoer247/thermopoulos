@@ -120,6 +120,8 @@ Every file in the release and what it does. History of individual files:
 | `start_thermopoulos.py` | main menu for the whole suite (Dutch): HESTIA, PYROX, Klimatos, FIT files, weather, reports |
 | `rapportpakket.py` | keeps the report data of every calculation (`*_rapportpakket.pkl`) and makes the report later (menu choice R) |
 | `test_aanmelding.py` | sign-up list conversion with invented names/addresses: column recognition, linking, codes, no personal data in outputs, tempo override |
+| `test_klimatos_bron.py` | Klimatos requests one fixed reanalysis source (models=era5_seamless, cell_selection=land) for every year; no network |
+| `klimatos_bronnen_test.py` | diagnostic (needs internet): compares the archive default with ERA5, ERA5-Land and ERA5-Seamless per year for seven locations, 2007–2025 |
 | `test_hutas_zweet.py` | maximum skin wettedness and dripping sweat as in HUTAS: w_max per acclimatisation, whole-body cap, sweating efficiency, effect in cool, dry and humid heat |
 | `test_wandelaars.py` | walkers' population (Four Days Marches type): runners unchanged, sex, age, BMI and VO2max as in the sources |
 | `test_hittegewenning.py` | heat acclimation: JOS-3 sweat gain (dry and humid heat), plasma volume in the CVR module, sweat factor independent of acclimation |

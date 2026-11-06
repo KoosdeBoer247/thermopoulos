@@ -1893,9 +1893,24 @@ on 2026-11-02), the military with load, and individual walking speeds
 
 ### 5.1 Data sources
 
-- **Historical**: Open-Meteo's Archive API (ERA5 reanalysis), no `models=`
-  parameter (KNMI's regional forecast model has no multi-decade historical
-  archive equivalent — irrelevant to this code path).
+- **Historical**: Open-Meteo's Archive API, with `models=era5_seamless` and
+  `cell_selection=land` [2026-11-06, author's decision]: temperature and
+  humidity from ERA5-Land (~11 km), wind and solar radiation from ERA5
+  (~25 km), the same source for every year. Before, no `models=` was given.
+  The archive then serves Open-Meteo's "Best Match", which a test on seven
+  locations (De Bilt, Den Helder, Scheveningen, Enkhuizen, Falmouth MA,
+  Chennai, Hyderabad; 2007–2025; `klimatos_bronnen_test.py`) showed to be
+  exactly ERA5-Seamless up to and including 2016 and a different, finer grid
+  from 2017 (consistent with the ECMWF IFS 9-km archive that starts in 2017;
+  not confirmed by Open-Meteo). That gave a step in 2017 in the mean July
+  daily maximum of −0.3 to +1.5 °C, growing further after 2017 at Falmouth,
+  Chennai and Hyderabad, and about +1 °C per decade of spurious trend over
+  2007–2025 at Den Helder and Falmouth. Open-Meteo advises ERA5 or
+  ERA5-Land only for multi-decade climate studies. With the fixed source,
+  results up to 2016 are unchanged; results that include 2017 onwards change
+  and should be rerun. The level bias near large water surfaces remains
+  (README, Known issue 14). KNMI's regional forecast model has no
+  multi-decade historical archive and is not used on this path.
 - **Forecast** (used only by the event-window's near-term context, not the
   historical trend): Open-Meteo's Forecast API, explicitly requesting
   `models=knmi_seamless` for higher resolution over the Netherlands/Belgium

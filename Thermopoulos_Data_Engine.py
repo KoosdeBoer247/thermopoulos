@@ -331,6 +331,11 @@ def fetch_historical_data(lat: float, lon: float, tz: str,
         "wind_speed_unit": "ms",  # explicit: Open-Meteo default is km/h; all
                                   # downstream code (wind_speed_at_height, globe,
                                   # MRT, JOS-3, UTCI) expects m/s. (v3.1 fix)
+        # [2026-11-06] Note: without 'models' the archive no longer serves
+        # plain ERA5 but Open-Meteo's "Best Match", which up to 2016 equals
+        # era5_seamless and from 2017 switches to a finer source (see
+        # Klimatos_ClimateShift.ARCHIVE_MODEL and klimatos_bronnen_test.py).
+        # Fixing era5_seamless here keeps every year on one source.
         # [fix] Without an explicit 'models' parameter, this endpoint used
         # plain ERA5 (0.25° / ~25 km) -- too coarse for narrow coastal strips
         # (e.g. Woods Hole/Falmouth), where a grid cell falls largely over

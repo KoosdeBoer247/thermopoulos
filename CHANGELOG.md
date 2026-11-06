@@ -11,6 +11,20 @@ results of individual field-test participants by group-level statements.
 ## [2026.10.27] Release
 
 Second public release. Contains everything since 2026.10.25 (entries below), and:
+- **Klimatos: one fixed reanalysis source** (author's decision, 2026-11-06).
+  The archive request now sends `models=era5_seamless` and
+  `cell_selection=land` (`ARCHIVE_MODEL`). Without `models=` Open-Meteo serves
+  "Best Match": measured on seven locations for 2007-2025
+  (`klimatos_bronnen_test.py`, run by the author), that was exactly
+  ERA5-Seamless up to 2016 and a different, finer grid from 2017, with a step
+  of -0.3 to +1.5 degC in the mean July daily maximum and about +1 degC per
+  decade of spurious trend at Den Helder and Falmouth. Results up to 2016 are
+  unchanged; Klimatos results that include 2017 onwards should be rerun.
+  New test `test_klimatos_bron.py`. Data Engine: outdated code note on the
+  archive default corrected (no change in results). README Known issue 14:
+  temperature too low near large water surfaces (Den Helder annual maximum
+  4-6 degC below the finer source); comparison with KNMI stations planned.
+  TECHNICAL_REFERENCE §5.1.
 - **Maximum skin wettedness and dripping sweat as in HUTAS** (author's
   decision, 2026-11-04, after a comparison of HESTIA with HUTAS, N. Ravanelli,
   nicholasravanelli.ca/hutas). In JOS-3's evaporation (`jos3_leeftijd.py`):
