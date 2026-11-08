@@ -3875,36 +3875,11 @@ def print_sensitivity(sens: pd.DataFrame, latest_window, trend_period, grid_info
 def plot_sensitivity(sens: pd.DataFrame, latest_window, trend_period, city_name: str,
                      outpath: str) -> None:
     """Small multiples: per key outcome one dot per scenario, the neutral value
-    as a vertical line. Scenarios top to bottom in their defined order."""
-    keys = _key_rows(sens, latest_window, trend_period)
-    if not keys:
-        return
-    names = list(dict.fromkeys(sens["scenario"]))
-    ncol = 2
-    nrow = int(np.ceil(len(keys) / ncol))
-    fig, axes = plt.subplots(nrow, ncol, figsize=(12, 2.0 + 0.32 * len(names) * nrow), squeeze=False)
-    y = np.arange(len(names))[::-1]
-    for ax, (g, o) in zip(axes.ravel(), keys):
-        d = sens[(sens["group"] == g) & (sens["outcome"] == o)].set_index("scenario").reindex(names)
-        unit = d["unit"].dropna().iloc[0]
-        scale, u = (100.0, "%") if unit == "fraction" else (1.0, unit)
-        v = d["value"].to_numpy(dtype=float) * scale
-        nv = float(d["neutral"].dropna().iloc[0]) * scale
-        ax.axvline(nv, color="0.35", lw=1.0, ls="--", zorder=1)
-        ax.scatter(v, y, s=28, color="#1f6fb2", zorder=2)
-        ax.set_yticks(y)
-        ax.set_yticklabels(names, fontsize=8)
-        import textwrap
-        ax.set_title("\n".join(textwrap.wrap(f"{g}: {o}", 58)), fontsize=9, loc="left")
-        ax.set_xlabel(u, fontsize=8)
-        ax.tick_params(axis="x", labelsize=8)
-        ax.grid(axis="x", color="0.9")
-    for ax in axes.ravel()[len(keys):]:
-        ax.axis("off")
-    fig.suptitle(f"{city_name}: ERA5 sensitivity (dashed = neutral, ERA5 as delivered)", fontsize=11)
-    fig.tight_layout(rect=(0, 0, 1, 0.97))
-    fig.savefig(outpath, dpi=150)
-    plt.close(fig)
+    as a vertical line (gevoeligheid.plot_dots, shared with run_gevoeligheid).
+    Outcomes without any value (e.g. a trend over too few years) are left out."""
+    from gevoeligheid import plot_dots
+    plot_dots(sens, _key_rows(sens, latest_window, trend_period),
+              f"{city_name}: ERA5 sensitivity (dashed = neutral, ERA5 as delivered)", outpath)
 
 
 def save_results(annual: pd.DataFrame, stats_by_var: Dict[str, pd.DataFrame],

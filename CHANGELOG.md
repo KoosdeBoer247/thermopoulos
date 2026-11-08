@@ -29,6 +29,16 @@ results of individual field-test participants by group-level statements.
   backends (HeatLens). Choice 6 also starts Klimatos with its sensitivity
   question. The own scenario list is now `gevoeligheid_scenarios.json` for
   all three models. Documented in `TECHNICAL_REFERENCE.md` §5.10.
+- **Checked with real ERA5** (2026-11-08): Klimatos for Den Helder, 2022–2024
+  (the shared address of the test environment got about one archive request
+  per quarter of an hour, so not the full 1951–2025): the annual table is
+  identical with and without the 13 scenarios, the neutral scenario equals
+  the main run, T+2 shifts T_air_max by exactly 2.0 °C, grid cell 53.0 N
+  4.8 E at 5.5 km; 0.2 s per year per scenario. HESTIA and PYROX checked on
+  the DtD 2024 ERA5 hindcast (start menu 6 end to end, 13 scenarios). Found
+  and fixed: the sensitivity figure failed when an outcome had no value at
+  all (a trend over too few years); `plot_sensitivity()` now uses the shared
+  `gevoeligheid.plot_dots()`, which leaves such outcomes out.
 - **Klimatos: ERA5 sensitivity analysis** (author's decision, 2026-11-07:
   Klimatos first, because it rests entirely on ERA5 with no local anchor that
   absorbs a systematic error). New module `gevoeligheid.py`: hypothetical,

@@ -411,7 +411,9 @@ def plot_dots(table: pd.DataFrame, keys: List, title: str, outpath) -> Optional[
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    present = set(zip(table["group"], table["outcome"]))
+    # only outcomes with at least one value (a trend over too few years is all NaN)
+    valid = table.dropna(subset=["value"])
+    present = set(zip(valid["group"], valid["outcome"]))
     keys = [k for k in keys if k in present]
     if not keys:
         return None
@@ -422,7 +424,7 @@ def plot_dots(table: pd.DataFrame, keys: List, title: str, outpath) -> Optional[
     y = np.arange(len(names))[::-1]
     for ax, (g, o) in zip(axes.ravel(), keys):
         d = table[(table["group"] == g) & (table["outcome"] == o)].set_index("scenario").reindex(names)
-        unit = d["unit"].dropna().iloc[0]
+        unit = d["unit"].dropna().iloc[0] if d["unit"].notna().any() else ""
         scale, u = (100.0, "%") if unit == "fraction" else (1.0, unit)
         v = d["value"].to_numpy(dtype=float) * scale
         nv = d["neutral"].dropna()
