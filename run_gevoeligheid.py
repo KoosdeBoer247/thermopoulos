@@ -186,12 +186,17 @@ def run_pyrox_scenarios(base_path, scenarios: List[gv.Scenario], sheet: str,
             label = TARGET_GROUPS[name].display_name
             rows.append({"scenario": sc.name, "group": label, "outcome": "peak strain",
                          "unit": "strain", "value": float(res["peak_strain"])})
-            rows.append({"scenario": sc.name, "group": label, "outcome": "days at critical strain",
-                         "unit": "days", "value": float(res["critical_strain"])})
-            for k, lab in (("caution_day", "first caution day"), ("danger_day", "first danger day"),
-                           ("emergency_day", "first emergency day")):
+            # critical_strain is the group's fixed ceiling (1/strength), not a count
+            rows.append({"scenario": sc.name, "group": label, "outcome": "peak strain, share of critical strain",
+                         "unit": "fraction", "value": float(res["peak_strain"]) / float(res["critical_strain"])})
+            rows.append({"scenario": sc.name, "group": label, "outcome": "highest final risk",
+                         "unit": "risk", "value": float(np.nanmax(np.asarray(res["final_risk"], dtype=float)))})
+            # day index of the strain trajectory: 0 = initial state, k = after day k
+            for k, lab in (("caution_day", "first caution day (index, 0 = start)"),
+                           ("danger_day", "first danger day (index, 0 = start)"),
+                           ("emergency_day", "first emergency day (index, 0 = start)")):
                 v = res.get(k)
-                rows.append({"scenario": sc.name, "group": label, "outcome": lab, "unit": "day",
+                rows.append({"scenario": sc.name, "group": label, "outcome": lab, "unit": "day index",
                              "value": float(v) if v is not None else np.nan})
         rows += weather_rows(files[sc.name], sheet, sc.name)
     return gv.compare_to_neutral(rows, neutral_name=neutral)

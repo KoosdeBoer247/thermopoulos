@@ -39,6 +39,11 @@ results of individual field-test participants by group-level statements.
   and fixed: the sensitivity figure failed when an outcome had no value at
   all (a trend over too few years); `plot_sensitivity()` now uses the shared
   `gevoeligheid.plot_dots()`, which leaves such outcomes out.
+- **PYROX output in choice 6 corrected** (2026-11-08): the row "days at
+  critical strain" showed the group's fixed critical strain (1/strength,
+  2.0), not a number of days. Replaced by the peak strain as a share of the
+  critical strain and the highest final risk; the caution/danger/emergency
+  days are now labelled as trajectory indices (0 = initial state).
 - **Klimatos: ERA5 sensitivity analysis** (author's decision, 2026-11-07:
   Klimatos first, because it rests entirely on ERA5 with no local anchor that
   absorbs a systematic error). New module `gevoeligheid.py`: hypothetical,
