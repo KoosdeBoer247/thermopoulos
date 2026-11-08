@@ -2086,6 +2086,101 @@ roughly 5-30 %; constant RH is much closer to that than constant vapour
 25 − 6 − `LIVEABILITY_PROJ_STORE_MARGIN` (12) °C; a larger shift prints a
 warning. The least-squares extension of the counts remains as a fallback.
 
+### 5.10 ERA5 sensitivity analysis (2026-11-07/08, author's decision)
+
+**Question.** Every result of the suite rests on ERA5 reanalysis weather.
+ERA5(-Land) can be off by several degrees at a given place (Known issue 14:
+4–6 °C in the annual maximum at Den Helder; 3–4 °C at Falmouth), and studies
+report daytime maxima too low and night-time minima too high, plus humidity
+biases, in tropical, coastal and urban settings. The sensitivity analysis
+asks: *if ERA5 were this far off here, how much would each result move?* It
+corrects nothing. Klimatos came first (author's decision, 2026-11-07): it
+rests entirely on ERA5 and has no local anchor, whereas HESTIA's endpoints
+and PYROX's shape are calibrated on hindcast weather of real events, which
+absorbs part of a constant bias at those places.
+
+**Where the disturbance sits.** On the RAW archive columns (`T_air_rural`,
+`RH`, `wind_10m`, `solar_radiation`; pressure and cloud unchanged), BEFORE
+the thermal pipeline. The unchanged `process_weather_data()` then recomputes
+UHI, `RH_urban`, 1.5 m wind, globe temperature, MRT, wet bulb, WBGT and UTCI,
+so no derived quantity is disturbed in isolation. HESTIA reads the derived
+columns from the file, which is why changing only an air-temperature column
+would give inconsistent input.
+
+**Temperature disturbance per hour** (`gevoeligheid.delta_t`):
+
+    dT(t) = dT_night + (dT_day - dT_night)·s(t) + P_coast·sin h(t)
+    s(t)  = max(0, sin h(t)) / max over that local day of sin h
+
+h = solar elevation (the pipeline's own). s = 1 at each day's solar noon,
+0 at night. The last term is exactly the Data Engine's coastal correction
+shape (`COASTAL_CORRECTION_PEAK_C · sin h`, not normalised per day); the
+test suite checks that the scenario "coastal DE (3.0)" gives the Data
+Engine's corrected temperature and RH to 0.0.
+
+**Humidity.** Default `constant_dewpoint`: the dew point from the original T
+and RH, plus dTd, gives the RH at the new T (Magnus a = 17.62, b = 243.12,
+the Data Engine's constants). This is the same physics as the coastal
+correction and the UHI. Hours where RH reaches 100 % are counted
+(`rh_clipped_hours`). `constant_rh` leaves RH as it is (dTd must be 0).
+Note: Klimatos' own climate projections use `constant_rh` for warming
+(§5.9); a measurement bias and a warmer climate are different questions.
+
+**Scenarios** (`STANDARD_SET`, `COASTAL_SET`): neutral; uniform −1, +1, +2,
++3 °C; day +2 / night −1 °C; dew point +2 °C; wind ×0.5; solar ×1.2; for
+coastal sites only, the coastal shape with peak 3.0 °C (Data Engine) and
+2, 4, 6 °C. The coastal correction stays a scenario, not a default, until
+the KNMI station comparison (De Kooy, De Bilt, an IJsselmeer station). An own
+list: `gevoeligheid_scenarios.json` (fields of `Scenario`; neutral added).
+
+**Klimatos** (`build_annual_maxima(..., scenarios, scenario_records,
+grid_info)`). Each year is downloaded once; the raw columns are kept before
+`process_weather_data()` adds derived columns; the neutral run is exactly as
+before (checked bit-identical); per scenario `disturb_raw()` →
+`process_weather_data()` → `_year_record()` (the unchanged per-year
+summary). `analyze_sensitivity()` reports per scenario the same outcomes as
+the neutral run (window means, change vs reference, Theil-Sen trend,
+threshold probabilities GEV and observed, ERF admissions, HEAT-Lim hours,
+event window) with the difference to neutral; `sensitivity_range_table()`
+the lowest and highest value per outcome. Output: sheets `Sensitivity`,
+`Sensitivity_Range`, `Sensitivity_Scenarios`, `plot_sensitivity.png`,
+report section 10. The EHS evolution and the liveability projection run for
+the neutral scenario only. Klimatos also reports, in every run, the grid
+cell the archive used and its distance (`report_grid_cell()`); no coastal
+correction is applied.
+
+**HESTIA and PYROX** (`run_gevoeligheid.py`, start menu 6).
+`make_scenario_file()` writes the chosen Data Engine file again with every
+sheet disturbed (`disturb_engine_sheet()`: disturb the raw columns, rerun the
+Data Engine's `process_weather_data()` with `coastal_active=False`, because
+a coastal correction is already inside `T_air_rural`, and keep the
+`coastal_correction_*` columns). Files go to `scenarios/<base file>/`, so the
+newest-file searches never pick one. Metadata adds the scenario name,
+parameters, base file and "hypothetical, not a correction". HESTIA runs
+`monte_carlo_adult()` with identical settings and a fixed seed (the
+population is drawn from the seed and each participant's own draws are
+seeded from its profile, so the participants are the same in every
+scenario); PYROX runs `assess_population()`. PYROX starts in equilibrium
+with the first day's load; under a scenario that first day shifts too
+(`initial='follow'`, default: if ERA5 is too cool here, the population was
+also used to the warmer weather). `initial='neutral'` holds it at the
+neutral first day and shows the effect of the warmer heatwave alone. PYROX
+does not use solar radiation, so a radiation scenario leaves it unchanged
+by design. Output: `Gevoeligheid_<model>_<place>_<time>.xlsx` (Scenarios,
+Weather, Results, Metadata) and `.png`.
+
+**Backends.** `disturb_engine_sheet(sheet, meta, scenario)` works on a frame
+as read from the file (local time) or as held in memory (zoned index), and
+returns the same columns plus `scenario_dT`.
+
+**Reading the results.** Under a uniform shift the Theil-Sen trend of
+T_air_max does not change (tested to 0.0) and anomalies cancel; outcomes with
+an absolute threshold (35/40 °C probabilities, Vanos wet-bulb limits, ERF
+admissions above 21 °C, HEAT-Lim hours, EHS rates) move strongly. Wet bulb
+responds weakly to T at a fixed dew point but strongly to dTd. A constant
+bias is all this tests; a bias that drifts over the years would need a
+dT-per-decade parameter.
+
 ---
 
 ## 6. Key equations quick-reference

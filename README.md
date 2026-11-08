@@ -128,7 +128,7 @@ runners, a reference pill for part of them, and preferably a warm day.
 | 11 | **Radiation simplified.** Globe temperature follows the Liljegren et al. (2008) energy balance with ground at air temperature, a clear-sky atmosphere for long-wave radiation, and no shade. | Hot ground (sand, asphalt) and shaded courses are not represented; long-wave load under cloud slightly low. |
 | 12 | **Walkers' population: risk calibrated on running events.** The walkers' option draws age, BMI and VO2max from Four Days Marches data, but the collapse-risk intercepts come from the Boston Marathon and the Dam tot Damloop. Walking speed is the same for everyone (no individual walking pace). | Absolute risk numbers for walking events are more uncertain than for runs; the physiology itself (from the MET of the walk) is the same. |
 | 13 | **Maximum skin wettedness not yet tested in humid heat.** The HUTAS limit (0.72 unacclimatised to 1.0 fully acclimatised) caps evaporation; in the humid reference events (Dam tot Damloop 2024, Boston 2017) it raises the population's peak core (share above 40.5 °C about 16 % and 6 %). The only field comparison (Emmen) was cool, where the limit does not bind. | Core results in warm, humid weather for non-acclimatised people rest on HUTAS values not yet checked against measurements; the risk calibration absorbs the shift at the two reference events. |
-| 14 | **Temperature too low near large water surfaces.** ERA5-Land cells that contain much sea or lake water read too cool on warm days: at Den Helder the annual maximum is 4–6 °C below a finer (9 km) source and July daily maxima 1.1–2.3 °C; at Falmouth 0.6–1.6 °C; at the IJsselmeer 0.1–0.7 °C; at Scheveningen and De Bilt hardly any difference (test of 2026-11-06). The Data Engine's coastal correction (peak 3 °C) is validated on one station and one day; Klimatos has none. | Absolute results (HESTIA events, Klimatos HEAT-Lim hours and event windows) for sites directly on the sea or a large lake may be too favourable. Trends are hardly affected now that Klimatos uses one source. Planned: comparison with KNMI stations (De Kooy, De Bilt, an IJsselmeer station) and a check on the water share of the selected cell. |
+| 14 | **Temperature too low near large water surfaces.** ERA5-Land cells that contain much sea or lake water read too cool on warm days: at Den Helder the annual maximum is 4–6 °C below a finer (9 km) source and July daily maxima 1.1–2.3 °C; at Falmouth 0.6–1.6 °C; at the IJsselmeer 0.1–0.7 °C; at Scheveningen and De Bilt hardly any difference (test of 2026-11-06). The Data Engine's coastal correction (peak 3 °C) is validated on one station and one day; Klimatos has none. | Absolute results (HESTIA events, Klimatos HEAT-Lim hours and event windows) for sites directly on the sea or a large lake may be too favourable. Trends are hardly affected now that Klimatos uses one source. Planned: comparison with KNMI stations (De Kooy, De Bilt, an IJsselmeer station) and a check on the water share of the selected cell. Klimatos now reports the grid cell it used and its distance, and the ERA5 sensitivity analysis (start menu choice 6, `gevoeligheid.py`) shows how much each HESTIA, PYROX or Klimatos result moves under coastal and other scenarios. |
 
 `TECHNICAL_REFERENCE.md` §8 and §8a and `CHANGELOG.md` give the full history,
 including errors found and fixed.
@@ -177,7 +177,8 @@ Spyder and press F5). It offers, in Dutch:
 | 2 | PYROX | heat strain of population groups during a heatwave |
 | 3 | Klimatos | climate trend around a fixed date or event (fetches its own weather) |
 | 4 | FIT files | recompute one run from a FIT file with HESTIA, or run a Thermo Clinic (a → d); G = turn an organiser's sign-up list + FIT files into codes automatically |
-| 5 | Weather | Data Engine forecast or archive weather, needed for 1, 2 and 4 |
+| 5 | Weather | Data Engine forecast or archive weather, needed for 1, 2, 4 and 6 |
+| 6 | Sensitivity | how much a HESTIA, PYROX or Klimatos result depends on the ERA5 input: the same run under hypothetical weather scenarios (see below) |
 | R | Report | make a report from an earlier calculation |
 
 After every calculation the suite asks whether to make the report now; the
@@ -195,6 +196,7 @@ python Klimatos_ClimateShift.py                 # climate trends (fetches its ow
 python fit_loop.py                              # one run from a FIT file, recomputed with HESTIA
 python groep_lopers.py                          # a list of known runners through a chosen run (what-if)
 python clinic_validatie.py                      # Thermo Clinic validation chain
+python run_gevoeligheid.py                      # HESTIA or PYROX under ERA5 sensitivity scenarios
 python hestia_console.py                        # the engine's own interactive console
 ```
 
@@ -203,6 +205,23 @@ Thermopoulos_Data_Engine.py ─► Thermopoulos_*.xlsx ─► thermopoulos_loade
                                                                             └─► run_hestia ─► HESTIA
 Klimatos_ClimateShift.py ─► own weather fetch ─► hestia_bridge ─► HESTIA
 ```
+
+**ERA5 sensitivity (choice 6).** Every result rests on ERA5 reanalysis
+weather, which can be several degrees off at a given place (coast, city,
+regions with few stations). Choice 6 runs the same calculation again under
+hypothetical scenarios: uniform -1 to +3 °C, warmer by day and cooler at
+night, a higher dew point, less wind, more sun, and for coastal sites the
+Data Engine's coastal shape with a midday peak of 2, 3, 4 or 6 °C. The raw
+weather is shifted *before* the thermal calculations (dew point kept), so
+UHI, globe temperature, MRT, wet bulb, WBGT and UTCI all follow; the
+physiology, calibration and thresholds are untouched. The neutral run (ERA5
+as delivered) remains the result; the scenarios are labelled hypothetical,
+not corrections. HESTIA uses the same virtual participants in every scenario
+(fixed seed). Output: `Gevoeligheid_<model>_<place>_<time>.xlsx` + `.png`
+(HESTIA, PYROX), or sheets `Sensitivity*`, a figure and report section 10
+(Klimatos). An own scenario list can be put in `gevoeligheid_scenarios.json`.
+For a backend, `gevoeligheid.disturb_engine_sheet(sheet, meta, scenario)`
+does the same in memory. Details: `TECHNICAL_REFERENCE.md` §5.10.
 
 **Reproducibility.** Monte Carlo runs use seed 42 unless you give another
 seed (type `random` at the prompt for a fresh draw). Each participant gets its
