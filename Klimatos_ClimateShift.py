@@ -961,8 +961,7 @@ def fetch_hourly_year(lat: float, lon: float, tz: str, year: int) -> pd.DataFram
                               # nanmax; only near-total null contamination is worth retrying for.
     for attempt in range(1, FETCH_MAX_RETRIES + 1):
         response = _get_with_rate_limit_retry(url, params, year)
-        reply = response.json()
-        candidate = reply["hourly"]
+        candidate = response.json()["hourly"]
 
         n_time = len(candidate.get("time", []) or [])
         bad_fields = []
@@ -1014,12 +1013,6 @@ def fetch_hourly_year(lat: float, lon: float, tz: str, year: int) -> pd.DataFram
         "shortwave_radiation": "solar_radiation",
         "cloud_cover": "cloud_cover",
     }, inplace=True)
-    # [2026-11-07] Which grid cell did the archive actually use? Kept with the
-    # frame (pandas attrs) so build_annual_maxima() can report its position and
-    # its distance to the requested place -- see report_grid_cell().
-    df.attrs["grid_latitude"] = reply.get("latitude")
-    df.attrs["grid_longitude"] = reply.get("longitude")
-    df.attrs["grid_elevation"] = reply.get("elevation")
     return df
 
 # =============================================================================
@@ -1409,105 +1402,12 @@ def event_window_metrics(proc: pd.DataFrame, year: int, tz: str) -> Dict:
     return out
 
 
-def _year_record(proc: pd.DataFrame, year: int, tz: str) -> Dict:
-    """[2026-11-07] The per-year record of one processed year (annual maxima,
-    heat-admission indices, liveability, event window). Moved out of
-    build_annual_maxima() unchanged, so the neutral run and every
-    sensitivity scenario are summarised by exactly the same code."""
-    n_hours = len(proc)
-    rec = {
-        "year": year,
-        "T_air_max": float(np.nanmax(proc["T_air_urban"].values)),
-        "WBT_max":   float(np.nanmax(proc["T_wetbulb"].values)),
-        "WBGT_max":  float(np.nanmax(proc["WBGT"].values)),
-        "UTCI_max":  float(np.nanmax(proc["UTCI"].values)),
-        "n_hours": n_hours,
-        "valid": n_hours >= MIN_DAYS_PER_YEAR * 24 * 0.9,
-    }
-    if ENABLE_ADMISSIONS_ERF:
-        # Daily-max air temperature over the ERF months (regional/rural basis,
-        # matching the station calibration of the van Loenhout ERF).
-        tair = proc["T_air_rural"]
-        tair = tair[(tair.index.month >= ERF_MONTHS[0]) &
-                    (tair.index.month <= ERF_MONTHS[1])]
-        daily_max = tair.resample("D").max().dropna()
-        hdd, hai, n_over = heat_admission_indices(daily_max)
-        rec["heat_degree_days"] = hdd     # beta-free: sum max(0, Tmax - MMT)
-        rec["heat_admit_index"] = hai      # ERF: sum (exp(beta*excess) - 1)
-        rec["n_days_over_mmt"] = n_over
-    if ENABLE_LIVEABILITY and HEATLIM_AVAILABLE:
-        rec.update(liveability_year_metrics(proc))
-        rec["T_air_warm_season"] = warm_season_tmax(proc["T_air_rural"])
-    if ENABLE_EVENT_WINDOW:
-        # Same processed year, no extra fetch -- see event_window_metrics().
-        rec.update(event_window_metrics(proc, year, tz))
-    return rec
-
-
-def report_grid_cell(lat: float, lon: float, raw: pd.DataFrame) -> Dict:
-    """[2026-11-07] Position of the grid cell the archive used and its distance
-    to the requested place (the same check the Data Engine makes before its
-    coastal correction). Klimatos applies no coastal correction; this only
-    REPORTS, so a reader can see whether the known bias near large water
-    surfaces (README Known issue 14) may apply."""
-    from gevoeligheid import haversine_km
-    glat, glon = raw.attrs.get("grid_latitude"), raw.attrs.get("grid_longitude")
-    info = {"grid_model": ARCHIVE_MODEL, "grid_cell_selection": ARCHIVE_CELL_SELECTION,
-            "grid_latitude": glat, "grid_longitude": glon,
-            "grid_elevation": raw.attrs.get("grid_elevation"), "grid_distance_km": np.nan}
-    if glat is not None and glon is not None:
-        info["grid_distance_km"] = round(haversine_km(lat, lon, float(glat), float(glon)), 2)
-    return info
-
-
-def _scenario_years(raw_cols: pd.DataFrame, proc_neutral: pd.DataFrame,
-                    rec_neutral: Dict, year: int, city: Dict, lat: float, lon: float, tz: str, apply_uhi: bool,
-                    scenarios: List, scenario_records: Dict[str, List[Dict]]) -> None:
-    """[2026-11-07] Process one fetched year once per sensitivity scenario and
-    append each scenario's _year_record() to scenario_records[name]. The
-    solar elevation of the neutral run is reused (it does not depend on the
-    weather), so dT(t) has the same day shape as the pipeline's own sun."""
-    from gevoeligheid import disturb_raw
-    base = raw_cols.copy()
-    base.attrs = dict(raw_cols.attrs)
-    base["solar_elevation"] = proc_neutral["solar_elevation"].to_numpy()
-    for sc in scenarios:
-        recs = scenario_records.setdefault(sc.name, [])
-        try:
-            if sc.is_neutral():
-                rec = dict(rec_neutral)
-            else:
-                d = disturb_raw(base, sc, lat, lon, tz)
-                n_clip = int(d["scenario_rh_clip"].sum())
-                d = d.drop(columns=["scenario_dT", "scenario_rh_clip"])
-                p = process_weather_data(d, city, lat, lon, tz, apply_uhi=apply_uhi)
-                rec = _year_record(p, year, tz)
-                rec["rh_clipped_hours"] = n_clip
-            recs.append(rec)
-        except Exception as e:   # one failing scenario must not stop the run
-            logger.warning(f"Year {year}, scenario {sc.name!r} failed: {e}")
-
-
 def build_annual_maxima(lat: float, lon: float, tz: str, city: Dict,
                         start_year: int, end_year: int,
                         apply_uhi: bool = APPLY_UHI,
                         event_slices: Optional[Dict[int, pd.DataFrame]] = None,
-                        liveability_raw: Optional[Dict[int, pd.DataFrame]] = None,
-                        scenarios: Optional[List] = None,
-                        scenario_records: Optional[Dict[str, List[Dict]]] = None,
-                        grid_info: Optional[Dict] = None) -> pd.DataFrame:
+                        liveability_raw: Optional[Dict[int, pd.DataFrame]] = None) -> pd.DataFrame:
     """
-    [2026-11-07] ERA5 SENSITIVITY. If `scenarios` (a list of
-    gevoeligheid.Scenario) and `scenario_records` (a dict) are given, every
-    fetched year is ALSO processed once per non-neutral scenario: the raw
-    archive columns are disturbed (gevoeligheid.disturb_raw), the same
-    process_weather_data() runs on them, and the same _year_record() summarises
-    them. scenario_records[name] receives that scenario's records, in place.
-    No extra API call: each year is fetched once. The neutral run and its
-    return value are exactly what they were without scenarios.
-    If `grid_info` (a dict) is given, it is filled with the position of the
-    grid cell the archive used (report_grid_cell), from the first year.
-
     [2026-10-26] If `liveability_raw` is given (a dict), it is filled in place
     with the raw hourly rows of each EVENT_TREND_PERIOD year that could become
     a liveability hour after warming (see LIVEABILITY_PROJ_STORE_MARGIN) -- the
@@ -1547,25 +1447,39 @@ def build_annual_maxima(lat: float, lon: float, tz: str, city: Dict,
             print(label, end="", flush=True)
         try:
             raw = fetch_hourly_year(lat, lon, tz, year)
-            if grid_info is not None and not grid_info:
-                grid_info.update(report_grid_cell(lat, lon, raw))
-            # The raw archive columns, kept BEFORE process_weather_data() runs:
-            # that function adds its derived columns to the frame it is given.
-            raw_cols = None
-            if scenarios and scenario_records is not None:
-                from gevoeligheid import RAW_COLUMNS
-                raw_cols = raw[RAW_COLUMNS].copy()
-                raw_cols.attrs = dict(raw.attrs)
             proc = process_weather_data(raw, city, lat, lon, tz, apply_uhi=apply_uhi)
-            rec = _year_record(proc, year, tz)
-            if (ENABLE_LIVEABILITY and HEATLIM_AVAILABLE and liveability_raw is not None
-                    and EVENT_TREND_PERIOD[0] <= year <= EVENT_TREND_PERIOD[1]):
-                t_keep = (LIVEABILITY_TA_MIN - LIVEABILITY_PROJ_UHI_MAX
-                          - LIVEABILITY_PROJ_STORE_MARGIN)
-                liveability_raw[year] = raw.loc[raw["T_air_rural"] >= t_keep].copy()
-            if raw_cols is not None:
-                _scenario_years(raw_cols, proc, rec, year, city, lat, lon, tz, apply_uhi,
-                                scenarios, scenario_records)
+            n_hours = len(proc)
+            rec = {
+                "year": year,
+                "T_air_max": float(np.nanmax(proc["T_air_urban"].values)),
+                "WBT_max":   float(np.nanmax(proc["T_wetbulb"].values)),
+                "WBGT_max":  float(np.nanmax(proc["WBGT"].values)),
+                "UTCI_max":  float(np.nanmax(proc["UTCI"].values)),
+                "n_hours": n_hours,
+                "valid": n_hours >= MIN_DAYS_PER_YEAR * 24 * 0.9,
+            }
+            if ENABLE_ADMISSIONS_ERF:
+                # Daily-max air temperature over the ERF months (regional/rural basis,
+                # matching the station calibration of the van Loenhout ERF).
+                tair = proc["T_air_rural"]
+                tair = tair[(tair.index.month >= ERF_MONTHS[0]) &
+                            (tair.index.month <= ERF_MONTHS[1])]
+                daily_max = tair.resample("D").max().dropna()
+                hdd, hai, n_over = heat_admission_indices(daily_max)
+                rec["heat_degree_days"] = hdd     # beta-free: sum max(0, Tmax - MMT)
+                rec["heat_admit_index"] = hai      # ERF: sum (exp(beta*excess) - 1)
+                rec["n_days_over_mmt"] = n_over
+            if ENABLE_LIVEABILITY and HEATLIM_AVAILABLE:
+                rec.update(liveability_year_metrics(proc))
+                rec["T_air_warm_season"] = warm_season_tmax(proc["T_air_rural"])
+                if (liveability_raw is not None
+                        and EVENT_TREND_PERIOD[0] <= year <= EVENT_TREND_PERIOD[1]):
+                    t_keep = (LIVEABILITY_TA_MIN - LIVEABILITY_PROJ_UHI_MAX
+                              - LIVEABILITY_PROJ_STORE_MARGIN)
+                    liveability_raw[year] = raw.loc[raw["T_air_rural"] >= t_keep].copy()
+            if ENABLE_EVENT_WINDOW:
+                # Same processed year, no extra fetch -- see event_window_metrics().
+                rec.update(event_window_metrics(proc, year, tz))
             if event_slices is not None:
                 # A generous margin around the event window: the EHS module may
                 # start the event earlier (adaptation scenario) than the
@@ -3714,174 +3628,6 @@ def plot_liveability_matrix(annual: pd.DataFrame, ref_window: Tuple[int, int],
 # Excel export
 # =============================================================================
 
-# =============================================================================
-# [2026-11-07] ERA5 sensitivity analysis
-# =============================================================================
-# Each scenario (gevoeligheid.py) asks "what if ERA5 were off by this much at
-# this place?". The tables below report, per scenario, the same outcomes the
-# rest of Klimatos reports for the neutral run, and the difference with the
-# neutral run. Facts only, no verdict: which outcome is "robust" is for the
-# reader (see the technical description). The neutral row is recomputed by
-# exactly the same code as the main analysis, so its values equal those in
-# the Win_* / Heat_* sheets.
-
-def _window_mean(series: pd.Series, a: int, b: int) -> float:
-    v = series[(series.index >= a) & (series.index <= b)].dropna()
-    return float(v.mean()) if len(v) else np.nan
-
-
-def _theil_sen_per_decade(series: pd.Series, a: int, b: int) -> float:
-    v = series[(series.index >= a) & (series.index <= b)].dropna()
-    if len(v) < PROJECTION_MIN_YEARS:
-        return np.nan
-    return float(stats.theilslopes(v.values, v.index.values.astype(float))[0] * 10.0)
-
-
-def _sensitivity_metrics(annual: pd.DataFrame, ref_window: Tuple[int, int],
-                         latest_window: Tuple[int, int],
-                         trend_period: Tuple[int, int]) -> List[Dict]:
-    """All reported outcomes of one scenario's annual frame, as rows
-    (group, outcome, unit, value)."""
-    rows = []
-    lw = f"{latest_window[0]}-{latest_window[1]}"
-
-    def add(group, outcome, unit, value):
-        rows.append({"group": group, "outcome": outcome, "unit": unit, "value": value})
-
-    for var in VARIABLES:
-        if var not in annual:
-            continue
-        s = annual[var]
-        add(var, f"mean {lw}", "degC", _window_mean(s, *latest_window))
-        add(var, f"change {lw} vs reference", "degC",
-            _window_mean(s, *latest_window) - _window_mean(s, *ref_window))
-        add(var, f"trend {trend_period[0]}-{trend_period[1]}", "degC/decade",
-            _theil_sen_per_decade(s, *trend_period))
-        w = analyze_variable_windows(s, [latest_window], THRESHOLDS[var])
-        r = w.iloc[0] if len(w) else {}
-        for thr in THRESHOLDS[var]:
-            add(var, f"P(>= {thr:g}) per year {lw}, GEV", "fraction", r.get(f"P_gev_{thr:g}", np.nan))
-            add(var, f"P(>= {thr:g}) per year {lw}, observed", "fraction", r.get(f"P_emp_{thr:g}", np.nan))
-    if "heat_admit_index" in annual:
-        ref_hai = _window_mean(annual["heat_admit_index"], *ref_window)
-        lat_hai = _window_mean(annual["heat_admit_index"], *latest_window)
-        add("Heat admissions (ERF)", f"heat-attributable index, mean {lw}", "index", lat_hai)
-        add("Heat admissions (ERF)", f"ratio {lw} vs reference", "ratio",
-            lat_hai / ref_hai if ref_hai and np.isfinite(ref_hai) and ref_hai > 0 else np.nan)
-        add("Heat admissions (ERF)", f"days above {ERF_MMT_C:g} degC, mean {lw}", "days",
-            _window_mean(annual["n_days_over_mmt"], *latest_window))
-    for col, label in (("hrsBelow_young", "hours light activity not sustainable, young adult"),
-                       ("hrsBelow_old", "hours light activity not sustainable, older adult"),
-                       ("hrsNonSurv_young", "hours not survivable, young adult"),
-                       ("hrsNonSurv_old", "hours not survivable, older adult")):
-        if col in annual:
-            add("Liveability (HEAT-Lim)", f"{label}, mean {lw}", "hours/year",
-                _window_mean(annual[col], *latest_window))
-    for col in ("T_air_event", "WBGT_event", "UTCI_event"):
-        if col in annual:
-            add("Event window", f"{col}, mean {lw}", "degC", _window_mean(annual[col], *latest_window))
-            add("Event window", f"{col}, trend {EVENT_TREND_PERIOD[0]}-{EVENT_TREND_PERIOD[1]}",
-                "degC/decade", _theil_sen_per_decade(annual[col], *EVENT_TREND_PERIOD))
-    return rows
-
-
-def analyze_sensitivity(scenario_annual: Dict[str, pd.DataFrame], scenarios: List,
-                        ref_window: Tuple[int, int], latest_window: Tuple[int, int],
-                        trend_period: Tuple[int, int]) -> pd.DataFrame:
-    """One long table: per scenario and outcome the value, the neutral value,
-    and the difference (absolute and relative)."""
-    by_name = {}
-    for sc in scenarios:
-        a = scenario_annual.get(sc.name)
-        if a is None or a.empty:
-            continue
-        df = pd.DataFrame(_sensitivity_metrics(a, ref_window, latest_window, trend_period))
-        df.insert(0, "scenario", sc.name)
-        df.insert(1, "description", sc.description)
-        df["n_years"] = len(a)
-        by_name[sc.name] = df
-    neutral = next((sc.name for sc in scenarios if sc.is_neutral()), None)
-    if neutral is None or neutral not in by_name:
-        raise ValueError("the sensitivity analysis needs the neutral scenario")
-    base = by_name[neutral][["group", "outcome", "value"]].rename(columns={"value": "neutral"})
-    out = pd.concat(by_name.values(), ignore_index=True).merge(base, on=["group", "outcome"], how="left")
-    out["difference"] = out["value"] - out["neutral"]
-    with np.errstate(divide="ignore", invalid="ignore"):
-        out["difference_pct"] = np.where(np.abs(out["neutral"]) > 0,
-                                         100.0 * out["difference"] / np.abs(out["neutral"]), np.nan)
-    return out
-
-
-def sensitivity_range_table(sens: pd.DataFrame) -> pd.DataFrame:
-    """Per outcome: the neutral value and the lowest/highest value over all
-    scenarios, with the scenarios that give them."""
-    rows = []
-    for (g, o), d in sens.groupby(["group", "outcome"], sort=False):
-        d = d.dropna(subset=["value"])
-        if d.empty:
-            continue
-        lo, hi = d.loc[d["value"].idxmin()], d.loc[d["value"].idxmax()]
-        # When every scenario gives the same value, no single scenario is "the" lowest.
-        tie = bool(np.isclose(lo["value"], hi["value"], rtol=0, atol=1e-12))
-        rows.append({"group": g, "outcome": o, "unit": d["unit"].iloc[0],
-                     "neutral": d["neutral"].iloc[0],
-                     "lowest": lo["value"], "lowest_scenario": "all equal" if tie else lo["scenario"],
-                     "highest": hi["value"], "highest_scenario": "all equal" if tie else hi["scenario"]})
-    return pd.DataFrame(rows)
-
-
-# The outcomes shown in the console summary and the figure (if present).
-SENSITIVITY_KEY_OUTCOMES = [
-    ("T_air_max", "mean {lw}"),
-    ("T_air_max", "trend {tp}"),
-    ("T_air_max", "P(>= 35) per year {lw}, observed"),
-    ("WBT_max", "mean {lw}"),
-    ("WBGT_max", "mean {lw}"),
-    ("UTCI_max", "mean {lw}"),
-    ("Heat admissions (ERF)", "ratio {lw} vs reference"),
-    ("Liveability (HEAT-Lim)", "hours light activity not sustainable, older adult, mean {lw}"),
-]
-
-
-def _key_rows(sens: pd.DataFrame, latest_window, trend_period) -> List[Tuple[str, str]]:
-    lw = f"{latest_window[0]}-{latest_window[1]}"
-    tp = f"{trend_period[0]}-{trend_period[1]}"
-    keys = [(g, o.format(lw=lw, tp=tp)) for g, o in SENSITIVITY_KEY_OUTCOMES]
-    present = set(zip(sens["group"], sens["outcome"]))
-    return [k for k in keys if k in present]
-
-
-def print_sensitivity(sens: pd.DataFrame, latest_window, trend_period, grid_info: Optional[Dict]) -> None:
-    print("\n" + "=" * 70)
-    print("ERA5 SENSITIVITY (hypothetical scenarios, not corrections)")
-    print("=" * 70)
-    if grid_info:
-        print(f"  Grid cell used: {grid_info.get('grid_latitude')}, {grid_info.get('grid_longitude')} "
-              f"({grid_info.get('grid_distance_km')} km from the requested place, "
-              f"{grid_info.get('grid_model')}, cell_selection={grid_info.get('grid_cell_selection')})")
-    names = list(dict.fromkeys(sens["scenario"]))
-    for g, o in _key_rows(sens, latest_window, trend_period):
-        d = sens[(sens["group"] == g) & (sens["outcome"] == o)].set_index("scenario")
-        unit = d["unit"].iloc[0]
-        scale, u = (100.0, "%") if unit == "fraction" else (1.0, unit)
-        print(f"\n  {g}: {o} [{u}]")
-        for n in names:
-            if n in d.index and np.isfinite(d.loc[n, "value"]):
-                v, diff = d.loc[n, "value"] * scale, d.loc[n, "difference"] * scale
-                print(f"    {n:<18s} {v:9.2f}   ({diff:+.2f})")
-    print("\n  Full table: Excel sheet 'Sensitivity'; ranges: 'Sensitivity_Range'.")
-
-
-def plot_sensitivity(sens: pd.DataFrame, latest_window, trend_period, city_name: str,
-                     outpath: str) -> None:
-    """Small multiples: per key outcome one dot per scenario, the neutral value
-    as a vertical line (gevoeligheid.plot_dots, shared with run_gevoeligheid).
-    Outcomes without any value (e.g. a trend over too few years) are left out."""
-    from gevoeligheid import plot_dots
-    plot_dots(sens, _key_rows(sens, latest_window, trend_period),
-              f"{city_name}: ERA5 sensitivity (dashed = neutral, ERA5 as delivered)", outpath)
-
-
 def save_results(annual: pd.DataFrame, stats_by_var: Dict[str, pd.DataFrame],
                  plot_paths: List[str], meta: Dict,
                  admissions_df: Optional[pd.DataFrame] = None,
@@ -3890,10 +3636,8 @@ def save_results(annual: pd.DataFrame, stats_by_var: Dict[str, pd.DataFrame],
                  ehs_df: Optional[pd.DataFrame] = None,
                  accel_df: Optional[pd.DataFrame] = None,
                  liveability_hours_df: Optional[pd.DataFrame] = None,
-                 liveability_proj_df: Optional[pd.DataFrame] = None,
-                 sensitivity: Optional[Dict[str, pd.DataFrame]] = None) -> str:
-    """Write annual maxima, per-variable window stats, metadata and plots to Excel.
-    [2026-11-07] `sensitivity`: dict of sheet name -> DataFrame (ERA5 sensitivity)."""
+                 liveability_proj_df: Optional[pd.DataFrame] = None) -> str:
+    """Write annual maxima, per-variable window stats, metadata and plots to Excel."""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
     safe_city = "".join(ch for ch in meta["city"] if ch.isalnum() or ch in (" ", "_", "-")).strip()
     filename = f"Klimatos_ClimateShift_{safe_city}_{timestamp}.xlsx"
@@ -3920,10 +3664,6 @@ def save_results(annual: pd.DataFrame, stats_by_var: Dict[str, pd.DataFrame],
             ehs_df.to_excel(writer, sheet_name="EHS_Evolution", index=False)
         if accel_df is not None and not accel_df.empty:
             accel_df.to_excel(writer, sheet_name="Trend_Acceleration", index=False)
-        if sensitivity:
-            for sheet, sdf in sensitivity.items():
-                if sdf is not None and len(sdf):
-                    sdf.to_excel(writer, sheet_name=sheet[:31], index=False)
         pd.DataFrame([meta]).to_excel(writer, sheet_name="Metadata", index=False)
 
         workbook = writer.book
@@ -4184,51 +3924,6 @@ def print_summary(stats_by_var: Dict[str, pd.DataFrame],
 # Main
 # =============================================================================
 
-SENSITIVITY_SCENARIO_FILE = "gevoeligheid_scenarios.json"   # optional own list, in the working folder (shared with run_gevoeligheid.py)
-SENSITIVITY_SECONDS_PER_YEAR = 0.6   # rough processing time per year per scenario, for the estimate
-
-
-def ask_sensitivity() -> Optional[List]:
-    """[2026-11-07] Console: run the ERA5 sensitivity analysis? Returns the
-    scenario list (neutral first) or None. Default: no."""
-    try:
-        import gevoeligheid as gv
-    except ImportError:
-        return None
-    try:
-        ans = input("Run the ERA5 sensitivity analysis (hypothetical scenarios, no extra "
-                    "downloads)? [y/n, default n]: ").strip().lower()
-    except EOFError:
-        return None
-    if not ans.startswith("y"):
-        return None
-    scen = None
-    if os.path.exists(SENSITIVITY_SCENARIO_FILE):
-        try:
-            own = input(f"  Own scenario file '{SENSITIVITY_SCENARIO_FILE}' found. "
-                        f"Use it? [y/n, default y]: ").strip().lower()
-        except EOFError:
-            own = "y"
-        if not own.startswith("n"):
-            try:
-                scen = gv.load_scenarios(SENSITIVITY_SCENARIO_FILE)
-            except Exception as exc:
-                print(f"  Could not read it ({exc}); using the standard set.")
-    if scen is None:
-        try:
-            kust = input("  Coastal site? Adds the coastal-correction scenarios "
-                         "(Data Engine shape, peak 3.0 C, and 2, 4, 6 C) [y/n, default n]: ").strip().lower()
-        except EOFError:
-            kust = "n"
-        scen = gv.scenario_set(coastal=kust.startswith("y"))
-    n_years = (datetime.now().year - 1) - min(START_YEAR, REFERENCE_PERIOD[0]) + 1
-    extra_min = n_years * (len(scen) - 1) * SENSITIVITY_SECONDS_PER_YEAR / 60.0
-    print(f"  {len(scen)} scenarios: " + ", ".join(sc.name for sc in scen))
-    print(f"  About {extra_min:.0f} min extra processing (each year is still downloaded once). "
-          f"The EHS evolution and the liveability projection run for the neutral scenario only.")
-    return scen
-
-
 def main():
     # Declared up front: the banner below reads ENABLE_EVENT_WINDOW, and Python
     # requires the global declaration to precede any use within the function.
@@ -4290,9 +3985,6 @@ def main():
               "using clean climate signal)")
         apply_uhi = False
     print(f"  UHI: {'ON (urban lived-environment values)' if apply_uhi else 'OFF (clean climate signal)'}")
-
-    # --- [2026-11-07] ERA5 sensitivity (console) -----------------------------
-    sens_scenarios = ask_sensitivity()
 
     # --- Event window toggle + settings (console) ---------------------------
     if ENABLE_EVENT_WINDOW:
@@ -4423,8 +4115,6 @@ def main():
     ehs_summary_df = None
     ehs_ehe_resolvable = False
     ehs_res = None
-    scenario_records: Dict[str, List[Dict]] = {}
-    grid_info: Dict = {}
     annual = build_annual_maxima(lat, lon, tz, city, earliest, last_complete,
                                  apply_uhi=apply_uhi,
                                  event_slices=(event_slices
@@ -4433,15 +4123,7 @@ def main():
                                  liveability_raw=(liveability_raw
                                                   if (ENABLE_LIVEABILITY and HEATLIM_AVAILABLE
                                                       and ENABLE_LIVEABILITY_PROJECTION)
-                                                  else None),
-                                 scenarios=sens_scenarios,
-                                 scenario_records=(scenario_records if sens_scenarios else None),
-                                 grid_info=grid_info)
-    if grid_info:
-        print(f"Grid cell used: {grid_info.get('grid_latitude')}, {grid_info.get('grid_longitude')}, "
-              f"{grid_info.get('grid_distance_km')} km from the requested place "
-              f"({grid_info.get('grid_model')}, cell_selection={grid_info.get('grid_cell_selection')}). "
-              f"No coastal correction is applied in Klimatos (README Known issue 14).")
+                                                  else None))
 
     available_first = int(annual.index.min())
     available_last = int(annual.index.max())
@@ -4639,28 +4321,6 @@ def main():
         print("\n[liveability] HEATLim.py not found next to this script -> "
               "liveability module skipped. Download from github.com/gguzmane/HEAT-Lim.")
 
-    # --- [2026-11-07] ERA5 sensitivity -------------------------------------
-    sens_df = sens_range_df = sens_scen_df = None
-    if sens_scenarios:
-        try:
-            from gevoeligheid import scenario_table
-            scenario_annual = {n: pd.DataFrame(r).set_index("year").sort_index()
-                               for n, r in scenario_records.items() if r}
-            sens_trend = (max(START_YEAR, available_first), available_last)
-            sens_latest = windows[-1] if windows else ref_window
-            sens_df = analyze_sensitivity(scenario_annual, sens_scenarios, ref_window,
-                                          sens_latest, sens_trend)
-            sens_range_df = sensitivity_range_table(sens_df)
-            sens_scen_df = scenario_table(sens_scenarios)
-            print_sensitivity(sens_df, sens_latest, sens_trend, grid_info)
-            ps = "plot_sensitivity.png"
-            _safe_plot(plot_sensitivity, sens_df, sens_latest, sens_trend, city["name"], ps)
-            if os.path.exists(ps):
-                plot_paths.append(ps)
-        except Exception as exc:
-            print(f"[sensitivity] analysis failed: {exc}")
-            sens_df = sens_range_df = sens_scen_df = None
-
     # --- Export -------------------------------------------------------------
     meta = {
         "city": city["name"],
@@ -4689,17 +4349,10 @@ def main():
                          if ENABLE_EVENT_WINDOW else "disabled"),
         "model": "Klimatos.ClimateShift v1.5 (Thermopoulos thermal pipeline)",
         "generated": datetime.now().isoformat(timespec="seconds"),
-        **grid_info,
-        "sensitivity": (f"{len(sens_scenarios)} scenarios (gevoeligheid.py), hypothetical "
-                        f"disturbances of the raw ERA5 weather, not corrections"
-                        if sens_df is not None else "not run"),
     }
     filepath = save_results(annual, stats_by_var, plot_paths, meta, admissions_df,
                             liveability_df, event_summary_df, ehs_summary_df,
-                            accel_summary_df, liveability_hours_df, liveability_proj_df,
-                            sensitivity=({"Sensitivity": sens_df, "Sensitivity_Range": sens_range_df,
-                                          "Sensitivity_Scenarios": sens_scen_df}
-                                         if sens_df is not None else None))
+                            accel_summary_df, liveability_hours_df, liveability_proj_df)
 
     print_summary(stats_by_var, admissions_df, liveability_df, event_summary_df,
                   ehs_summary_df, ehs_ehe_resolvable, ehs_res)
@@ -4733,8 +4386,6 @@ def main():
         liveability_proj_df=liveability_proj_df,
         accel_df=accel_summary_df, ehs_evolution_res=ehs_res,
         plot_paths=plot_paths,
-        sensitivity_df=sens_df, sensitivity_range_df=sens_range_df,
-        sensitivity_scenarios_df=sens_scen_df,
     )
     pk = rapportpakket.bewaar("klimatos", pakket_gegevens, report_stam)
     if pk:

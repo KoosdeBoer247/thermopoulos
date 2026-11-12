@@ -43,7 +43,7 @@ TESTS = [  # (script, slow?)
     ("test_wandelaars.py", False),
     ("test_hutas_zweet.py", False),
     ("test_klimatos_bron.py", False),
-    ("test_gevoeligheid.py", False),
+    ("test_hindcast_gat.py", False),
     ("test_plausibility_2026_10_14.py", True),
     ("test_individual_engine.py", True),
     ("test_loper.py", True),

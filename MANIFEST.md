@@ -45,7 +45,6 @@ Every file in the release and what it does. History of individual files:
 | `HESTIA_CVR_Console.py` | stand-alone demo of the CVR module |
 | `HESTIA_ControlFailure_Module.py` | thermoregulatory control-failure (TCF) dose |
 | `run_hestia.py` | event Monte Carlo on a Data Engine file, with report |
-| `run_gevoeligheid.py` | HESTIA event or PYROX heatwave under the ERA5 sensitivity scenarios (start menu 6); one comparison table and figure |
 | `hestia_plots.py` | population figures for the reports |
 | `participant_dose_analysis.py` | per-participant dose build-up over time (optional after a run) |
 | `uncertainty.py` | uncertainty band of the headline EHS estimate |
@@ -102,7 +101,6 @@ Every file in the release and what it does. History of individual files:
 |---|---|
 | `Klimatos_ClimateShift.py` | climate-shift engine: ERA5 series, windows, trends, event windows, EHS evolution, liveability |
 | `klimatos_ehs_worker.py` | picklable worker for the EHS-evolution module |
-| `gevoeligheid.py` | ERA5 sensitivity scenarios: hypothetical disturbances of the raw archive weather before the thermal pipeline; Data Engine scenario files; used by Klimatos and `run_gevoeligheid.py` |
 | `HEATLim.py` | ASU/USYD HEAT-Lim survivability/liveability functions (third-party, CC BY 4.0, see `THIRD_PARTY_LICENSES.md`) |
 
 ## Reports
@@ -119,11 +117,11 @@ Every file in the release and what it does. History of individual files:
 
 | File | Purpose |
 |---|---|
-| `start_thermopoulos.py` | main menu for the whole suite (Dutch): HESTIA, PYROX, Klimatos, FIT files, weather, ERA5 sensitivity, reports |
+| `start_thermopoulos.py` | main menu for the whole suite (Dutch): HESTIA, PYROX, Klimatos, FIT files, weather, reports |
 | `rapportpakket.py` | keeps the report data of every calculation (`*_rapportpakket.pkl`) and makes the report later (menu choice R) |
 | `test_aanmelding.py` | sign-up list conversion with invented names/addresses: column recognition, linking, codes, no personal data in outputs, tempo override |
+| `test_hindcast_gat.py` | Recent ERA5 gap (~5 days) in a hindcast is filled from the forecast API's recent analyses, without coastal correction; no network |
 | `test_klimatos_bron.py` | Klimatos requests one fixed reanalysis source (models=era5_seamless, cell_selection=land) for every year; no network |
-| `test_gevoeligheid.py` | ERA5 sensitivity: neutral scenario changes nothing, uniform shift keeps the trend, dew point kept, coastal scenario equals the Data Engine correction; Data Engine scenario files; PYROX and HESTIA under scenarios (same participants); no network |
 | `klimatos_bronnen_test.py` | diagnostic (needs internet): compares the archive default with ERA5, ERA5-Land and ERA5-Seamless per year for seven locations, 2007–2025 |
 | `test_hutas_zweet.py` | maximum skin wettedness and dripping sweat as in HUTAS: w_max per acclimatisation, whole-body cap, sweating efficiency, effect in cool, dry and humid heat |
 | `test_wandelaars.py` | walkers' population (Four Days Marches type): runners unchanged, sex, age, BMI and VO2max as in the sources |

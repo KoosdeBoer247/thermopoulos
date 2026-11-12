@@ -347,61 +347,6 @@ def menu_hestia(werkmap: Path, w: list) -> None:
             print("  Onbekende keuze.")
 
 
-def _run_in(werkmap: Path, fn) -> None:
-    """Een functie draaien met de werkmap als huidige map (zoals draai_script)."""
-    oud = Path.cwd()
-    try:
-        os.chdir(werkmap)
-        fn()
-    except KeyboardInterrupt:
-        print("\n  Afgebroken.")
-    except Exception:
-        print("\n  ! Er ging iets mis:")
-        traceback.print_exc()
-    finally:
-        os.chdir(oud)
-    input("\nEnter = terug naar het menu ")
-
-
-def menu_gevoeligheid(werkmap: Path, w: list) -> None:
-    """[2026-11-08] ERA5-gevoeligheid: wat als het echte weer anders was dan
-    ERA5 aangeeft? Hypothetische scenario's, geen correcties (gevoeligheid.py)."""
-    while True:
-        print(f"""
-{LIJN}
-  GEVOELIGHEID  -  hoe sterk hangt de uitkomst af van de weerinvoer (ERA5)?
-{LIJN}
-    1  HESTIA-evenement onder alle scenario's
-    2  PYROX-hittegolf onder alle scenario's
-    3  Alleen scenario-weerbestanden maken (zelf verder rekenen)
-    4  Klimatos met gevoeligheid (welke conclusies blijven overeind?)
-
-    Scenario's: ERA5 zoals geleverd (neutraal), -1 tot +3 graden, overdag
-    warmer en 's nachts koeler, vochtiger, minder wind, meer zon; bij een
-    kustlocatie ook de kustcorrectie (piek 2, 3, 4 en 6 graden). Een eigen
-    lijst kan in gevoeligheid_scenarios.json in de werkmap.
-    0  Terug naar het hoofdmenu""")
-        k = input("\nKeuze: ").strip().lower()
-        if k in ("0", "", "q"):
-            return
-        if k in ("1", "2", "3") and _weer_nodig(w):
-            import run_gevoeligheid as rg
-
-            def stap():
-                from thermopoulos_loader import choose_thermopoulos_file
-                base = choose_thermopoulos_file(".")
-                if base is None:
-                    return
-                {"1": rg.interactive_hestia, "2": rg.interactive_pyrox,
-                 "3": rg.interactive_files_only}[k](Path(base))
-            _run_in(werkmap, stap)
-        elif k == "4":
-            print("  Klimatos vraagt na de UHI-vraag of de gevoeligheidsanalyse mee moet: antwoord y.")
-            draai_script("Klimatos_ClimateShift.py", werkmap)
-        elif k not in ("1", "2", "3"):
-            print("  Onbekende keuze.")
-
-
 def menu_fit(werkmap: Path, cmap: Path | None) -> Path | None:
     while True:
         s = clinic_status(cmap)
@@ -501,9 +446,7 @@ def menu() -> None:
                       narekenen: één loop, of een Thermo Clinic
 
     5  WEER           weerdata ophalen met de Data Engine (verwachting of archief);
-                      nodig voor 1, 2, 4 en 6
-    6  GEVOELIGHEID   wat als het echte weer anders was dan ERA5 aangeeft?
-                      HESTIA, PYROX of Klimatos opnieuw met verschoven weer
+                      nodig voor 1, 2 en 4
     R  RAPPORT        een rapport maken van een eerdere berekening
 
     T  Tests van de suite     W  Werkmap wijzigen     0  Stoppen""")
@@ -525,8 +468,6 @@ def menu() -> None:
             cmap = menu_fit(werkmap, cmap)
         elif k == "5":
             draai_script("Thermopoulos_Data_Engine.py", werkmap)
-        elif k == "6":
-            menu_gevoeligheid(werkmap, w)
         elif k == "r":
             rapport_later(werkmap, cmap)
         elif k == "t":

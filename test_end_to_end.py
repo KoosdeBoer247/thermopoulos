@@ -63,10 +63,9 @@ K.geocode_city_candidates = fake_geocode
 K.fetch_hourly_year = fake_fetch
 K.REQUEST_PAUSE_S = 0.0
 
-# scripted console answers: city, UHI, ERA5 sensitivity (n; added 2026-11-08,
-# covered by test_gevoeligheid.py), event y/n, name, date, time, duration,
+# scripted console answers: city, UHI, event y/n, name, date, time, duration,
 # [MET pace prompt handled elsewhere via default], generate report y/n
-answers = iter(["TestCity", "n", "n", "y", "Dam tot Damloop", "22-09", "13:30", "", "100", "n"])
+answers = iter(["TestCity", "n", "y", "Dam tot Damloop", "22-09", "13:30", "", "100", "n"])
 builtins.input = lambda prompt="": (lambda a: (print(f"{prompt}{a}"), a)[1])(next(answers))
 
 import tempfile

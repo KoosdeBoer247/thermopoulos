@@ -8,69 +8,26 @@ Entries up to 2026-10-24 were written during development; names of people
 in personal communications have been replaced by their institution, and
 results of individual field-test participants by group-level statements.
 
-## Unreleased
-
-- **ERA5 sensitivity for HESTIA and PYROX: start menu choice 6**
-  (2026-11-08). New `run_gevoeligheid.py`: pick a Data Engine file, answer
-  the HESTIA or PYROX questions once, and every scenario is run with the
-  same settings; HESTIA with a fixed seed, so the same virtual participants
-  in every scenario ('random' is not offered). Scenario weather files
-  (`gevoeligheid.make_scenario_file()`, `disturb_engine_sheet()`) are written
-  to `scenarios/<base file>/`: the raw columns are disturbed and the Data
-  Engine's own `process_weather_data()` recomputes everything derived, with
-  `coastal_active=False` because a coastal correction already sits in
-  `T_air_rural`. The neutral file equals the base file to 1e-13 except the
-  stored wet-bulb rounding (0.05 °C; WBGT 0.1 °C), so every comparison is
-  made against the recomputed neutral run. PYROX: initial condition follows
-  each scenario's first day by default (author's choice of default:
-  consistent with "what if ERA5 is off here"), or is held at the neutral
-  first day. Output `Gevoeligheid_<model>_<place>_<time>.xlsx` + `.png`.
-  `disturb_engine_sheet()` also works in memory on a zoned frame, for
-  backends (HeatLens). Choice 6 also starts Klimatos with its sensitivity
-  question. The own scenario list is now `gevoeligheid_scenarios.json` for
-  all three models. Documented in `TECHNICAL_REFERENCE.md` §5.10.
-- **Checked with real ERA5** (2026-11-08): Klimatos for Den Helder, 2022–2024
-  (the shared address of the test environment got about one archive request
-  per quarter of an hour, so not the full 1951–2025): the annual table is
-  identical with and without the 13 scenarios, the neutral scenario equals
-  the main run, T+2 shifts T_air_max by exactly 2.0 °C, grid cell 53.0 N
-  4.8 E at 5.5 km; 0.2 s per year per scenario. HESTIA and PYROX checked on
-  the DtD 2024 ERA5 hindcast (start menu 6 end to end, 13 scenarios). Found
-  and fixed: the sensitivity figure failed when an outcome had no value at
-  all (a trend over too few years); `plot_sensitivity()` now uses the shared
-  `gevoeligheid.plot_dots()`, which leaves such outcomes out.
-- **PYROX output in choice 6 corrected** (2026-11-08): the row "days at
-  critical strain" showed the group's fixed critical strain (1/strength,
-  2.0), not a number of days. Replaced by the peak strain as a share of the
-  critical strain and the highest final risk; the caution/danger/emergency
-  days are now labelled as trajectory indices (0 = initial state).
-- **Klimatos: ERA5 sensitivity analysis** (author's decision, 2026-11-07:
-  Klimatos first, because it rests entirely on ERA5 with no local anchor that
-  absorbs a systematic error). New module `gevoeligheid.py`: hypothetical,
-  controlled disturbances of the raw archive weather (temperature by day and
-  by night, dew point, wind, solar radiation, and the Data Engine's coastal
-  shape), applied before the unchanged thermal pipeline, dew point kept.
-  Klimatos asks once after the UHI question (default no; optional own list in
-  `gevoeligheid_scenarios.json`). Each year is still downloaded once and then
-  processed per scenario. Output: sheets `Sensitivity`, `Sensitivity_Range`,
-  `Sensitivity_Scenarios`, `plot_sensitivity.png`, report section 10
-  ("Gevoeligheid voor de ERA5-invoer"; "Herkomst" is now section 11). The
-  coastal correction is offered as scenarios (Data Engine peak 3.0 °C, and 2,
-  4, 6 °C), not as a default, until the KNMI station comparison. The EHS
-  evolution and the liveability projection run for the neutral scenario only.
-- **Klimatos reports the grid cell** the archive used (position and distance
-  to the requested place) in the console, the Excel metadata and the report.
-  No change in results.
-- `build_annual_maxima()`: the per-year summary moved unchanged into
-  `_year_record()`; checked to give a bit-identical annual table, event slices
-  and liveability store. New test `test_gevoeligheid.py` (offline, synthetic
-  years): neutral scenario changes nothing; uniform shift moves T_air_max by
-  exactly that shift and leaves its Theil-Sen trend unchanged; dew point kept;
-  coastal scenario reproduces the Data Engine's coastal correction exactly.
-
 ## [2026.10.27] Release
 
 Second public release. Contains everything since 2026.10.25 (entries below), and:
+- **Recent days in the hindcast no longer missing** (author's decision,
+  2026-11-12). ERA5 (`models=era5_seamless`) runs about 5 days behind real
+  time; a live request on 2026-11-12 for De Bilt returned 29 Oct-6 Nov but
+  nothing for 7-11 Nov. The 14-day hindcast before a forecast (and any
+  Historical_Custom or `individual_engine` period ending in the last days)
+  therefore had about 5 empty days, and `thermopoulos_loader` turned a day
+  without temperature into heat load 0.0 without a message: PYROX saw those
+  days as cool (acclimatisation too low; a heatwave that had already begun
+  was missed). `fetch_historical_data` now fills hours that are missing
+  within 10 days of today from the forecast API's recent analyses
+  (`past_days`), the same model chain as the forecast: `knmi_seamless`
+  (HARMONIE) where available, otherwise Open-Meteo's default model.
+  Filled hours are marked `from_forecast_api` and get no ERA5 coastal
+  correction. If the forecast API fails, the gap stays and a warning is
+  printed; the loader now also warns for any day without temperature data.
+  New test `test_hindcast_gat.py` (no network). Older gaps (more than 10
+  days ago) are not touched.
 - **Klimatos: one fixed reanalysis source** (author's decision, 2026-11-06).
   The archive request now sends `models=era5_seamless` and
   `cell_selection=land` (`ARCHIVE_MODEL`). Without `models=` Open-Meteo serves

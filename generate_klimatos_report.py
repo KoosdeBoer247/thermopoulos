@@ -106,10 +106,7 @@ def generate_klimatos_report(event_name: str,
                               accel_df: pd.DataFrame = None,
                               ehs_evolution_res: dict = None,
                               documented_reference: str = None,
-                              plot_paths: list = None,
-                              sensitivity_df: pd.DataFrame = None,
-                              sensitivity_range_df: pd.DataFrame = None,
-                              sensitivity_scenarios_df: pd.DataFrame = None) -> str:
+                              plot_paths: list = None) -> str:
     """
     Genereer een vast, feitelijk rapport uit een Klimatos-klimaattrendrun en
     schrijf het weg als Markdown.
@@ -552,68 +549,12 @@ def generate_klimatos_report(event_name: str,
     A("")
 
     # ------------------------------------------------------------------ #
-    # [2026-11-07] ERA5-gevoeligheid (gevoeligheid.py, Klimatos_ClimateShift
-    # analyze_sensitivity). Alleen feiten: per uitkomst de neutrale waarde en
-    # de laagste/hoogste waarde over de scenario's.
-    A("## 10. Gevoeligheid voor de ERA5-invoer")
-    A("")
-    if sensitivity_range_df is not None and len(sensitivity_range_df):
-        n_sc = (len(sensitivity_scenarios_df) if sensitivity_scenarios_df is not None
-                else sensitivity_df["scenario"].nunique() if sensitivity_df is not None else "n.b.")
-        A(f"Alle uitkomsten zijn opnieuw berekend met {n_sc} scenario's waarin het ruwe "
-          "ERA5-weer (temperatuur, vocht, wind of straling) hypothetisch is verschoven, "
-          "vóór de thermische keten. Het neutrale scenario is ERA5 zoals geleverd. De "
-          "scenario's zijn geen correcties; ze laten zien hoeveel een uitkomst verandert "
-          "als ERA5 op deze plek zoveel zou afwijken.")
-        A("")
-        if sensitivity_scenarios_df is not None and len(sensitivity_scenarios_df):
-            A("| Scenario | Omschrijving |")
-            A("|---|---|")
-            try:
-                from gevoeligheid import DESCRIPTION_NL
-            except ImportError:
-                DESCRIPTION_NL = {}
-            for _, r in sensitivity_scenarios_df.iterrows():
-                A(f"| {r['name']} | {DESCRIPTION_NL.get(r['name'], r.get('description', ''))} |")
-            A("")
-        A("| Uitkomst | Eenheid | Neutraal | Laagste (scenario) | Hoogste (scenario) |")
-        A("|---|---|---|---|---|")
-        for _, r in sensitivity_range_df.iterrows():
-            if not _sens_in_report(r["group"], r["outcome"]):
-                continue
-            pct = r["unit"] == "fraction"
-            k = 100.0 if pct else 1.0
-            u = "%/jaar" if pct else _SENS_UNIT_NL.get(r["unit"], r["unit"])
-            lo_s, hi_s = r["lowest_scenario"], r["highest_scenario"]
-            if lo_s == "all equal":
-                lo_s = hi_s = "in alle scenario's gelijk"
-            A(f"| {_SENS_GROUP_NL.get(r['group'], r['group'])}: {_sens_nl(r['outcome'])} | {u} | "
-              f"{_fmt(r['neutral'] * k)} | {_fmt(r['lowest'] * k)} ({lo_s}) | "
-              f"{_fmt(r['highest'] * k)} ({hi_s}) |")
-        A("")
-        A("De volledige tabel per scenario staat in het Excel-bestand, tabblad "
-          "'Sensitivity'; de bandbreedte van elke uitkomst in 'Sensitivity_Range'.")
-        A("")
-        if plot_paths:
-            _embed_plot(A, plot_paths, "plot_sensitivity.png",
-                        "Per uitkomst de waarde in elk scenario (punten) en de neutrale "
-                        "waarde (stippellijn).")
-    else:
-        A("Niet uitgevoerd voor deze run.")
-    A("")
-
-    # ------------------------------------------------------------------ #
-    A("## 11. Herkomst en status van dit model")
+    A("## 10. Herkomst en status van dit model")
     A("")
     A("| | |")
     A("|---|---|")
     A("| Model | Klimatos.ClimateShift |")
     A("| Databron | ERA5 historisch archief (Open-Meteo archive-api) |")
-    if meta.get("grid_latitude") is not None:
-        A(f"| Gebruikte rastercel | {meta.get('grid_latitude')}, {meta.get('grid_longitude')} "
-          f"({_fmt(meta.get('grid_distance_km'), 1)} km van de gevraagde plaats; "
-          f"{meta.get('grid_model', 'n.b.')}, cell_selection={meta.get('grid_cell_selection', 'n.b.')}); "
-          f"geen kustcorrectie |")
     if meta.get("admissions_erf"):
         A(f"| Ziekenhuisopnames-methode | {meta['admissions_erf']} |")
     if meta.get("liveability"):
@@ -631,36 +572,6 @@ def generate_klimatos_report(event_name: str,
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(text)
     return text
-
-
-# [2026-11-07] Uitkomsten van de gevoeligheidsanalyse die in het rapport
-# komen (het Excel-bestand bevat ze allemaal), en hun Nederlandse weergave.
-_SENS_REPORT_PARTS = ("mean ", "trend ", "ratio ", "hours light activity not sustainable",
-                      "hours not survivable", "heat-attributable index")
-_SENS_GROUP_NL = {"Heat admissions (ERF)": "Ziekenhuisopnames (ERF)",
-                  "Liveability (HEAT-Lim)": "Leefbaarheid (HEAT-Lim)",
-                  "Event window": "Evenement-venster"}
-_SENS_UNIT_NL = {"degC": "°C", "degC/decade": "°C/decennium", "hours/year": "uur/jaar",
-                 "days": "dagen", "ratio": "verhouding", "index": "index"}
-
-
-def _sens_in_report(group: str, outcome: str) -> bool:
-    if outcome.startswith("P(>="):
-        return "observed" in outcome and group == "T_air_max"
-    return outcome.startswith(_SENS_REPORT_PARTS) or "light activity" in outcome or "survivable" in outcome
-
-
-def _sens_nl(outcome: str) -> str:
-    t = outcome
-    for en, nl in (("mean ", "gemiddeld "), (", mean ", ", gemiddeld "), (" vs reference", " t.o.v. referentie"),
-                   ("ratio ", "verhouding "), ("trend ", "trend "),
-                   ("heat-attributable index", "hitte-index opnames"),
-                   ("hours light activity not sustainable", "uren lichte activiteit niet volhoudbaar"),
-                   ("hours not survivable", "uren niet overleefbaar"),
-                   ("young adult", "jonge volwassene"), ("older adult", "oudere volwassene"),
-                   ("per year", "per jaar"), ("observed", "waargenomen"), ("days above", "dagen boven")):
-        t = t.replace(en, nl)
-    return t
 
 
 def _local_margin_stats(pairs, t_threshold: float = 39.5, c_threshold: float = 0.0):

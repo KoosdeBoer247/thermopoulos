@@ -249,6 +249,17 @@ class ThermopoulosData:
             ),
             axis=1,
         )
+        # [2026-11-12] A day without temperature data gives heat load 0.0
+        # (daily_weather_to_heat_load treats NaN as no load). That used to pass
+        # silently -- e.g. the last ~5 hindcast days when ERA5 was not yet
+        # available. The Data Engine now fills that gap; warn if one remains.
+        leeg = daily["t_air_max"].isna()
+        if leeg.any() and sheet not in getattr(self, "_leeg_gemeld", set()):
+            self._leeg_gemeld = getattr(self, "_leeg_gemeld", set()) | {sheet}
+            dagen = ", ".join(str(d) for d in daily.loc[leeg, "date"])
+            print(f"WARNING: {self.excel_path.name}/{sheet}: no temperature data for {int(leeg.sum())} "
+                  f"day(s) ({dagen}); heat load set to 0 for those days. Re-run the Data Engine "
+                  "to fill recent days from the forecast model.")
         return daily
 
     def get_heat_load_series(self, sheet: str = "Forecast_7d") -> List[float]:

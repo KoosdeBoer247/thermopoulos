@@ -204,6 +204,109 @@ from thermal_env import (geocode_city_candidates, select_city, calculate_solar_p
 
 
 
+HOURLY_VARS = ["temperature_2m", "relative_humidity_2m", "surface_pressure",
+               "wind_speed_10m", "shortwave_radiation", "cloud_cover"]
+OPEN_METEO_KOLOMMEN = {
+    "temperature_2m": "T_air_rural",
+    "relative_humidity_2m": "RH",
+    "surface_pressure": "pressure",
+    "wind_speed_10m": "wind_10m",
+    "shortwave_radiation": "solar_radiation",
+    "cloud_cover": "cloud_cover",
+}
+# [2026-11-12] ERA5 (archive, models=era5_seamless) runs about 5 days behind
+# real time: the most recent days come back as null. Any gap that starts
+# within RECENT_GAP_DAYS of today is filled from the forecast API's recent
+# analyses (past_days), i.e. the same model chain as the forecast itself
+# (HARMONIE via knmi_seamless where available). Open-Meteo allows past_days
+# up to 92.
+RECENT_GAP_DAYS = 10
+MAX_PAST_DAYS = 92
+
+
+def _forecast_request(params: dict) -> dict:
+    """GET on the Open-Meteo forecast API: knmi_seamless first, Open-Meteo's
+    default model on the documented 'no data for this location' 400 reply
+    (see the comment in fetch_hourly_forecast). Returns the JSON."""
+    url = "https://api.open-meteo.com/v1/forecast"
+    response = requests.get(url, params={**params, "models": "knmi_seamless"}, timeout=30)
+    if response.status_code == 400:
+        try:
+            body = response.json()
+        except ValueError:
+            body = {}
+        if body.get("error"):
+            logger.warning(f"KNMI model unavailable for this location "
+                           f"({body.get('reason', 'no data')}) -- "
+                           f"falling back to Open-Meteo's default model.")
+            response = requests.get(url, params=params, timeout=30)
+    response.raise_for_status()
+    return response.json()
+
+
+def fill_recent_gap(df: pd.DataFrame, lat: float, lon: float, tz: str) -> pd.DataFrame:
+    """Fill the hours that ERA5 does not have yet (the last ~5 days) with the
+    forecast API's recent analyses. Only hours where T_air_rural is missing
+    AND that lie within RECENT_GAP_DAYS of today are filled; older gaps are
+    left as they are. Filled rows get from_forecast_api = True, so that the
+    ERA5 coastal correction is not applied to them. Columns and units are the
+    same as the archive's."""
+    if "from_forecast_api" not in df.columns:
+        df["from_forecast_api"] = False
+    if "T_air_rural" not in df.columns or len(df) == 0:
+        return df
+    leeg = df["T_air_rural"].isna()
+    if not leeg.any():
+        return df
+    nu = pd.Timestamp.now(tz=df.index.tz) if df.index.tz is not None else pd.Timestamp.now()
+    recent = leeg & (df.index >= nu - pd.Timedelta(days=RECENT_GAP_DAYS))
+    if not recent.any():
+        return df
+    eerste = df.index[recent][0]
+    past = int(min(MAX_PAST_DAYS, (nu.normalize() - eerste.normalize()).days + 1))
+    params = {"latitude": lat, "longitude": lon, "past_days": past, "forecast_days": 1,
+              "hourly": HOURLY_VARS, "timezone": tz, "wind_speed_unit": "ms"}
+    def _haal(extra):
+        data = _forecast_request(params)["hourly"] if extra is None else None
+        if extra is not None:   # second try: Open-Meteo's own model choice
+            r = requests.get("https://api.open-meteo.com/v1/forecast", params=params, timeout=30)
+            r.raise_for_status()
+            data = r.json()["hourly"]
+        fc = pd.DataFrame(data)
+        fc["time"] = pd.to_datetime(fc["time"])
+        fc = fc.set_index("time").rename(columns=OPEN_METEO_KOLOMMEN)
+        if fc.index.tz is None:
+            fc.index = _lokaliseer(fc.index, tz)
+        return fc[~fc.index.duplicated()].reindex(df.index[recent])
+
+    try:
+        fc = _haal(None)
+        # knmi_seamless may not keep every past hour; then the default model fills the rest
+        if fc["T_air_rural"].isna().any():
+            try:
+                fc = fc.combine_first(_haal("default"))
+            except (requests.RequestException, KeyError, ValueError):
+                pass
+    except (requests.RequestException, KeyError, ValueError) as e:
+        logger.warning(f"Recent ERA5 gap ({int(recent.sum())} h) could not be filled "
+                       f"from the forecast API: {e}")
+        return df
+    gevuld = fc["T_air_rural"].notna()
+    if gevuld.any():
+        rijen = fc.index[gevuld]
+        for kol in OPEN_METEO_KOLOMMEN.values():
+            if kol in df.columns and kol in fc.columns:
+                df.loc[rijen, kol] = fc.loc[rijen, kol].values
+        df.loc[rijen, "from_forecast_api"] = True
+    over = int(recent.sum() - gevuld.sum())
+    logger.warning(f"ERA5 is not yet available for the last {int(recent.sum())} h "
+                   f"(from {eerste:%Y-%m-%d %H:%M}); {int(gevuld.sum())} h filled from the "
+                   f"forecast API's recent analyses" + (f", {over} h still missing" if over else "") + ".")
+    print(f"  Note: {int(gevuld.sum())} recent hours (ERA5 not yet available) taken from the "
+          f"forecast model's analyses" + (f"; {over} h still missing" if over else "") + ".")
+    return df
+
+
 def fetch_hourly_forecast(lat: float, lon: float, tz: str, days: int = 7) -> pd.DataFrame:
     """
     Fetch hourly weather forecast from Open-Meteo API.
@@ -251,19 +354,7 @@ def fetch_hourly_forecast(lat: float, lon: float, tz: str, days: int = 7) -> pd.
     # that could drift out of sync with Open-Meteo's actual coverage.
 
     try:
-        response = requests.get(url, params={**params, "models": "knmi_seamless"}, timeout=30)
-        if response.status_code == 400:
-            try:
-                body = response.json()
-            except ValueError:
-                body = {}
-            if body.get("error"):
-                logger.warning(f"KNMI model unavailable for this location "
-                               f"({body.get('reason', 'no data')}) -- "
-                               f"falling back to Open-Meteo's default model.")
-                response = requests.get(url, params=params, timeout=30)
-        response.raise_for_status()
-        data = response.json()["hourly"]
+        data = _forecast_request(params)["hourly"]
     except requests.RequestException as e:
         logger.error(f"Weather forecast API failed: {e}")
         raise
@@ -405,6 +496,11 @@ def fetch_historical_data(lat: float, lon: float, tz: str,
         "shortwave_radiation": "solar_radiation",
         "cloud_cover": "cloud_cover"
     }, inplace=True)
+
+    # [2026-11-12] ERA5 is ~5 days behind: fill a recent gap from the
+    # forecast API (see fill_recent_gap). Rows filled that way are marked
+    # from_forecast_api and are left out of the coastal correction.
+    df = fill_recent_gap(df, lat, lon, tz)
 
     return df, coastal_active
 
@@ -567,11 +663,16 @@ def process_weather_data(df: pd.DataFrame, city: Dict, lat: float, lon: float, t
         # computed elsewhere in this function) is a convenient, already
         # available proxy for this.
         scale = np.sin(np.radians(np.clip(df["solar_elevation"].values, 0, 90)))
+        # [2026-11-12] not on hours taken from the forecast API (fill_recent_gap):
+        # the correction is for ERA5's grid dilution, not for the forecast model.
+        if "from_forecast_api" in df.columns:
+            scale = np.where(df["from_forecast_api"].fillna(False).astype(bool).values, 0.0, scale)
         correction_c = COASTAL_CORRECTION_PEAK_C * scale
         dew_point = dew_point_from_rh(df["T_air_rural"].values, df["RH"].values)
         df["T_air_rural"] = df["T_air_rural"] + correction_c
         df["RH"] = rh_from_dew_point(df["T_air_rural"].values, dew_point)
-        df["coastal_correction_applied"] = True
+        df["coastal_correction_applied"] = (~df["from_forecast_api"].fillna(False).astype(bool)
+                                            if "from_forecast_api" in df.columns else True)
         df["coastal_correction_degrees"] = correction_c
     else:
         df["coastal_correction_applied"] = False
