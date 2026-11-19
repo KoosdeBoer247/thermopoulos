@@ -8,7 +8,8 @@ Checked:
   1. after fetch_historical_data no hour is missing any more;
   2. the filled hours are marked from_forecast_api, the ERA5 hours are not;
   3. the forecast request asks for past_days covering the gap and uses knmi_seamless;
-  4. the ERA5 coastal correction is not applied to the filled hours;
+  4. the ERA5 correction is not applied to the filled hours (and the pipeline
+     continues when the land-sea correction cannot get its data);
   5. an old gap (more than RECENT_GAP_DAYS ago) is left alone, without a request;
   6. a failing forecast API leaves the gap as it was, without an exception.
 """
@@ -95,11 +96,16 @@ check("one forecast request", len(fc) == 1, str(len(fc)))
 check("forecast request uses knmi_seamless", fc and fc[0].get("models") == "knmi_seamless")
 check("past_days covers the gap", fc and int(fc[0]["past_days"]) >= 5, str(fc[0].get("past_days") if fc else None))
 
-print("4. Coastal correction not applied to the filled hours")
+print("4. ERA5 correction not applied to the filled hours")
 proc = DE.process_weather_data(df.copy(), {"population": 0}, 52.1, 5.18, TZ, True, 0.03)
 corr = proc["coastal_correction_degrees"]
 check("no correction on forecast hours", float(corr[recent].abs().max()) == 0.0)
-check("correction still on ERA5 daytime hours", float(corr[~recent].max()) > 0.5, f"max {float(corr[~recent].max()):.2f}")
+# [2026-11-19] The provisional 3 C correction is replaced by the ERA5 land-sea
+# correction (era5_kustcorrectie.py), which needs neighbour cells this fake
+# archive does not serve: it must then give up quietly. That the new
+# correction skips forecast-API hours is checked in test_era5_kustcorrectie.py.
+check("pipeline continues when the land-sea correction cannot run",
+      np.allclose(proc["T_air_rural"].to_numpy(), proc["T_air_era5"].to_numpy(), equal_nan=True))
 
 print("5. Old gap left alone")
 AANVRAGEN.clear()

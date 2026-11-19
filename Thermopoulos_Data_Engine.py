@@ -1,10 +1,19 @@
 # -*- coding: utf-8 -*-
 """
-Thermopoulos.Meteodata v3.1 - Extended Historical Data Engine
+Thermopoulos.Meteodata v3.2 - Extended Historical Data Engine
 ==============================================================
 
 Standalone console-executable meteorological data acquisition and processing
 engine for the Thermopoulos heat-stress modeling suite.
+
+NEW in v3.2 (2026-11-19):
+- ERA5 land-sea correction (era5_kustcorrectie.py) on all ERA5 archive data
+  (hindcast and custom historical period), replacing the provisional 3 C
+  coastal correction and the question whether the site is coastal. Fitted on
+  26 KNMI stations; corrects hot days only; not yet tested outside the
+  Netherlands. New columns T_air_era5 (uncorrected) and
+  coastal_correction_reason. Needs the package global-land-mask; without it
+  nothing is corrected and a warning is printed.
 
 NEW in v3.1:
 - wind_speed_unit="ms" added explicitly to all Open-Meteo API requests.
@@ -43,6 +52,7 @@ UTCI CALCULATION NOTES:
 
 Author: Koos de Boer 25-01-2026
 v3.1:  wind_speed_unit fix — March 2026
+v3.2:  ERA5 land-sea correction — 19-11-2026
 """
 
 import os
@@ -90,44 +100,19 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # =============================================================================
-# Coastal correction: settings and helper function
+# ERA5 land-sea correction
 # =============================================================================
-# [fix] See CHANGELOG for the full rationale (Falmouth hindcast,
-# KFMH station comparison, literature review of ERA5 coastal bias). Thresholds
-# are tuned to the actual resolution of the model in use -- not a single fixed
-# assumption that would be correct for one model but wrong for another.
-GEO_THRESHOLD_KM = {
-    "era5":          12.5,  # 25 km grid, half cell width
-    "era5_land":      5.0,  # 9-11 km grid, half cell width
-    "era5_seamless":  5.0,  # temperature/humidity come from ERA5-Land
-}
-
-# [PROVISIONAL, VALIDATED AGAINST ONE STATION/DAY] Peak value (around solar
-# elevation maximum) of the coastal correction, in °C. Originally based on the
-# 95th-percentile coastal bias figure from the literature (~4K, "Multivariate
-# bias correction of ERA5", IOP Science 2026) and our own KFMH comparison at
-# Falmouth (3-4°C around midday). Re-validated against real KFMH station
-# observations for Falmouth, 2024-08-10: peak=4.0 gave a mean absolute error
-# of 0.92°C across race-window hours; peak=3.0 reduced that to 0.47°C, with
-# the error now split roughly symmetrically (sometimes slightly low, sometimes
-# slightly high) rather than consistently biased in one direction -- a good
-# sign for the shape of the correction, but this is still based on a single
-# day/location and should not be treated as a definitively calibrated value.
-# Override this per location once you have your own station comparison (see
-# test_era5_seamless.py / diagnose_era5_land.py for how to do that).
-COASTAL_CORRECTION_PEAK_C = 3.0
-
-# [fix 2026-10-12] The distance check alone is not a coastal test: inland, the
-# nearest ERA5-Land cell centre can lie up to half the cell DIAGONAL away
-# (~5.6 km north-south and ~3.4 km east-west at 52 N, ~6.5 km diagonally), so a
-# distance just above the 5 km half-width occurs at ordinary inland sites
-# (Soestduinen: 5.1 km). Applying the coastal correction there would add up to
-# COASTAL_CORRECTION_PEAK_C (3 C) at midday to an inland temperature.
-# KUSTLOCATIE: True = coastal site (correction allowed when the distance check
-# fires), False = inland (never applied), None = old behaviour (distance check
-# only; kept for programmatic callers such as individual_engine.py).
-# main() asks the user once.
-KUSTLOCATIE: Optional[bool] = None
+# [2026-11-19, author's decision] The provisional coastal correction (a fixed
+# 3 C peak scaled with solar elevation, validated on one station and one day,
+# switched on by a distance check and the KUSTLOCATIE question) is replaced
+# by the ERA5 land-sea correction of era5_kustcorrectie.py, fitted on 26 KNMI
+# stations (May-September 2018-2022). It is applied to every ERA5 archive
+# dataset and decides per site and per hour itself: land cells within 30 km,
+# km of land against the wind, a night rule for the coast and an island term.
+# Only hot days (daily maximum of the land reference >= 24 C) are corrected.
+# Not yet tested outside the Netherlands; see era5_kustcorrectie.py and
+# Known issue 14 in the README.
+import era5_kustcorrectie
 
 # =============================================================================
 # Terrain roughness: settings and helper function
@@ -377,7 +362,8 @@ def fetch_hourly_forecast(lat: float, lon: float, tz: str, days: int = 7) -> pd.
 
     # [fix v3.1] Forecast uses Open-Meteo's best-match high-resolution model
     # (not era5_seamless), which doesn't have ERA5's land/sea grid-dilution
-    # problem, so coastal_active is always False here. Returned explicitly
+    # problem, so coastal_active is always False here: the ERA5 land-sea
+    # correction (era5_kustcorrectie.py) is fitted on ERA5 only. Returned explicitly
     # per dataset instead of being inherited from whatever a *different*
     # fetch call (hindcast/custom-historical) last set on a shared global.
     coastal_active = False
@@ -405,10 +391,11 @@ def fetch_historical_data(lat: float, lon: float, tz: str,
     Returns
     -------
     tuple of (pd.DataFrame, bool)
-        Hourly historical data with timezone-aware index, and a
-        coastal_active flag (True if the ERA5 grid cell used is far enough
-        from the requested location to warrant the coastal correction --
-        see GEO_THRESHOLD_KM). Specific to *this* dataset only.
+        Hourly historical data with timezone-aware index, and the
+        coastal_active flag: always True here, meaning "ERA5 archive data,
+        offer it to the ERA5 land-sea correction in process_weather_data"
+        (era5_kustcorrectie.py decides per hour). Specific to *this*
+        dataset only.
     """
     url = "https://archive-api.open-meteo.com/v1/archive"
     params = {
@@ -453,33 +440,11 @@ def fetch_historical_data(lat: float, lon: float, tz: str,
         logger.error(f"Historical weather API failed: {e}")
         raise
 
-    # [fix] Automatic geo-distance check: compare the grid-cell coordinates
-    # Open-Meteo actually used against the requested location. Threshold is
-    # tuned to the real resolution of the model in use (~9-11 km for
-    # era5_land/era5_seamless, ~25 km for plain era5) -- not a single fixed
-    # assumption that would be right for one model and wrong for another.
-    # [fix v3.1] Returns coastal_active as a local value tied to *this*
-    # dataset's own distance check, instead of setting a module-level global
-    # that a later fetch call (or a dataset processed afterward) would
-    # silently inherit.
-    returned_lat = response_json.get("latitude", lat)
-    returned_lon = response_json.get("longitude", lon)
-    distance_km = _haversine_km(lat, lon, returned_lat, returned_lon)
-    threshold_km = GEO_THRESHOLD_KM.get(params.get("models", "era5"), 12.5)
-    if distance_km > threshold_km and KUSTLOCATIE is False:
-        logger.info(
-            f"Grid cell is {distance_km:.1f} km from the requested location; "
-            f"inland site, so no coastal correction (normal for a grid cell).")
-        coastal_active = False
-    elif distance_km > threshold_km:
-        logger.warning(
-            f"Grid cell is {distance_km:.1f} km from the requested location "
-            f"(threshold {threshold_km} km for model '{params.get('models')}') "
-            f"-- possible coastal bias. Coastal correction activated for this dataset."
-        )
-        coastal_active = True
-    else:
-        coastal_active = False
+    # [2026-11-19] Every ERA5 archive dataset is offered to the ERA5 land-sea
+    # correction (era5_kustcorrectie.py); the correction itself decides per
+    # site and hour whether anything changes. The former distance check
+    # (grid cell vs. requested location) is no longer used for this.
+    coastal_active = True
 
     df = pd.DataFrame(data)
     df["time"] = pd.to_datetime(df["time"])
@@ -573,7 +538,7 @@ def dew_point_from_rh(t_air, rh):
 
     Notes
     -----
-    Used by the coastal correction (see coastal_active in process_weather_data): the dew
+    Used by the ERA5 land-sea correction (see process_weather_data): the dew
     point represents the absolute moisture content and stays unchanged when
     T_air is corrected -- only the RH derived from it changes. Magnus
     constants (a=17.62, b=243.12) are the common, widely used set for
@@ -625,9 +590,10 @@ def process_weather_data(df: pd.DataFrame, city: Dict, lat: float, lon: float, t
     tz : str
         Timezone string
     coastal_active : bool
-        Whether the coastal correction applies to *this* dataset. Comes
-        directly from the fetch_* call that produced `df` -- never shared
-        across datasets. [fix v3.1]
+        Whether `df` is ERA5 archive data that is offered to the ERA5
+        land-sea correction (era5_kustcorrectie.py). Comes directly from the
+        fetch_* call that produced `df` -- never shared across datasets.
+        [fix v3.1; meaning since 2026-11-19]
     roughness_z0 : float
         Terrain roughness length (m) used for the 10m->1.5m wind-speed
         profile. User-selected per run from a fixed set of terrain
@@ -639,44 +605,38 @@ def process_weather_data(df: pd.DataFrame, city: Dict, lat: float, lon: float, t
     pd.DataFrame
         Fully processed data with all thermal indices
     """
+    # 0. ERA5 land-sea correction [2026-11-19]
+    # Replaces the provisional 3 C coastal correction. Applied to ERA5 archive
+    # data only (coastal_active comes from the fetch_* call), before the solar
+    # step and before UHI, so UHI is still added on top of the corrected
+    # T_air_rural. Hours filled from the forecast API (from_forecast_api) are
+    # left alone: the correction is fitted on ERA5. The dew point stays fixed
+    # (no new moisture measurement) and RH is recomputed from it. The ERA5
+    # value is kept in T_air_era5, the correction in coastal_correction_degrees,
+    # and coastal_correction_reason says per hour why it was or was not applied.
+    df["T_air_era5"] = df["T_air_rural"]
+    df["coastal_correction_applied"] = False
+    df["coastal_correction_degrees"] = 0.0
+    df["coastal_correction_reason"] = "not ERA5" if not coastal_active else ""
+    if coastal_active:
+        overslaan = (df["from_forecast_api"].fillna(False).astype(bool)
+                     if "from_forecast_api" in df.columns else None)
+        corr, info = era5_kustcorrectie.corrigeer_dataframe(df, lat, lon, overslaan=overslaan)
+        print(f"  {info['melding']}")
+        logger.info(info["melding"])
+        if isinstance(info.get("reden"), pd.Series):
+            df["coastal_correction_reason"] = info["reden"].values
+        else:
+            df["coastal_correction_reason"] = "not applied"
+        if info.get("toegepast"):
+            dew_point = dew_point_from_rh(df["T_air_rural"].values, df["RH"].values)
+            df["T_air_rural"] = df["T_air_rural"] + corr.values
+            df["RH"] = rh_from_dew_point(df["T_air_rural"].values, dew_point)
+            df["coastal_correction_degrees"] = corr.values
+            df["coastal_correction_applied"] = df["coastal_correction_reason"].eq("applied").values
+
     # 1. Solar calculations
     df = calculate_solar_parameters(df, lat, lon, tz)
-
-    # [fix] Temporary coastal correction, only applied if the geo-distance
-    # check (grid-cell coordinates vs. requested location) raised a warning
-    # elsewhere in the call chain. Applied before the UHI step, so UHI is
-    # still added normally on top of the corrected T_air_rural afterward,
-    # rather than double-counting or cutting across it.
-    # Dew point stays fixed (the physically correct assumption for a T
-    # correction without a new moisture measurement), RH is recomputed from
-    # it -- not simply left unchanged next to a higher T_air.
-    # [PROVISIONAL, PARTIALLY VALIDATED] COASTAL_CORRECTION_PEAK_C is based on
-    # comparison against a single real weather station (KFMH, Falmouth,
-    # 10 Aug 2003) -- explicitly flagged as a stopgap, see the
-    # coastal_correction_applied column below.
-    if coastal_active:
-        # [fix] Diurnal scaling instead of a flat correction: ERA5's sea
-        # component has almost no diurnal cycle (confirmed in the
-        # literature), while land does warm up during the day -- the
-        # land-sea contrast, and therefore the dilution error, is largest
-        # around midday and near zero at night. Solar elevation (already
-        # computed elsewhere in this function) is a convenient, already
-        # available proxy for this.
-        scale = np.sin(np.radians(np.clip(df["solar_elevation"].values, 0, 90)))
-        # [2026-11-12] not on hours taken from the forecast API (fill_recent_gap):
-        # the correction is for ERA5's grid dilution, not for the forecast model.
-        if "from_forecast_api" in df.columns:
-            scale = np.where(df["from_forecast_api"].fillna(False).astype(bool).values, 0.0, scale)
-        correction_c = COASTAL_CORRECTION_PEAK_C * scale
-        dew_point = dew_point_from_rh(df["T_air_rural"].values, df["RH"].values)
-        df["T_air_rural"] = df["T_air_rural"] + correction_c
-        df["RH"] = rh_from_dew_point(df["T_air_rural"].values, dew_point)
-        df["coastal_correction_applied"] = (~df["from_forecast_api"].fillna(False).astype(bool)
-                                            if "from_forecast_api" in df.columns else True)
-        df["coastal_correction_degrees"] = correction_c
-    else:
-        df["coastal_correction_applied"] = False
-        df["coastal_correction_degrees"] = 0.0
 
     # 2. UHI & Urban Temperature
     # [fix v3.1] UHI still follows population (that part was fine -- Oke's
@@ -1026,14 +986,6 @@ def main():
     # [fix v3.1] Explicit terrain choice, replacing the population>0
     # heuristic. Applies to all three datasets fetched below.
     roughness_z0, terrain_label = select_terrain_roughness()
-
-    # [fix 2026-10-12] Coastal correction only for coastal sites (see KUSTLOCATIE).
-    global KUSTLOCATIE
-    antwoord = input("\nLigt het parcours binnen ~10 km van zee of een groot meer "
-                     "(kustcorrectie op de temperatuur)? (j/N): ").strip().lower()
-    KUSTLOCATIE = antwoord in ("j", "ja", "y", "yes")
-    print("  Kustcorrectie: " + ("toegestaan als de rastercel ver van de locatie ligt"
-                                 if KUSTLOCATIE else "uit (binnenland)"))
 
     # =========================================================================
     # STEP 2: Fetch 7-Day Forecast

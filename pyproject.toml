@@ -23,6 +23,7 @@ dependencies = [
   "fitdecode>=0.10",
   "requests>=2.28",
   "xlsxwriter>=3.0",
+  "global-land-mask>=1.0",      # land-sea mask for the ERA5 land-sea correction
 ]
 classifiers = [
   "Development Status :: 4 - Beta",

@@ -3,6 +3,15 @@
 Klimatos.ClimateShift v1.5 - Climate-Shift Engine
 ==================================================
 
+NOTE ON ERA5 NEAR WATER (2026-11-19)
+------------------------------------
+Klimatos does not apply the ERA5 land-sea correction that the Data Engine
+applies to hindcasts (era5_kustcorrectie.py): for ~75 years it would need
+10,000-30,000 Open-Meteo call units per site. Every run prints a warning
+(era5_correctie_waarschuwing), stronger at the coast. Absolute values next
+to water (HEAT-Lim hours, event windows) can be too favourable; trends are
+less affected. See Known issue 14 in the README.
+
 NEW IN v1.1
 -----------
 1. WARMING STRIPES ("streepjescode", plot_warming_stripes). One coloured bar
@@ -921,6 +930,38 @@ ARCHIVE_MODEL = "era5_seamless"
 ARCHIVE_CELL_SELECTION = "land"
 
 
+def era5_correctie_waarschuwing(lat: float, lon: float) -> str:
+    """[2026-11-19, author's decision] Klimatos does NOT apply the ERA5
+    land-sea correction that the Data Engine applies to hindcasts
+    (era5_kustcorrectie.py). That correction needs, per hour, the temperatures
+    of all ERA5 cells within 30 km; for ~75 years that is 10,000-30,000
+    Open-Meteo call units per site, one to three days of the free daily limit.
+    This function returns (and prints/logs) the warning shown at every run;
+    stronger at the coast (less than 90% land in the 0.1-degree cell
+    according to global-land-mask). Never raises."""
+    try:
+        from era5_kustcorrectie import landdeel
+        ld = landdeel(lat, lon, 0.10)
+    except Exception:
+        ld = None
+    basis = ("WARNING: Klimatos uses ERA5 without the land-sea correction of the Data Engine. "
+             "ERA5 is too warm at night inland on hot days (about 1.4 C at KNMI stations) and, "
+             "next to water, too cool on hot afternoons.")
+    if ld is not None and ld < 0.9:
+        tekst = (basis + f" This location is at the coast ({ld:.0%} land in the ERA5 cell): "
+                 "the hottest hour of the summer may be several degrees too low (on average "
+                 "3.5 C at Dutch stations on the water), so absolute values (HEAT-Lim hours, "
+                 "event windows) can be too favourable. Trends are less affected.")
+    elif ld is None:
+        tekst = (basis + " Whether this location is at the coast could not be checked "
+                 "(package global-land-mask missing).")
+    else:
+        tekst = basis + " Trends are less affected than absolute values."
+    print("\n  " + tekst + "\n")
+    logger.warning(tekst)
+    return tekst
+
+
 def fetch_hourly_year(lat: float, lon: float, tz: str, year: int) -> pd.DataFrame:
     """
     Fetch one calendar year of hourly historical weather from the Open-Meteo
@@ -1423,6 +1464,7 @@ def build_annual_maxima(lat: float, lon: float, tz: str, city: Dict,
     module run at no additional API cost; a slice is a few hundred rows, so
     holding one per year is negligible.
     """
+    era5_correctie_waarschuwing(lat, lon)   # [2026-11-19] no land-sea correction here
     records = []
     failed_years: List[int] = []
     n_years = end_year - start_year + 1

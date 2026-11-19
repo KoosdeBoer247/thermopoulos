@@ -8,6 +8,54 @@ Entries up to 2026-10-24 were written during development; names of people
 in personal communications have been replaced by their institution, and
 results of individual field-test participants by group-level statements.
 
+## [2026-11-19] ERA5 land-sea correction in the Data Engine (author's decision)
+
+- **New: `era5_kustcorrectie.py`** with frozen parameters in
+  `era5_kustcorrectie_params.json` (from `buurcel_toets.py`, version of
+  18-11-2026, run of 19-11-2026 by the author on 26 KNMI stations,
+  May-September 2018-2022). Model: T = T_cel + w(F) (T_land + f_land - T_cel)
+  + c G, with T_land the mean of the ERA5 land cells within 30 km, F the km of
+  land against the ERA5 wind (global-land-mask), w = 0.895 (1 - exp(-F /
+  4.21 km)), f_land an hourly correction of the land reference fitted on
+  inland stations (at night only applied inland), and an island term
+  (c = 0.68 degC per 100 W/m2) for islands narrower than the grid cell. Only
+  hot days (daily maximum of T_land >= 24 degC) are corrected. Strict test
+  (station and stations within 50 km left out): stations on the water TXx
+  -3.51 -> -1.91 degC, hot afternoons 1.99 -> 1.35 degC, nights 1.31 -> 1.05
+  degC mean absolute error; inland TXx -1.18 -> -0.58, nights 1.40 -> 0.59
+  degC. The night error near the coast moved between stations rather than
+  disappearing; narrow islands keep large errors. Not yet tested outside the
+  Netherlands (analysis plan of 18-11-2026; NC State data expected January
+  2027). The author chose to put it in the suite before those tests,
+  accepting the uncertainty.
+- **Data Engine v3.2:** every ERA5 archive dataset (hindcast, custom
+  historical period, `individual_engine` history) goes through the new
+  correction in `process_weather_data`, before UHI; dew point kept, RH
+  recomputed. New columns `T_air_era5` (uncorrected) and
+  `coastal_correction_reason`; `coastal_correction_degrees` and
+  `coastal_correction_applied` keep their names. Hours filled from the
+  forecast API are not corrected. **Removed:** the provisional coastal
+  correction (fixed 3 degC peak scaled with solar elevation, validated on one
+  station and one day), the distance check that switched it on
+  (`GEO_THRESHOLD_KM`, `COASTAL_CORRECTION_PEAK_C`) and the console question
+  whether the course is coastal (`KUSTLOCATIE`). Hindcasts change on rerun,
+  inland too: nights after hot days typically 1-1.5 degC cooler, coastal
+  afternoons warmer. Without the package global-land-mask, or when Open-Meteo
+  does not deliver, nothing is corrected and a warning is printed. Per site
+  the first hindcast fetches the ERA5 cells within 30 km for five summers
+  once (about 2,000 call units, cached in `ERA5_KUST_CACHE`).
+- **Klimatos:** the correction is not applied (it would need 10,000-30,000
+  Open-Meteo call units per site for ~75 years). Every run prints and logs a
+  warning (`era5_correctie_waarschuwing`), stronger at the coast; the
+  Klimatos report states it in its data table.
+- New dependency `global-land-mask` (requirements.txt, pyproject.toml). New
+  test `test_era5_kustcorrectie.py` (no network): parameters, the same result
+  as the development script on a reference set
+  (`testdata/era5_kustcorrectie_referentie.csv`, difference < 1e-6 degC),
+  hot days only, night rule, island term, cache, failing archive, Data
+  Engine integration. README Known issues 5 and 14, TECHNICAL_REFERENCE §2.4
+  and §5.1, MANIFEST and DATA_SOURCES updated.
+
 ## [2026.10.27] Release
 
 Second public release. Contains everything since 2026.10.25 (entries below), and:

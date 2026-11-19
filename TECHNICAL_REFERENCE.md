@@ -108,7 +108,7 @@ Klimatos needs that one file next to it.
 
 | Layer | Modules |
 |---|---|
-| Weather | `Thermopoulos_Data_Engine.py` (fetch + thermal indices), `thermal_env.py` (shared physics and geocoding), `thermopoulos_loader.py` (reads the Excel format) |
+| Weather | `Thermopoulos_Data_Engine.py` (fetch + thermal indices), `era5_kustcorrectie.py` + `era5_kustcorrectie_params.json` (ERA5 land-sea correction, §2.4), `thermal_env.py` (shared physics and geocoding), `thermopoulos_loader.py` (reads the Excel format) |
 | HESTIA core | `hestia_model.py` (JOS-3 setup, population, Monte Carlo, post-finish, collapse endpoints), `jos3_leeftijd.py` (age effect, patches JOS-3 in memory), `HESTIA_CVR_Module_v2.py` (cardiovascular response), `HESTIA_ControlFailure_Module.py` (TCF dose) |
 | HESTIA entry points | `run_hestia.py` (event Monte Carlo + report), `hestia_console.py` (the engine's own console), `hestia_model_plots.py` (console figures), `individual_engine.py` / `hestia_loper.py` / `run_loper.py` (one runner), `hestia_bridge.py` (Klimatos and app adapter), `intercept_estimation.py` (endpoint calibration) |
 | Field validation | `fit_lezer.py`, `clinic_invoer.py`, `inspanning_uit_fit.py`, `hestia_reconstructie.py`, `dynamiek.py`, `clinic_validatie.py`, `clinic_rapport.py`, `criteria.json`, `fit_loop.py` (one run, no pre-registration), `groep_lopers.py` (known runners through a chosen run), `aanmelding.py` (sign-up list + FIT files to codes) |
@@ -174,6 +174,83 @@ the chosen activity's own pace instead of an unrelated fixed number; see
 §4.6 for how `event_dist_km` also now drives HESTIA's per-person
 `sample_pace` distribution via Riegel scaling, and §5.7 for the same
 distance parameter in Klimatos.
+
+### 2.4 ERA5 land-sea correction [2026-11-19, author's decision]
+
+**Problem.** ERA5 (`era5_seamless`, `cell_selection=land`) is too cool on hot
+afternoons in grid cells that contain sea or lake water (the water damps the
+diurnal cycle), and too warm at night inland. Against 26 KNMI stations
+(May–September 2018–2022, hot days = daily maximum of the land reference
+≥ 24 °C) the hottest hour of the summer (TXx) was on average 3.51 °C too low
+at the 8 stations on the water (less than 90 % land in the 0.1° cell) and
+1.18 °C too low elsewhere; the mean absolute error on hot afternoons
+(11–15 UT) was 1.99 and 0.66 °C, in the nights (0–4 UT) 1.31 and 1.40 °C.
+
+**Model** (`era5_kustcorrectie.py`, parameters frozen in
+`era5_kustcorrectie_params.json` with the checksums of the source script and
+result file):
+
+T = T_cel + w(F) · (T_land + f_land − T_cel) + c · G
+
+| Term | Definition | Value |
+|---|---|---|
+| T_cel | ERA5 hourly temperature at the site, as fetched | – |
+| T_land | mean of the land cells within 30 km: cells (`cell_selection=nearest`) with D = 1 − A/A_ref < 0.10, A = mean daily amplitude May–September 2018–2022, A_ref = largest A within 30 km; each cell brought to the site elevation with 6.5 °C/km | – |
+| F | km of land against the ERA5 10-m wind direction to the first water (global-land-mask, ~1 km), at most 40 km; a site on water first skips up to 2 km of water | – |
+| w(F) | w_max · (1 − exp(−F/L)) | w_max 0.895, L 4.21 km |
+| f_land | per UTC hour: a0 + clearness + ln(1 + wind10) + heat + heat² + clearness·heat + e_land (heat = daily maximum of T_land − 24, clipped ±10; e_land = T_land − its UTC-day mean); by day (GHI > 10 W/m²) everywhere, at night only inland (≥ 90 % land in the cell) | 24 × 10 coefficients, fitted on inland stations |
+| G | narrow island only (site on land, < 50 % land in the cell, island narrower than the cell N–S or E–W): GHI/100 · (1 − land fraction), for GHI > 50 W/m² | c = 0.68 °C per 100 W/m² |
+
+Only hot days are corrected (the fit range). Hours filled from the forecast
+API, hours with a missing input, and sites without a land cell within 30 km
+(other than narrow islands) are left as ERA5 delivered them; the column
+`coastal_correction_reason` says why per hour, `T_air_era5` keeps the
+uncorrected value. The dew point is kept and RH recomputed.
+
+**Development and test.** Developed in `buurcel_toets.py` (outside the
+suite) in about ten steps on the same 8 water stations; each step had a
+physical reason, but such a sequence adapts itself to the stations used.
+Cross-validated three ways; the strict test leaves out the station and all
+stations within 50 km:
+
+| Group (strict test) | Afternoon |error| | Night |error| | TXx mean (|TXx|) |
+|---|---|---|---|
+| water, no correction | 1.99 | 1.31 | −3.51 (3.51) |
+| water, corrected | 1.35 | 1.05 | −1.91 (2.13) |
+| inland, no correction | 0.66 | 1.40 | −1.18 (1.19) |
+| inland, corrected | 0.37 | 0.59 | −0.58 (0.71) |
+
+Two nearby stations (10–40 km apart) differ in TXx by 0.62 °C on average,
+a floor for what any correction from a 0.1° grid can reach. Per station
+(strict test) TXx after correction ranges from +0.5 (Vlissingen) to −5.4 °C
+(Vlieland). In the strict test the island term could not be fitted at all
+(Vlieland and Terschelling lie within 50 km of each other), so it is
+untested there; with only the station itself left out (Terschelling TXx
+−0.15, Vlieland −1.20 °C) it rests on one other island. At night near the coast the error moved between stations rather
+than disappearing (Hoek van Holland 0.0, Stavoren +2.1, Schiphol −1.4 °C).
+The module reproduces the prediction of `buurcel_toets.py` to within 1e-6 °C
+on a reference set (`test_era5_kustcorrectie.py`).
+
+**Deviations from the development script.** In the suite the land cells are
+searched among all ERA5 cells within 30 km of the site; in the fit they were
+searched among the cells fetched around the 26 stations (rings of 3×3 or
+5×5), which need not cover the whole circle. The site elevation is
+the one Open-Meteo returns for the site, not the station altitude.
+
+**Not yet known.** The model is fitted on the Dutch coast in summer. A
+preregistered test on German and Danish stations (analysis plan of
+18-11-2026) and a test on NC State station data (expected January 2027) are
+planned; the author chose to put the correction in the suite before those
+tests, accepting the uncertainty, because it is already a large improvement
+on uncorrected ERA5 and on the former provisional correction (fixed 3 °C peak
+scaled with solar elevation, validated on one station and one day, switched
+on by a distance check and the question whether the course is coastal).
+
+**Cost.** Per site once: all cells within 30 km for five summers, about 2,000
+Open-Meteo call units, kept in a cache (`ERA5_KUST_CACHE`). Per period: the
+land cells and the site wind direction. For this reason Klimatos (about 75
+years per site) does not apply the correction; it prints a warning
+(`era5_correctie_waarschuwing`).
 
 ---
 
@@ -1908,7 +1985,9 @@ on 2026-11-02), the military with load, and individual walking speeds
   2007–2025 at Den Helder and Falmouth. Open-Meteo advises ERA5 or
   ERA5-Land only for multi-decade climate studies. With the fixed source,
   results up to 2016 are unchanged; results that include 2017 onwards change
-  and should be rerun. The level bias near large water surfaces remains
+  and should be rerun. The level bias near large water surfaces remains:
+  the Data Engine's ERA5 land-sea correction (§2.4) is not applied in
+  Klimatos because of its data cost, and every run prints a warning
   (README, Known issue 14). KNMI's regional forecast model has no
   multi-decade historical archive and is not used on this path.
 - **Forecast** (used only by the event-window's near-term context, not the
@@ -2305,7 +2384,8 @@ Added after the 2026-09-11 snapshot above; covered by `test_recent_features.py`.
   `fetch_historical_data`) fills hours missing within `RECENT_GAP_DAYS` (10)
   of today from the forecast API (`past_days`, `knmi_seamless` first, then
   Open-Meteo's default model). Those rows carry `from_forecast_api = True`
-  and are excluded from the ERA5 coastal correction. The loader warns for
+  and are excluded from the ERA5 coastal correction (since 2026-11-19 the
+  ERA5 land-sea correction, §2.4). The loader warns for
   any remaining day without temperature. Test: `test_hindcast_gat.py`.
 - **`Historical_Custom` sheet**: the Data Engine can fetch any past period
   (ERA5 archive, 1940 onwards). `ThermopoulosData.sheet_period(sheet)`

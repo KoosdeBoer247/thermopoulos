@@ -1,7 +1,12 @@
 """Golden-output regression test.
 
 tests/golden_reference.json was produced by the calibration version of
-2026-11-04 (HUTAS maximum skin wettedness and dripping sweat in JOS-3). This test
+2026-11-04 (HUTAS maximum skin wettedness and dripping sweat in JOS-3).
+[2026-11-19] Regenerated for the ERA5 land-sea correction: only the Data
+Engine pipeline entries changed (new column T_air_era5; in
+de_process_coastal the former 3 C coastal correction is gone, and the new
+correction is not applied because the dump runs with ERA5_KUST_OFFLINE=1).
+Every other number was checked to be identical to the previous reference. This test
 re-runs the same seeded computations (weather pipelines, HESTIA event engine,
 runner module, clinic reconstruction, calibration reference weather, PYROX)
 and requires every number to match within a relative tolerance of 1e-9, so a

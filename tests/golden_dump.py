@@ -5,6 +5,7 @@ import sys, os, json, io, contextlib, warnings, hashlib
 warnings.filterwarnings('ignore')
 S, OUT = sys.argv[1], sys.argv[2]
 sys.path.insert(0, S); os.chdir(S)
+os.environ['ERA5_KUST_OFFLINE'] = '1'   # [2026-11-19] no network: ERA5 land-sea correction not applied here (tested in test_era5_kustcorrectie.py)
 import numpy as np, pandas as pd
 R = {}
 def num(x):

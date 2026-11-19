@@ -555,6 +555,8 @@ def generate_klimatos_report(event_name: str,
     A("|---|---|")
     A("| Model | Klimatos.ClimateShift |")
     A("| Databron | ERA5 historisch archief (Open-Meteo archive-api) |")
+    A("| ERA5-correctie | geen: de land-zeecorrectie van de Data Engine wordt in Klimatos niet "
+      "toegepast; aan de kust kunnen absolute waarden te gunstig zijn |")
     if meta.get("admissions_erf"):
         A(f"| Ziekenhuisopnames-methode | {meta['admissions_erf']} |")
     if meta.get("liveability"):

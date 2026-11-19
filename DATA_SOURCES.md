@@ -16,6 +16,16 @@ the Open-Meteo APIs (forecast, historical/archive, geocoding, air quality).
   *contains modified Copernicus Climate Change Service information*. Forecast
   data come from national weather services (for example KNMI, DWD) via
   Open-Meteo; see Open-Meteo's licence page for the source list and terms.
+- **ERA5 land-sea correction** (`era5_kustcorrectie.py`, 2026-11-19): for each
+  hindcast site the Data Engine also fetches, once, the ERA5 temperatures of
+  all cells within 30 km for May–September 2018–2022 (about 2,000 call units,
+  kept in a local cache), and for each period the land cells and the ERA5 wind
+  direction. The land-sea mask comes from the Python package
+  [global-land-mask](https://github.com/toddkarin/global-land-mask) (MIT
+  according to its package classifier; the package's licence field is empty),
+  built from the NOAA GLOBE 1-km elevation data set. The frozen parameters
+  (`era5_kustcorrectie_params.json`) were fitted by the author on KNMI station
+  observations (KNMI open data) and ERA5; no observations are included.
 - **Free API: non-commercial use only.** Open-Meteo's terms state: "You may
   only use the free API services for non-commercial purposes" (limits: fewer
   than 10,000 calls per day, 5,000 per hour, 600 per minute). Commercial users,
@@ -28,6 +38,8 @@ the Open-Meteo APIs (forecast, historical/archive, geocoding, air quality).
 |---|---|---|
 | `DtD2024_Amsterdam_hindcast.xlsx` | Hourly weather Amsterdam, 22–23 Sept 2024 (Data Engine hindcast), reference weather of the Dam tot Damloop calibration | Open-Meteo (ERA5), CC BY 4.0, processed by the Data Engine |
 | `Thermopoulos_SmokeTest.xlsx`, `testdata/Thermopoulos_TestAMS.xlsx` | Synthetic weather for tests | generated, no external data |
+| `testdata/era5_kustcorrectie_referentie.csv` | 5 KNMI station locations × 3 hot days: ERA5 hourly values (site and land reference), wind direction and the correction computed by the development script; checks the formula | Open-Meteo (ERA5), CC BY 4.0, processed |
+| `era5_kustcorrectie_params.json` | Frozen parameters of the ERA5 land-sea correction | fitted by the author (`buurcel_toets.py`, run of 19-11-2026) |
 | `paris2003.py` (embedded series) | Paris August 2003: reconstructed daily maximum temperature, Météo-France station values for night minima, national excess mortality | Fouillet et al. (2006) and the sources cited in the file; used only for the PYROX shape check |
 | `intercept_controle_2026-10-24.json` | Raw results of the current endpoint calibration | produced by `intercept_estimation.py` |
 | `criteria.json` | Pre-registered acceptance limits of the Thermo Clinic validation | author |

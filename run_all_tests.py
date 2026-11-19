@@ -44,6 +44,7 @@ TESTS = [  # (script, slow?)
     ("test_hutas_zweet.py", False),
     ("test_klimatos_bron.py", False),
     ("test_hindcast_gat.py", False),
+    ("test_era5_kustcorrectie.py", False),
     ("test_plausibility_2026_10_14.py", True),
     ("test_individual_engine.py", True),
     ("test_loper.py", True),
@@ -56,7 +57,7 @@ TESTS = [  # (script, slow?)
 
 REQUIRED = ["numpy", "pandas", "scipy", "matplotlib", "seaborn", "pythermalcomfort",
             "pvlib", "timezonefinder", "pytz", "openpyxl", "xlsxwriter", "docx",
-            "fitdecode", "tqdm", "colorama", "requests"]   # import names of requirements.txt
+            "fitdecode", "tqdm", "colorama", "requests", "global_land_mask"]   # import names of requirements.txt
 
 
 def missing_packages():
