@@ -115,6 +115,20 @@ Every file in the release and what it does. History of individual files:
 | `generate_pyrox_report.py` | PYROX population report |
 | `report_to_docx.py`, `build_report_docx.js` | Word export of the reports (Node.js, `npm install`) |
 
+## Visual interfaces (Tkinter)
+
+Separate scripts on top of the suite: they only call existing suite functions
+and change no calculation. Each opens its own window; texts are in Dutch.
+
+| File | Purpose |
+|---|---|
+| `thermopoulos_ui.py` | start screen: choose one of the four interfaces below (keys 1–4); each opens in its own process |
+| `hestia_loper_ui.py` | one runner (or a person at rest): core temperature, CO reserve, WBGT, air temperature, humidity and wind during the run; online weather or a Data Engine file; live recalculation when the start time changes; HEAT-Lim rest mode |
+| `hestia_populatie_ui.py` | event population: progressive Monte Carlo through `run_monte_carlo_adult`, EHS per 1000 with interval, risk bar, when/where/who, ten hottest participants, start-time comparison, Excel export |
+| `pyrox_ui.py` | PYROX: strain per group via `run_pyrox.assess_population`, heatmap, feedback loop, forecast uncertainty, regimes with stability of the equilibrium and the tipping zone, briefing (calendar, margin, after-effect), buckets, tipping-point landscape, Excel, Word report and an A4 briefing (`python-docx`) |
+| `ui_gemeen.py` | shared presentation parts for the four interfaces (display only, no calculations): input sections labelled required / optional / model setting, result tiles with a one-line interpretation, a provenance line (data source, suite version, status, what the result is not) and a short explanation per tab |
+| `klimatos_ui.py` | Klimatos: year-by-year fetch through `build_annual_maxima` with a disk cache (resumable), analysis through `Klimatos_ClimateShift.main()` itself, elapsed/remaining clocks, quick 30-year exploration, EHS evolution on request, and an assessment mode that runs the ERA5 land-sea correction for every year (kept separate from the suite results) |
+
 ## Menu and tests
 
 | File | Purpose |

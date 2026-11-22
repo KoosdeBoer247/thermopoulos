@@ -10,6 +10,7 @@ intercept_estimation_population_*.pkl
 intercept_estimation_results.json
 intercept_estimation_eac.json
 loper_uitvoer/
+klimatos_ui_uitvoer/
 *.content.json
 # field data never belong in the repository
 *.fit

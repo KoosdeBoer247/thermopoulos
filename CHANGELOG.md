@@ -8,6 +8,75 @@ Entries up to 2026-10-24 were written during development; names of people
 in personal communications have been replaced by their institution, and
 results of individual field-test participants by group-level statements.
 
+## [2026-11-22] Interfaces: readability and transparency
+
+- **Changed:** the four interfaces (presentation only). After an outside
+  review of screenshots, the author adopted these points:
+  - the main outcomes are shown as large tiles with a one-line
+    interpretation, above the graphs (runner: peak core temperature, lowest
+    CO reserve, first time a reference value is reached, running time, model
+    signal; event: collapse risk per 1000, EHS count with its sampling
+    interval, participants above 42 °C, peak T_rect, lowest CO reserve;
+    PYROX: see below; Klimatos: window anomaly, trend, event trend, reference
+    period, coastal correction). The result text below the graphs is larger;
+  - event risk bar: number of simulated participants, criterion and endpoint
+    are shown next to it, and the tiles state that the black bar is the
+    sensitivity to the calibration intercept, not the sampling margin;
+  - PYROX warning explained: deciding group (paper or extrapolated),
+    exceeded limit as a share of that group's critical strain, first date and
+    whether that date is past weather or forecast, peak, and the build-up or
+    the emergency date. Groups are listed under "from the paper" and
+    "extrapolated", following the suite's evidence status. A button opens the
+    briefing tab;
+  - input sections are labelled required, optional, model setting, actions or
+    notice only; Klimatos inputs are split into location, analysis period,
+    event, analyses to run (each with what it does) and fixed suite settings;
+  - every interface has a provenance line: data source, suite version,
+    status (simulation on historical or forecast weather, calculation,
+    historical analysis, assessment) and what the result is not;
+  - every tab starts with a short explanation.
+- **Fixed (Klimatos interface):** the event table looked for projection
+  columns named `proj_YYYY`, but `build_event_summary` writes
+  `projected_YYYY` and `projected_YYYY_vs_baseline`. The outlooks for the
+  target years (2030, 2035, 2040) were therefore missing from the table.
+  They are now shown per target year as value and difference from the
+  baseline, drawn in the event graph as a dotted extension with diamonds,
+  and the last target year appears as a tile. Labelled as Klimatos' linear
+  extension of the trend, not a climate scenario.
+- **New:** `ui_gemeen.py` holds these shared presentation parts.
+- **Checked:** every function outside `_start_ui` in the four interface files
+  is unchanged (syntax-tree comparison), so the calculation path is the same
+  as on 2026-11-21. Screenshots checked for all four interfaces, including
+  the HEAT-Lim rest mode.
+
+## [2026-11-21] Visual interfaces and start screen
+
+- **New:** `thermopoulos_ui.py` (start screen) and four Tkinter interfaces:
+  `hestia_loper_ui.py`, `hestia_populatie_ui.py`, `pyrox_ui.py` and
+  `klimatos_ui.py`. They sit next to the suite and only call existing suite
+  functions; no calculation file was changed. Checked: runner member 0 and
+  the event population equal direct engine and `run_monte_carlo_adult` runs;
+  PYROX equals `assess_population` on the same Data Engine file (every group,
+  nocturnal recovery on and off, three start values); the Klimatos
+  year-by-year fetch equals one `build_annual_maxima` call over the whole
+  period, including event slices and HEAT-Lim raw hours.
+- **Klimatos interface, assessment mode:** an optional second run applies
+  `era5_kustcorrectie.corrigeer_dataframe` to every year, in the same way as
+  the Data Engine (dew point kept, RH recomputed, before UHI). It is shown
+  separately and never mixed with the suite results; Klimatos itself still
+  does not apply the correction (Known issue 14). Quick exploration (last 30
+  years) uses the first 10 fetched years as reference period, because
+  1951-1980 falls outside the data; this is shown in the interface and in the
+  report.
+- **Found while building the PYROX interface:** `equilibrium_strain` returns
+  the zero of the daily change without checking its stability. Where the
+  daily change is negative at zero strain and positive at the critical
+  limit, that zero is an unstable threshold (bistable, with hysteresis), not a
+  resting state; `plot_three_regimes` draws it as an equilibrium. The PYROX
+  interface determines stability and the tipping zone with
+  `PyroxModel.simulate`; the suite itself is unchanged.
+- `.gitignore`: output folder `klimatos_ui_uitvoer/`.
+
 ## [2026-11-19] ERA5 land-sea correction in the Data Engine (author's decision)
 
 - **New: `era5_kustcorrectie.py`** with frozen parameters in

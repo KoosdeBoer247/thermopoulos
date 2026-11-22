@@ -168,6 +168,12 @@ silently change a result. GitHub Actions runs both test sets
 
 ## Quick start
 
+**Visual interfaces.** `python thermopoulos_ui.py` opens a start screen with
+four windowed interfaces (Tkinter, in Dutch): one runner, an event
+population, PYROX and Klimatos. They call the same suite functions as the
+console scripts and change no calculation (see `MANIFEST.md`). On Linux,
+Tkinter may need the system package `python3-tk`.
+
 Start the main menu with `python start_thermopoulos.py` (or open it in
 Spyder and press F5). It offers, in Dutch:
 
