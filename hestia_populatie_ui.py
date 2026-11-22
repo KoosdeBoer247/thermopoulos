@@ -574,30 +574,38 @@ def _start_ui(na_start=None):
             ttk.Button(boven, text="Extra grafieken", command=self._open_extra).pack(
                 side="right", padx=8)
 
-            self.rb_fig = Figure(figsize=(12, 1.0), dpi=96)
+            self.nb = ttk.Notebook(rechts)
+            self.nb.pack(fill="both", expand=True, pady=(4, 0))
+            tab_u = ttk.Frame(self.nb, padding=(2, 4))
+            tab_g = ttk.Frame(self.nb, padding=(2, 2))
+            self.nb.add(tab_u, text="  Uitkomst  ")
+            self.nb.add(tab_g, text="  Grafieken  ")
+            ug.tab_uitleg(tab_u, "De uitkomst in het kort: risicobalk, kerncijfers en de volledige toelichting. "
+                                 "Het tabblad Grafieken toont het weer en de verdeling over de deelnemers.", LETTER)
+            self.rb_fig = Figure(figsize=(12, 1.1), dpi=96)
             self.rb_ax = self.rb_fig.add_axes([0.02, 0.36, 0.96, 0.32])
-            self.rb_canvas = FigureCanvasTkAgg(self.rb_fig, master=rechts)
+            self.rb_canvas = FigureCanvasTkAgg(self.rb_fig, master=tab_u)
             self.rb_canvas.get_tk_widget().pack(fill="x")
             self._teken_risicobalk(None)
-            self.tegels = ug.Tegels(rechts, LETTER)
-            self.tegels.pack(fill="x", pady=(2, 2))
-            self.herkomst = ug.Herkomst(rechts, LETTER)
-            self.herkomst.pack(side="bottom", fill="x", pady=(3, 0))
+            self.tegels = ug.Tegels(tab_u, LETTER)
+            self.tegels.pack(fill="x", pady=(2, 4))
+            self.herkomst = ug.Herkomst(tab_u, LETTER)
+            self.herkomst.pack(side="bottom", fill="x", pady=(4, 0))
 
-            self.fig = Figure(figsize=(12, 6.4), dpi=96, constrained_layout=True)
+            self.fig = Figure(figsize=(12, 7.6), dpi=96, constrained_layout=True)
             gs = self.fig.add_gridspec(3, 2)
             self.ax = {"t": self.fig.add_subplot(gs[0, 0]), "wbgt": self.fig.add_subplot(gs[0, 1]),
                        "rh": self.fig.add_subplot(gs[1, 0]), "wind": self.fig.add_subplot(gs[1, 1]),
                        "kern": self.fig.add_subplot(gs[2, 0]), "co": self.fig.add_subplot(gs[2, 1])}
-            onder = ttk.Frame(rechts)
-            onder.pack(side="bottom", fill="x", pady=(4, 0))
-            self.canvas = FigureCanvasTkAgg(self.fig, master=rechts)
+            onder = ttk.Frame(tab_u)
+            onder.pack(fill="both", expand=True)
+            self.canvas = FigureCanvasTkAgg(self.fig, master=tab_g)
             self.canvas.get_tk_widget().pack(fill="both", expand=True)
-            self.txt = tk.Text(onder, height=8, wrap="word", font=("TkDefaultFont", LETTER),
-                               relief="flat", background="#f6f6f6")
+            self.txt = tk.Text(onder, height=6, wrap="word", font=("TkDefaultFont", LETTER),
+                               relief="flat", background="#f6f6f6", padx=8, pady=6, spacing1=2)
             tsb = ttk.Scrollbar(onder, orient="vertical", command=self.txt.yview)
             self.txt.configure(yscrollcommand=tsb.set)
-            self.txt.pack(side="left", fill="x", expand=True)
+            self.txt.pack(side="left", fill="both", expand=True)
             tsb.pack(side="left", fill="y")
             self.txt.tag_configure("vet", font=("TkDefaultFont", LETTER, "bold"))
             self.txt.tag_configure("waarsch", foreground="#9c4400")
@@ -1050,11 +1058,10 @@ def _start_ui(na_start=None):
                            markeredgecolor="black", markeredgewidth=2, zorder=5)
                 kort = {"ehs": "EHS (Boston, Breslow 2021)", "hospitalisation": "ziekenhuisopname (DtD 2024)",
                         "first_aid": "EHBO-contact (DtD 2024)"}.get(self.taak.inv.eindpunt, self.taak.inv.eindpunt)
-                titel = (f"Verwachte collapsen per 1000: {nl(v, 1)} (intercept ±0,5: {nl(vlo, 1)}–{nl(vhi, 1)})  ·  "
-                         f"{klasse(v)[2].upper()}  ·  eindpunt {kort}, {EP[self.taak.inv.eindpunt]['status']}"
+                titel = (f"Verwachte collapsen per 1000: {nl(v, 1)}  ·  klasse {klasse(v)[2]}  ·  eindpunt {kort}"
                          + f"  ·  n = {self.taak.n}"
-                         + ("  ·  voorlopig (snelle schatting)" if not self.taak.volledig else ""))
-            self.rb_fig.suptitle(titel, fontsize=10, y=0.99)
+                         + ("  ·  voorlopig" if not self.taak.volledig else ""))
+            self.rb_fig.suptitle(titel, fontsize=11, y=0.99)
             self.rb_canvas.draw_idle()
 
         def _kop(self, r):

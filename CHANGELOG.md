@@ -43,6 +43,12 @@ results of individual field-test participants by group-level statements.
   baseline, drawn in the event graph as a dotted extension with diamonds,
   and the last target year appears as a tile. Labelled as Klimatos' linear
   extension of the trend, not a climate scenario.
+- **Changed (HESTIA runner and event interfaces):** on a 1920 × 1080 screen
+  with Windows display scaling the tiles, the result text and the provenance
+  line left almost no height for the six graphs. The right-hand side now has
+  two tabs: "Uitkomst" (risk bar, tiles, full result text, provenance) and
+  "Grafieken" (the six graphs at full height). The risk-bar title is shorter;
+  the intercept range stays in the tile.
 - **New:** `ui_gemeen.py` holds these shared presentation parts.
 - **Checked:** every function outside `_start_ui` in the four interface files
   is unchanged (syntax-tree comparison), so the calculation path is the same

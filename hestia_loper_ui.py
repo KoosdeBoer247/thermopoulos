@@ -793,28 +793,36 @@ def _start_ui(na_start=None):
             self.sc_win = None
             self._sc_getekend = 0.0
 
-            self.tegels = ug.Tegels(rechts, LETTER)
-            self.tegels.pack(fill="x", pady=(4, 2))
-            self.herkomst = ug.Herkomst(rechts, LETTER)
-            self.herkomst.pack(side="bottom", fill="x", pady=(3, 0))
+            self.nb = ttk.Notebook(rechts)
+            self.nb.pack(fill="both", expand=True, pady=(4, 0))
+            tab_u = ttk.Frame(self.nb, padding=(2, 4))
+            tab_g = ttk.Frame(self.nb, padding=(2, 2))
+            self.nb.add(tab_u, text="  Uitkomst  ")
+            self.nb.add(tab_g, text="  Grafieken  ")
+            ug.tab_uitleg(tab_u, "De uitkomst in het kort: kerncijfers en de volledige toelichting. Het tabblad "
+                                 "Grafieken toont het weer, de kerntemperatuur en de CO-reserve tijdens de loop.", LETTER)
+            self.tegels = ug.Tegels(tab_u, LETTER)
+            self.tegels.pack(fill="x", pady=(2, 4))
+            self.herkomst = ug.Herkomst(tab_u, LETTER)
+            self.herkomst.pack(side="bottom", fill="x", pady=(4, 0))
 
-            self.fig = Figure(figsize=(12, 7.2), dpi=96, constrained_layout=True)
+            self.fig = Figure(figsize=(12, 8.0), dpi=96, constrained_layout=True)
             gs = self.fig.add_gridspec(3, 2)
             self.ax = {
                 "t": self.fig.add_subplot(gs[0, 0]), "wbgt": self.fig.add_subplot(gs[0, 1]),
                 "rh": self.fig.add_subplot(gs[1, 0]), "wind": self.fig.add_subplot(gs[1, 1]),
                 "kern": self.fig.add_subplot(gs[2, 0]), "co": self.fig.add_subplot(gs[2, 1]),
             }
-            onder = ttk.Frame(rechts)
-            onder.pack(side="bottom", fill="x", pady=(4, 0))
-            self.canvas = FigureCanvasTkAgg(self.fig, master=rechts)
+            onder = ttk.Frame(tab_u)
+            onder.pack(fill="both", expand=True)
+            self.canvas = FigureCanvasTkAgg(self.fig, master=tab_g)
             self.canvas.get_tk_widget().pack(fill="both", expand=True)
 
-            self.txt = tk.Text(onder, height=8, wrap="word", font=("TkDefaultFont", LETTER),
-                               relief="flat", background="#f6f6f6")
+            self.txt = tk.Text(onder, height=6, wrap="word", font=("TkDefaultFont", LETTER),
+                               relief="flat", background="#f6f6f6", padx=8, pady=6, spacing1=2)
             tsb = ttk.Scrollbar(onder, orient="vertical", command=self.txt.yview)
             self.txt.configure(yscrollcommand=tsb.set)
-            self.txt.pack(side="left", fill="x", expand=True)
+            self.txt.pack(side="left", fill="both", expand=True)
             tsb.pack(side="left", fill="y")
             self.txt.tag_configure("vet", font=("TkDefaultFont", LETTER, "bold"))
             self.txt.tag_configure("waarsch", foreground="#9c4400")
