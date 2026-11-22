@@ -111,10 +111,10 @@ class Tegels(tk.Frame):
         self.breedte = 200
         self._items, self._uitleg = [], ""
         self.rij = tk.Frame(self, bg="white")
-        self.rij.pack(fill="x", padx=4, pady=(4, 0))
+        self.rij.pack(fill="x", padx=4, pady=(3, 0))
         self.lbl_uitleg = tk.Label(self, text="", bg="white", anchor="w", justify="left",
-                                   font=("TkDefaultFont", letter), wraplength=1200)
-        self.lbl_uitleg.pack(fill="x", padx=8, pady=(2, 5))
+                                   font=("TkDefaultFont", letter - 1), wraplength=1200)
+        self.lbl_uitleg.pack(fill="x", padx=8, pady=(1, 3))
         self.bind("<Configure>", self._maat)
         self.leeg("Nog geen uitkomst.")
 
@@ -145,7 +145,7 @@ class Tegels(tk.Frame):
             binnen.pack(side="left", fill="both", expand=True, padx=(6, 2))
             tk.Label(binnen, text=it["titel"], bg="white", fg="#555", anchor="w", justify="left",
                      font=("TkDefaultFont", L - 1), wraplength=self.breedte).pack(anchor="w")
-            groot = L + 7 if len(it["waarde"]) <= 13 else L + 3
+            groot = L + 5 if len(it["waarde"]) <= 13 else L + 2
             tk.Label(binnen, text=it["waarde"], bg="white", fg="#1b1b1b", anchor="w", justify="left",
                      font=("TkDefaultFont", groot, "bold"), wraplength=self.breedte).pack(anchor="w")
             if it.get("sub"):
@@ -161,10 +161,10 @@ class Herkomst(tk.Frame):
         super().__init__(ouder, bg="#eef1f4")
         self.letter = letter
         self.lbl_status = tk.Label(self, text=" — ", fg="white", bg="#7f8c8d",
-                                   font=("TkDefaultFont", letter - 1, "bold"), padx=6)
+                                   font=("TkDefaultFont", letter - 2, "bold"), padx=4)
         self.lbl_status.pack(side="left", padx=(4, 6), pady=3, anchor="n")
         self.lbl = tk.Label(self, text="", bg="#eef1f4", anchor="w", justify="left",
-                            font=("TkDefaultFont", letter - 1), wraplength=1200)
+                            font=("TkDefaultFont", letter - 2), wraplength=1200)
         self.lbl.pack(side="left", fill="x", expand=True, pady=3)
         self.bind("<Configure>", lambda e: self.after_idle(self._maat))
         self.versie = suite_versie()
@@ -182,9 +182,9 @@ class Herkomst(tk.Frame):
         delen = [f"Gegevensbron: {bron}", f"Suite {self.versie}"]
         if extra:
             delen.append(extra)
-        tekst = "   │   ".join(delen)
+        tekst = "  │  ".join(delen)
         if niet:
-            tekst += f"\nDit is niet: {niet}"
+            tekst += f"  │  Dit is niet: {niet}"
         self.lbl.config(text=tekst)
 
 
@@ -194,8 +194,53 @@ def tab_uitleg(ouder, tekst: str, letter: int = 12):
     tk.Label(f, text="ⓘ", bg="#f7f3e8", fg="#7a5b00", font=("TkDefaultFont", letter, "bold")).pack(
         side="left", padx=(6, 4), anchor="n")
     lbl = tk.Label(f, text=tekst, bg="#f7f3e8", fg="#3d3d3d", anchor="w", justify="left",
-                   font=("TkDefaultFont", letter - 1), wraplength=1200)
-    lbl.pack(side="left", fill="x", expand=True, pady=3)
+                   font=("TkDefaultFont", letter - 2), wraplength=1200)
+    lbl.pack(side="left", fill="x", expand=True, pady=2)
     f.bind("<Configure>", lambda e: lbl.config(wraplength=max(400, e.width - 40)))
-    f.pack(side="top", fill="x", padx=4, pady=(4, 2))
+    f.pack(side="top", fill="x", padx=4, pady=(3, 1))
     return f
+
+
+class Inklap(tk.Frame):
+    """Inklapbaar blok: een knop '▸ titel' die de inhoud (self.binnen) toont of verbergt."""
+
+    def __init__(self, ouder, titel: str, letter: int = 12, open_: bool = False):
+        super().__init__(ouder)
+        self.titel = titel
+        self.knop = tk.Label(self, text="", fg="#1f5fa8", cursor="hand2", anchor="w",
+                             font=("TkDefaultFont", letter - 1, "underline"))
+        self.knop.pack(fill="x", padx=6)
+        self.knop.bind("<Button-1>", lambda e: self.wissel())
+        self.binnen = tk.Frame(self)
+        self.open = not open_
+        self.wissel()
+
+    def wissel(self):
+        self.open = not self.open
+        self.knop.config(text=("▾ " if self.open else "▸ ") + self.titel)
+        if self.open:
+            self.binnen.pack(fill="x")
+        else:
+            self.binnen.pack_forget()
+
+
+def px(root, n: int) -> int:
+    """Pixelmaat n (ontworpen voor 96 dpi) aangepast aan de schermschaling van Windows."""
+    try:
+        f = float(root.tk.call("tk", "scaling")) / (96 / 72)
+    except (tk.TclError, ValueError):
+        f = 1.0
+    return int(round(n * max(1.0, f)))
+
+
+def maximaliseer(root):
+    """Venster zo groot mogelijk openen (Windows: gemaximaliseerd)."""
+    try:
+        root.state("zoomed")
+        return
+    except tk.TclError:
+        pass
+    try:
+        root.attributes("-zoomed", True)
+    except tk.TclError:
+        pass

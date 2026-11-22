@@ -49,6 +49,19 @@ results of individual field-test participants by group-level statements.
   two tabs: "Uitkomst" (risk bar, tiles, full result text, provenance) and
   "Grafieken" (the six graphs at full height). The risk-bar title is shorter;
   the intercept range stays in the tile.
+- **Changed (all four interfaces, checked at 1920 × 1080 with Windows display
+  scaling):** windows open maximised; the input column widens with the
+  display scaling; tiles, provenance line and tab explanation are more
+  compact (provenance on two lines); the text below each PYROX and Klimatos
+  graph is a collapsible "Toelichting" (closed by default); tables are only
+  as high as their rows. PYROX briefing: fewer date labels, legend no longer
+  over the dates, shorter panel titles. Klimatos: smaller tab labels so all
+  ten fit, shorter liveability title.
+- **Fixed (HESTIA runner and event interfaces):** a long header or status
+  text pushed the "Scatter T_rect–CO_reserve" and "Extra grafieken" buttons
+  out of the top row, so the extra graphs could no longer be opened. The
+  buttons are now placed first and the status text has its own line below
+  the header.
 - **New:** `ui_gemeen.py` holds these shared presentation parts.
 - **Checked:** every function outside `_start_ui` in the four interface files
   is unchanged (syntax-tree comparison), so the calculation path is the same

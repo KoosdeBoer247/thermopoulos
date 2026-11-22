@@ -423,6 +423,7 @@ def _start_ui(na_start=None):
             st.configure("K.Treeview.Heading", font=("TkDefaultFont", LETTER - 2, "bold"))
             bw, bh = root.winfo_screenwidth(), root.winfo_screenheight()
             root.geometry(f"{min(1800, bw - 40)}x{min(1040, bh - 80)}+10+10")
+            ug.maximaliseer(root)
             self.q = queue.Queue()
             self.kandidaten = []
             self.d = {v: self._leeg() for v in ("suite", "kust")}
@@ -449,7 +450,7 @@ def _start_ui(na_start=None):
         def _bouw(self):
             links = ttk.Frame(self.root, padding=6)
             links.pack(side="left", fill="y")
-            cv = tk.Canvas(links, width=455, highlightthickness=0)
+            cv = tk.Canvas(links, width=ug.px(self.root, 455), highlightthickness=0)
             sb = ttk.Scrollbar(links, orient="vertical", command=cv.yview)
             self.form = ttk.Frame(cv)
             self.form.bind("<Configure>", lambda e: cv.configure(scrollregion=cv.bbox("all")))
@@ -585,7 +586,8 @@ def _start_ui(na_start=None):
             self.tegels.pack(fill="x", pady=(4, 0))
             self.herkomst = ug.Herkomst(rechts, LETTER)
             self.herkomst.pack(side="bottom", fill="x", pady=(3, 0))
-            nb = ttk.Notebook(rechts)
+            ttk.Style().configure("K.TNotebook.Tab", padding=(3, 1), font=("TkDefaultFont", LETTER - 1))
+            nb = ttk.Notebook(rechts, style="K.TNotebook")
             nb.pack(fill="both", expand=True, pady=(4, 0))
             self.nb = nb
             self.tab = {}
@@ -625,11 +627,14 @@ def _start_ui(na_start=None):
                     t["tx"] = tx
                     self.tab[k] = t
                     continue
-                lbl = ttk.Label(f, text="", font=("TkDefaultFont", LETTER - 1), wraplength=1250, justify="left")
-                lbl.pack(side="bottom", fill="x", padx=8, pady=4)
+                ink = ug.Inklap(f, "Toelichting bij deze grafiek (bron en rekenwijze)", LETTER)
+                ink.pack(side="bottom", fill="x", pady=(0, 2))
+                lbl = ttk.Label(ink.binnen, text="", font=("TkDefaultFont", LETTER - 1), wraplength=1250,
+                                justify="left")
+                lbl.pack(fill="x", padx=8, pady=2)
                 t["lbl"] = lbl
                 if k in ("ev", "lb", "ku"):
-                    tv = ttk.Treeview(f, show="headings", height=5, style="K.Treeview")
+                    tv = ttk.Treeview(f, show="headings", height=3, style="K.Treeview")
                     tv.pack(side="bottom", fill="x", padx=6)
                     t["tv"] = tv
                 if k == "fi":
@@ -1155,8 +1160,8 @@ def _start_ui(na_start=None):
                 "beoordeling" if v == "kust" else "historisch",
                 status_tekst="beoordeling · ERA5 + kustcorrectie" if v == "kust" else "historische analyse",
                 extra=uhi,
-                niet="een stationsmeting of een klimaatprojectie. Het is een analyse van heranalysedata uit het verleden"
-                     + ("; de kustcorrectie is nog in beoordeling." if v == "kust" else "."))
+                niet="een stationsmeting of een klimaatprojectie"
+                     + ("; kustcorrectie in beoordeling." if v == "kust" else "."))
 
         def _teken_jm(self):
             t = self.tab["jm"]
@@ -1333,6 +1338,7 @@ def _start_ui(na_start=None):
                         x = nl(float(x), 3 if abs(x) < 0.1 else 2)
                     vals.append(x)
                 tv.insert("", "end", values=vals)
+            tv.configure(height=min(max(len(df), 1), 5))
 
         def _teken_ev(self):
             res = self._res_of_leeg("ev")
@@ -1492,7 +1498,7 @@ def _start_ui(na_start=None):
                 ax2.plot(a.index, a[f"minMmax_{p}"], "o-", ms=3, color=kl,
                          label=ks.LIVEABILITY_PROFILE_LABEL.get(p, p))
             ax2.axhline(ks.LIVEABILITY_ACTIVITY_MET, color="#7a5b00", ls="--", lw=1)
-            ax2.set_title("Laagste toelaatbare inspanning in het jaar (min Mmax)")
+            ax2.set_title("Laagste toelaatbare inspanning (min Mmax)")
             ax2.set_ylabel("MET")
             ax2.legend(fontsize=8)
             pr = g.get("liveability_proj_df")

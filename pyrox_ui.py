@@ -613,6 +613,7 @@ def _start_ui(na_start=None):
             st.configure("P.Treeview.Heading", font=("TkDefaultFont", LETTER - 1, "bold"))
             bw, bh = root.winfo_screenwidth(), root.winfo_screenheight()
             root.geometry(f"{min(1800, bw - 40)}x{min(1040, bh - 80)}+10+10")
+            ug.maximaliseer(root)
             self.lader = WeerLader()
             self.q = queue.Queue()
             self.kandidaten = []
@@ -629,7 +630,7 @@ def _start_ui(na_start=None):
         def _bouw(self):
             links = ttk.Frame(self.root, padding=6)
             links.pack(side="left", fill="y")
-            cv = tk.Canvas(links, width=470, highlightthickness=0)
+            cv = tk.Canvas(links, width=ug.px(self.root, 470), highlightthickness=0)
             sb = ttk.Scrollbar(links, orient="vertical", command=cv.yview)
             self.form = ttk.Frame(cv)
             self.form.bind("<Configure>", lambda e: cv.configure(scrollregion=cv.bbox("all")))
@@ -759,14 +760,17 @@ def _start_ui(na_start=None):
                 f = ttk.Frame(nb)
                 nb.add(f, text=titel)
                 ug.tab_uitleg(f, UITLEG[k], LETTER)
-                lbl = ttk.Label(f, text="", font=("TkDefaultFont", LETTER - 1), wraplength=1250, justify="left")
-                lbl.pack(side="bottom", fill="x", padx=8, pady=4)
+                ink = ug.Inklap(f, "Toelichting bij deze grafiek (bron en rekenwijze)", LETTER)
+                ink.pack(side="bottom", fill="x", pady=(0, 2))
+                lbl = ttk.Label(ink.binnen, text="", font=("TkDefaultFont", LETTER - 1), wraplength=1250,
+                                justify="left")
+                lbl.pack(fill="x", padx=8, pady=2)
                 tv = None
                 if k == "ov":
                     kol = ("groep", "status", "kritiek", "piek", "piek_pct", "letop", "gevaar", "nood")
                     kopt = ("groep", "evidentie", "kritieke grens", "piek Σ", "piek (% kritiek)", "let op (50 %)",
                             "gevaar (75 %)", "noodsituatie (90 %)")
-                    tv = ttk.Treeview(f, columns=kol, show="headings", height=6, style="P.Treeview")
+                    tv = ttk.Treeview(f, columns=kol, show="headings", height=3, style="P.Treeview")
                     for c, t in zip(kol, kopt):
                         tv.heading(c, text=t)
                         tv.column(c, width=300 if c == "groep" else 120, anchor="w" if c == "groep" else "center")
@@ -1115,7 +1119,7 @@ def _start_ui(na_start=None):
                      sub=("uit het paper (gekalibreerd)" if grp.evidence_status == "paper"
                           else "geëxtrapoleerd (minder zeker)"),
                      kleur=ZONE_COLOURS[slechtst]),
-                dict(titel="Overschreden grens", waarde=f"{ZONE_NL[slechtst]} ≥ {grens} %",
+                dict(titel=f"Overschreden grens: {ZONE_NL[slechtst]}", waarde=f"≥ {grens} %",
                      sub=f"van de eigen kritieke grens (Σ_crit = {nl(crit)})", kleur=ZONE_COLOURS[slechtst]),
                 dict(titel="Vanaf", waarde=datum, sub=f"{soort}: {soort_uitleg}",
                      kleur="#b9770e" if soort == "verwachting" else "#117a65"),
@@ -1129,10 +1133,8 @@ def _start_ui(na_start=None):
             else:
                 items.append(dict(titel="Noodsituatie (90 %)", waarde=nood_w, sub=nood_s,
                                   kleur=ZONE_COLOURS["emergency"] if nood is not None else "#5d6d7e"))
-            uitleg = ("Waarop de kleur bovenaan berust: de groep die de zwaarste zone het eerst bereikt. Zones zijn "
-                      "percentages van de eigen kritieke grens van die groep (50 / 75 / 90 %). Dit is een "
-                      "modelberekening van opgebouwde belasting, geen waargenomen gezondheidseffect en geen officiële "
-                      "hittewaarschuwing.")
+            uitleg = ("De kleur bovenaan volgt de groep die de zwaarste zone het eerst bereikt. Zones = 50 / 75 / 90 % "
+                      "van de eigen kritieke grens van die groep.")
             self.tegels.zet(items, uitleg)
 
         def _toon_herkomst(self):
@@ -1149,8 +1151,7 @@ def _start_ui(na_start=None):
                 f"{w.label}; {w.city}, woonomgeving {self.v['route'].get()}", st, status_tekst=st_t,
                 extra="model: PYROX (run_pyrox.assess_population), nachtelijk herstel "
                       + ("aan" if self.v["nacht"].get() else "uit"),
-                niet="een waargenomen gezondheidseffect of een officiële hittewaarschuwing. Het is een "
-                     "modelprojectie van opgebouwde hittebelasting per bevolkingsgroep.")
+                niet="een waargenomen gezondheidseffect of een officiële hittewaarschuwing.")
 
         def _teken_overzicht(self):
             t = self.tab["ov"]
@@ -1192,6 +1193,7 @@ def _start_ui(na_start=None):
             t["cv"].draw_idle()
             tv = t["tv"]
             tv.delete(*tv.get_children())
+            tv.configure(height=min(max(len(r["groups"]), 1), 6))
             for g, res in r["groups"].items():
                 grp = res["group"]
                 tv.insert("", "end", values=(
@@ -1485,7 +1487,7 @@ def _start_ui(na_start=None):
             ax.set_ylim(len(namen), 0)
             ax.set_yticks([i + 0.5 for i in range(len(namen))])
             ax.set_yticklabels([TARGET_GROUPS[g].display_name for g in namen], fontsize=10)
-            stap = max(1, int(np.ceil(n / (11 if klein else 21))))
+            stap = max(1, int(np.ceil(n / (11 if klein else 12))))
             ax.set_xticks([j + 0.5 for j in range(0, n, stap)])
             ax.set_xticklabels([dagtekst(r["dates"][j]).replace(" ", "\n") for j in range(0, n, stap)], fontsize=9)
             ax.tick_params(length=0)
@@ -1498,7 +1500,7 @@ def _start_ui(na_start=None):
             hand = [Patch(color=ZONE_COLOURS[z], label=ZONE_WOORD[z]) for z in ZONE_VOLGORDE]
             if fs is not None:
                 hand.append(Patch(color="white", label=f"? = hangt af van de verwachting (±{nl(self.onz, 1)} °C)"))
-            ax.legend(handles=hand, loc="upper center", bbox_to_anchor=(0.5, -0.16), ncol=3 if klein else 5,
+            ax.legend(handles=hand, loc="upper center", bbox_to_anchor=(0.5, -0.28), ncol=3 if klein else 5,
                       frameon=False, fontsize=7 if klein else 9)
             ax.set_title("Wie loopt wanneer risico", loc="left")
 
@@ -1525,7 +1527,7 @@ def _start_ui(na_start=None):
             ax.set_ylim(len(namen) - 0.45, -0.55)
             ax.set_xlim(0, MAX_DAGEN + 5)
             ax.set_xlabel("dagen tot de zone bereikt is")
-            ax.set_title(f"Marge vanaf {dagtekst(r['dates'][peil])}: als het zo heet blijft", loc="left")
+            ax.set_title(f"Marge vanaf {dagtekst(r['dates'][peil])} (bij gelijke hitte)", loc="left", fontsize=11)
             ax.legend(handles=[Patch(color=ZONE_COLOURS["danger"], label="tot gevaar"),
                                Patch(color=ZONE_COLOURS["emergency"], label="tot noodsituatie")],
                       loc="lower right", fontsize=8)
@@ -1551,7 +1553,7 @@ def _start_ui(na_start=None):
             self._zonelijnen(ax)
             ax.set_ylim(0, 112)
             ax.set_ylabel("% van kritieke grens")
-            ax.set_title("Nawerking: hoe lang duurt herstel?", loc="left")
+            ax.set_title("Nawerking: herstel", loc="left", fontsize=11)
             ax.xaxis.set_major_locator(mdates.DayLocator(interval=7))
             ax.xaxis.set_major_formatter(mdates.DateFormatter("%d-%m"))
             ax.legend(loc="upper left", fontsize=7)

@@ -463,6 +463,7 @@ def _start_ui(na_start=None):
             ttk.Style().configure("TLabelframe.Label", font=("TkDefaultFont", LETTER, "bold"))
             bw, bh = root.winfo_screenwidth(), root.winfo_screenheight()
             root.geometry(f"{min(1800, bw - 40)}x{min(1040, bh - 80)}+10+10")
+            ug.maximaliseer(root)
             self.weerbron = WeerBron()
             self.kandidaten = []
             self.gen = 0
@@ -487,7 +488,7 @@ def _start_ui(na_start=None):
         def _bouw(self):
             links = ttk.Frame(self.root, padding=6)
             links.pack(side="left", fill="y")
-            canvas = tk.Canvas(links, width=520, highlightthickness=0)
+            canvas = tk.Canvas(links, width=ug.px(self.root, 520), highlightthickness=0)
             sb = ttk.Scrollbar(links, orient="vertical", command=canvas.yview)
             self.form = ttk.Frame(canvas)
             self.form.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
@@ -564,15 +565,16 @@ def _start_ui(na_start=None):
             rechts.pack(side="left", fill="both", expand=True)
             boven = ttk.Frame(rechts)
             boven.pack(fill="x")
-            self.lbl_kop = tk.Label(boven, text="  —  ", font=("TkDefaultFont", LETTER + 2, "bold"),
-                                    bg="#dddddd", padx=10, pady=4)
-            self.lbl_kop.pack(side="left")
-            self.lbl_status = ttk.Label(boven, text="")
-            self.lbl_status.pack(side="left", padx=10)
-            self.pb = ttk.Progressbar(boven, length=150, maximum=1.0)
+            # Knoppen eerst plaatsen: dan blijven ze altijd zichtbaar, ook bij een lange kop- of statustekst.
+            self.pb = ttk.Progressbar(boven, length=ug.px(self.root, 120), maximum=1.0)
             self.pb.pack(side="right")
             ttk.Button(boven, text="Extra grafieken", command=self._open_extra).pack(
                 side="right", padx=8)
+            self.lbl_kop = tk.Label(boven, text="  —  ", font=("TkDefaultFont", LETTER + 1, "bold"),
+                                    bg="#dddddd", padx=10, pady=4)
+            self.lbl_kop.pack(side="left")
+            self.lbl_status = ttk.Label(rechts, text="", font=("TkDefaultFont", LETTER - 1), foreground="#444")
+            self.lbl_status.pack(fill="x", padx=4, pady=(2, 0))
 
             self.nb = ttk.Notebook(rechts)
             self.nb.pack(fill="both", expand=True, pady=(4, 0))
@@ -1121,8 +1123,8 @@ def _start_ui(na_start=None):
                 "historisch" if hist else "prognose",
                 status_tekst="simulatie · " + ("historisch weer" if hist else "verwachtingsweer"),
                 extra=f"model: HESTIA via hestia_bridge / run_monte_carlo_adult, n = {n}, seed {t.seed}",
-                niet="een telling van werkelijke patiënten of een medisch advies. Het is een schatting voor een "
-                     "virtuele deelnemerspopulatie; alle collapseindpunten zijn PROVISIONAL.")
+                niet="een telling van werkelijke patiënten of een medisch advies (virtuele deelnemers; "
+                     "eindpunten PROVISIONAL).")
 
         def _toon_tekst(self):
             self._toon_tegels()

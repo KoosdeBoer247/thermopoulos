@@ -633,6 +633,7 @@ def _start_ui(na_start=None):
             st.configure("TLabelframe.Label", font=("TkDefaultFont", LETTER, "bold"))
             bw, bh = root.winfo_screenwidth(), root.winfo_screenheight()
             root.geometry(f"{min(1800, bw - 40)}x{min(1040, bh - 80)}+10+10")
+            ug.maximaliseer(root)
 
             self.weerbron = WeerBron()
             self.kandidaten: list[dict] = []
@@ -658,7 +659,7 @@ def _start_ui(na_start=None):
         def _bouw(self):
             links = ttk.Frame(self.root, padding=6)
             links.pack(side="left", fill="y")
-            canvas = tk.Canvas(links, width=540, highlightthickness=0)
+            canvas = tk.Canvas(links, width=ug.px(self.root, 540), highlightthickness=0)
             sb = ttk.Scrollbar(links, orient="vertical", command=canvas.yview)
             self.form = ttk.Frame(canvas)
             self.form.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
@@ -781,15 +782,16 @@ def _start_ui(na_start=None):
             rechts.pack(side="left", fill="both", expand=True)
             boven = ttk.Frame(rechts)
             boven.pack(fill="x")
-            self.lbl_signaal = tk.Label(boven, text="  —  ", font=("TkDefaultFont", LETTER + 2, "bold"),
-                                        bg="#dddddd", padx=10, pady=4)
-            self.lbl_signaal.pack(side="left")
-            self.lbl_status = ttk.Label(boven, text="", font=("TkDefaultFont", LETTER))
-            self.lbl_status.pack(side="left", padx=10)
-            self.pb = ttk.Progressbar(boven, length=240, maximum=1.0)
+            # Knoppen eerst plaatsen: dan blijven ze altijd zichtbaar, ook bij een lange kop- of statustekst.
+            self.pb = ttk.Progressbar(boven, length=ug.px(self.root, 160), maximum=1.0)
             self.pb.pack(side="right")
             ttk.Button(boven, text="Scatter T_rect–CO_reserve", command=self._open_scatter).pack(
                 side="right", padx=8)
+            self.lbl_signaal = tk.Label(boven, text="  —  ", font=("TkDefaultFont", LETTER + 2, "bold"),
+                                        bg="#dddddd", padx=10, pady=4)
+            self.lbl_signaal.pack(side="left")
+            self.lbl_status = ttk.Label(rechts, text="", font=("TkDefaultFont", LETTER - 1), foreground="#444")
+            self.lbl_status.pack(fill="x", padx=4, pady=(2, 0))
             self.sc_win = None
             self._sc_getekend = 0.0
 
@@ -1768,8 +1770,7 @@ def _start_ui(na_start=None):
                 f"{t.weer.label}; {t.weer.city.get('name', '')}, route {self.v['route'].get()}", st,
                 status_tekst=st_t,
                 extra=f"model: HESTIA (JOS-3 + CVR) via hestia_loper, ensemble n = {t.n}, seed {t.seed}",
-                niet="een gemeten kerntemperatuur of een medisch advies. Het is de voorspelde modeltoestand "
-                     "van een virtuele loper met deze kenmerken.")
+                niet="een gemeten kerntemperatuur of een medisch advies (voorspelde modeltoestand).")
 
         def _toon_tegels(self):
             t, r = self.taak, self.resultaat
