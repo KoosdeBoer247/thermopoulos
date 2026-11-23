@@ -629,6 +629,15 @@ the age distribution of another heatwave (France 2006, UK 2022) is still needed,
 as is option A (re-placing the extrapolated groups by literature ratios), which
 was deliberately postponed until after this step.
 
+**Zones with the ensemble — author's decision (2026-11-23).** The zones stay on
+the group mean (50 / 75 / 90 % of critical). Because members either recover or
+run away to critical, the mean is close to the share of members in the
+emergency zone (sustained load 1.5 with 22 °C nights: 65–85 y mean 73 %,
+73 % of members in emergency). So a zone now means roughly "this share of the
+group is in the emergency zone", which is stricter than with one representative
+member. The interface says so, and the margin ("Marge") also shows the share of
+members in emergency.
+
 **Planned — author's decision (2026-11-23).** HESTIA gets a separate worker
 group (a work mode for outdoor workers, with ISO 8996 metabolic classes, a
 work day with work–rest cycles, and occupational limits instead of the race

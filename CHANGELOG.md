@@ -43,6 +43,12 @@ results of individual field-test participants by group-level statements.
 - **UI (`pyrox_ui.py`):** overview table and warning tiles show the largest
   share of members in the emergency zone; the tabs Terugkoppeling, Regimes and
   Uitleg: kantelpunt are labelled as the typical (median) member.
+- **Author's decision — zones:** zones stay on the group mean (50/75/90 % of
+  critical). With the ensemble that mean is close to the share of members in
+  the emergency zone; the interface and the Word briefing now say so, and the
+  margin plot shows the share of members in emergency next to "no danger".
+  Margin plot: labels on the bars instead of a legend that covered the text;
+  "Nawerking" legend moved below the graph so it no longer hides lines.
 - **Golden reference regenerated:** only the `pyrox` entries changed; all other
   entries were checked to be identical.
 

@@ -338,11 +338,15 @@ def _zone_i(v, crit) -> int:
     return ZONE_VOLGORDE.index(_strain_zone(v, crit))
 
 
-def _sim(groep: str, loads, sq, pre):
+def _sim_vol(groep: str, loads, sq, pre) -> dict:
     from pyrox_model import PyroxPopulation
     from pyrox_groups import TARGET_GROUPS
     return PyroxPopulation(TARGET_GROUPS[groep]).simulate([float(x) for x in loads], pre_heatwave_heat_load=pre,
-                                                     sleep_quality_series=sq)["cumulative_strain"]
+                                                          sleep_quality_series=sq)
+
+
+def _sim(groep: str, loads, sq, pre):
+    return _sim_vol(groep, loads, sq, pre)["cumulative_strain"]
 
 
 def _invoer(rapport):
@@ -360,8 +364,14 @@ def marge(rapport: dict, groep: str, peildag: int, pre, max_dagen: int = MAX_DAG
     loads, sq = _invoer(rapport)
     L = loads[:peildag + 1] + [loads[peildag]] * max_dagen
     S = None if sq is None else sq[:peildag + 1] + [sq[peildag]] * max_dagen
-    tr = _sim(groep, L, S, pre)
-    uit = {"nu": ZONE_VOLGORDE[_zone_i(tr[peildag + 1], crit)]}
+    res = _sim_vol(groep, L, S, pre)
+    tr = res["cumulative_strain"]
+    # [2026-11-23] Zones blijven op het groepsgemiddelde (besluit auteur). Omdat leden
+    # óf herstellen óf ontsporen, is het gemiddelde ongeveer het aandeel leden in nood;
+    # dat aandeel wordt daarom apart meegegeven.
+    uit = {"nu": ZONE_VOLGORDE[_zone_i(tr[peildag + 1], crit)],
+           "fractie_nood_nu": float(res["fraction_emergency"][peildag + 1]),
+           "fractie_nood_max": float(np.max(res["fraction_emergency"][peildag + 1:]))}
     for naam, zi in (("gevaar", 2), ("nood", 3)):
         uit[naam] = None
         for k in range(0, max_dagen + 1):
@@ -529,7 +539,9 @@ def schrijf_briefing(pad: str, app) -> str:
             p_ = doc.add_paragraph(style="List Bullet")
             p_.add_run(a).font.size = Pt(9.5)
             p_.paragraph_format.space_after = Pt(0)
-        alinea("Standaardadviezen; volg het lokale hitteplan. Marge = de warmtebelasting van de peildag houdt aan; herstel = "
+        alinea("Standaardadviezen; volg het lokale hitteplan. Zones = gemiddelde belasting van de groep op 50 / 75 / 90 % van "
+               "haar kritieke grens; dat is ongeveer het aandeel leden van die groep in de noodsituatie. "
+               "Marge = de warmtebelasting van de peildag houdt aan; herstel = "
                "na de laatste dag geen warmtebelasting en volledige nachtrust. '?' = uitkomst hangt af van de verwachting "
                f"(±{nl_(app.onz)} °C). PYROX is research software: de warmtebelasting is gekalibreerd op Parijs 2003 en 16 van "
                "de 19 groepen zijn geëxtrapoleerd.", 7.5, kleur="666666", na=0).paragraph_format.space_before = Pt(4)
@@ -1100,7 +1112,8 @@ def _start_ui(na_start=None):
                                                                    "kritieke grens", kleur=ZONE_COLOURS["safe"]),
                     dict(titel="Hoogste groep", waarde=f"{100 * res['peak_strain'] / res['critical_strain']:.0f} %",
                          sub=TARGET_GROUPS[g].display_name, kleur="#5d6d7e"),
-                ], "Geen enkele gekozen groep bereikt de zone 'let op' (50 % van de eigen kritieke grens).")
+                ], "Geen enkele gekozen groep bereikt de zone 'let op' (gemiddeld 50 % van de eigen kritieke grens; "
+                   "ongeveer de helft van de leden in nood).")
                 return
             res = r["groups"][wie]
             grp = TARGET_GROUPS[wie]
@@ -1141,8 +1154,9 @@ def _start_ui(na_start=None):
             else:
                 items.append(dict(titel="Noodsituatie (90 %)", waarde=nood_w, sub=nood_s,
                                   kleur=ZONE_COLOURS["emergency"] if nood is not None else "#5d6d7e"))
-            uitleg = ("De kleur bovenaan volgt de groep die de zwaarste zone het eerst bereikt. Zones = 50 / 75 / 90 % "
-                      "van de eigen kritieke grens van die groep.")
+            uitleg = ("De kleur bovenaan volgt de groep die de zwaarste zone het eerst bereikt. Zones = gemiddelde belasting "
+                      "van de groep op 50 / 75 / 90 % van haar kritieke grens. Omdat leden óf herstellen óf ontsporen, "
+                      "betekent dat ongeveer: zo'n deel van de leden zit in de noodsituatie.")
             self.tegels.zet(items, uitleg)
 
         def _toon_herkomst(self):
@@ -1215,7 +1229,7 @@ def _start_ui(na_start=None):
                 "Warmtebelasting per dag = (gevoelstemperatuur bij "
                 "Tmax − 22 °C) × 0,10 (thermopoulos_loader; modelkeuze, gekalibreerd op Parijs 2003). Slaapkwaliteit uit het "
                 "minimum van de nacht na elke dag: 1,0 tot 18 °C, 0,4 vanaf 26 °C (stippellijnen). Σ is hier weergegeven als "
-                "percentage van de eigen kritieke grens van de groep; zones 50/75/90 % zoals pyrox_plots. Datum in de tabel = "
+                "percentage van de eigen kritieke grens van de groep; zones 50/75/90 % op dat gemiddelde (ongeveer het aandeel leden in nood). Datum in de tabel = "
                 "eerste dag waarop de zone na het nachtelijk herstel van die dag bereikt is. Bij een gecombineerd venster kent de "
                 "laatste verleden-dag geen nachtminimum (die nacht valt in het verwachtingsblad); de suite neemt dan de "
                 "slaapkwaliteit van de nacht ervoor over."))
@@ -1521,9 +1535,10 @@ def _start_ui(na_start=None):
             y = np.arange(len(namen))
             for i, g in enumerate(namen):
                 m = marge(r, g, peil, self.pre)
+                deel = (f" · {100 * m['fractie_nood_max']:.0f} % leden in nood"
+                        if m["fractie_nood_max"] >= 0.005 else "")
                 if m["gevaar"] is None and m["nood"] is None:
-                    ax.text(0.3, i, f"bereikt 'gevaar' niet binnen {MAX_DAGEN} dagen", va="center", fontsize=9,
-                            color="#555")
+                    ax.text(0.3, i, f"geen gevaar in {MAX_DAGEN} d{deel}", va="center", fontsize=8.5, color="#555")
                     continue
                 for k, (naam, kleur, dy) in enumerate((("gevaar", ZONE_COLOURS["danger"], -0.18),
                                                        ("nood", ZONE_COLOURS["emergency"], 0.18))):
@@ -1532,16 +1547,16 @@ def _start_ui(na_start=None):
                         ax.text(0.3, i + dy, f"niet binnen {MAX_DAGEN} dagen", va="center", fontsize=9, color="#555")
                         continue
                     ax.barh(i + dy, max(v, 0.15), height=0.34, color=kleur)
-                    ax.text(max(v, 0.15) + 0.3, i + dy, "nu al" if v == 0 else f"{v} d", va="center", fontsize=9)
+                    wat = "gevaar" if naam == "gevaar" else "nood"
+                    ax.text(max(v, 0.15) + 0.3, i + dy, f"{wat}: nu al" if v == 0 else f"{wat}: {v} d", va="center",
+                            fontsize=8.5)
             ax.set_yticks(y)
             ax.set_yticklabels([TARGET_GROUPS[g].display_name for g in namen], fontsize=9)
             ax.set_ylim(len(namen) - 0.45, -0.55)
             ax.set_xlim(0, MAX_DAGEN + 5)
             ax.set_xlabel("dagen tot de zone bereikt is")
-            ax.set_title(f"Marge vanaf {dagtekst(r['dates'][peil])} (bij gelijke hitte)", loc="left", fontsize=11)
-            ax.legend(handles=[Patch(color=ZONE_COLOURS["danger"], label="tot gevaar"),
-                               Patch(color=ZONE_COLOURS["emergency"], label="tot noodsituatie")],
-                      loc="lower right", fontsize=8)
+            ax.set_title(f"Marge vanaf {dagtekst(r['dates'][peil])}", loc="left", fontsize=11)
+            # (geen legenda: elke balk draagt zijn eigen label 'gevaar' / 'nood')
 
         def _fig_nawerking(self, ax):
             r = self.rapport
@@ -1563,11 +1578,11 @@ def _start_ui(na_start=None):
             ax.text(x[-1], 102, "  daarna koel (aanname)", fontsize=8, color="#2471a3", va="bottom")
             self._zonelijnen(ax)
             ax.set_ylim(0, 112)
-            ax.set_ylabel("% van kritieke grens")
+            ax.set_ylabel("% kritiek")
             ax.set_title("Nawerking: herstel", loc="left", fontsize=11)
-            ax.xaxis.set_major_locator(mdates.DayLocator(interval=7))
+            ax.xaxis.set_major_locator(mdates.DayLocator(interval=14))
             ax.xaxis.set_major_formatter(mdates.DateFormatter("%d-%m"))
-            ax.legend(loc="upper left", fontsize=7)
+            ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=2, fontsize=7, frameon=False)
 
         def _briefing_teksten(self):
             r = self.rapport
