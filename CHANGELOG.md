@@ -8,6 +8,44 @@ Entries up to 2026-10-24 were written during development; names of people
 in personal communications have been replaced by their institution, and
 results of individual field-test participants by group-level statements.
 
+## [2026-11-23] PYROX: groups heterogeneous (option B); athletes and outdoor workers removed
+
+- **Author's decision — removed:** the PYROX groups `endurance_athletes`,
+  `elite_athletes`, `recreational_athletes` and `outdoor_workers` (19 groups
+  remain). PYROX models the ambient multi-day heat load of daily life; the risk
+  of athletes and outdoor workers comes from exertion, which PYROX does not
+  represent, so these groups showed as the safest of all. Athletes belong in
+  HESTIA; outdoor workers get a separate study for a HESTIA work mode with
+  ISO 8996 metabolic classes. `RUNNER_LEVELS` keeps only the beginner preset.
+  Their former parameters remain in the git history.
+- **Author's decision — changed (option B):** every group is simulated as an
+  ensemble of 41 members with a lognormal resilience factor (median 1, CV 0.30)
+  on capacity, recovery threshold and recovery rate together
+  (`pyrox_model.PyroxPopulation`, used by `run_pyrox.assess_population`, the
+  PYROX plots and the outcome calculations of `pyrox_ui.py`). Reason: with one
+  member per group the model behaved as a switch (Paris 2003: 5 / 5 / 100 /
+  100 % of critical for 18–45 / 45–65 / 65–85 / 85+, against a measured
+  gradual rise in excess mortality). A soft threshold alone was tried and did
+  not remove the switch. `PyroxModel` is unchanged (typical member;
+  `verify.py` passes).
+- **Tested (pre-registered):** age gradient of Paris 2003 (Fouillet 2006),
+  plan committed before the run. Ordering, non-zero young response and
+  time-shape criteria met; ratio criterion not met for 15–44 y (model 0.07,
+  measured 0.26 relative to 65–84 y). Test as a whole **not passed**. CV 0.40
+  would pass all criteria but was not chosen afterwards. Details:
+  TECHNICAL_REFERENCE.md §3.6.
+- **Planned (author's decision):** a separate worker group in HESTIA (work
+  mode with ISO 8996 metabolic classes). Started only after this PYROX version
+  has been shown to work well; until then outdoor workers are not covered.
+- **New:** `toetsplan_pyrox_leeftijdsgradient_2026-11-23.md`,
+  `toets_pyrox_leeftijdsgradient.py`, `toets_pyrox_leeftijdsgradient_resultaat.json`,
+  `tests/test_pyrox_populatie.py`.
+- **UI (`pyrox_ui.py`):** overview table and warning tiles show the largest
+  share of members in the emergency zone; the tabs Terugkoppeling, Regimes and
+  Uitleg: kantelpunt are labelled as the typical (median) member.
+- **Golden reference regenerated:** only the `pyrox` entries changed; all other
+  entries were checked to be identical.
+
 ## [2026-11-22] Interfaces: readability and transparency
 
 - **Changed:** the four interfaces (presentation only). After an outside
@@ -62,6 +100,13 @@ results of individual field-test participants by group-level statements.
   out of the top row, so the extra graphs could no longer be opened. The
   buttons are now placed first and the status text has its own line below
   the header.
+- **Fixed (HESTIA event interface, "Extra grafieken"):** in the "Top 10
+  T_rect" tab only four of the ten table rows were visible at display
+  scaling; the table now keeps all ten rows and the graph takes the rest.
+  The extra window opens maximised, and opening it no longer replaces the
+  main window's tab reference. The "Uitkomst" explanation names what the
+  "Extra grafieken" button opens (including the top 10). Table row heights
+  in all interfaces follow the display scaling.
 - **New:** `ui_gemeen.py` holds these shared presentation parts.
 - **Checked:** every function outside `_start_ui` in the four interface files
   is unchanged (syntax-tree comparison), so the calculation path is the same

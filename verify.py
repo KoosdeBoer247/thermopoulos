@@ -209,7 +209,7 @@ def test_section4(heatwave_load=1.3, pre_heatwave_load=1.0):
 
 
 # ============================================================================
-# PART 5 — invariants for all 23 groups
+# PART 5 — invariants for all groups
 # ============================================================================
 def test_all_groups():
     loads = [2.0] * 20
@@ -246,7 +246,7 @@ def main():
     print("\n--- Part 4: Section 4 behaviour ---")
     results = test_section4()
 
-    print("\n--- Part 5: invariants across all 23 groups ---")
+    print("\n--- Part 5: invariants across all groups ---")
     test_all_groups()
 
     print("\n" + "=" * 72)

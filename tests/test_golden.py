@@ -6,7 +6,12 @@ tests/golden_reference.json was produced by the calibration version of
 Engine pipeline entries changed (new column T_air_era5; in
 de_process_coastal the former 3 C coastal correction is gone, and the new
 correction is not applied because the dump runs with ERA5_KUST_OFFLINE=1).
-Every other number was checked to be identical to the previous reference. This test
+Every other number was checked to be identical to the previous reference.
+[2026-11-23] Regenerated for PYROX option B (each group an ensemble of
+members that differ in heat tolerance, pyrox_model.PyroxPopulation): only the
+'pyrox' entries changed (ensemble means plus the new keys fraction_emergency,
+fraction_caution, member_peak_strain, resilience_factors, heterogeneity_cv).
+All other entries were checked to be identical to the previous reference. This test
 re-runs the same seeded computations (weather pipelines, HESTIA event engine,
 runner module, clinic reconstruction, calibration reference weather, PYROX)
 and requires every number to match within a relative tolerance of 1e-9, so a

@@ -29,7 +29,7 @@ from typing import List, Dict, Optional
 import pandas as pd
 
 from thermopoulos_loader import ThermopoulosData, find_latest_thermopoulos_file
-from pyrox_model import PyroxModel
+from pyrox_model import PyroxModel, PyroxPopulation, POPULATION_HETEROGENEITY_CV
 from pyrox_groups import TARGET_GROUPS, PAPER_PROTOTYPES
 
 
@@ -133,7 +133,9 @@ def assess_population(data: ThermopoulosData,
         if name not in TARGET_GROUPS:
             raise KeyError(f"Unknown group '{name}'. "
                            f"Known: {sorted(TARGET_GROUPS)}")
-        model = PyroxModel(TARGET_GROUPS[name])
+        # [2026-11-23] option B: each group is an ensemble of members that
+        # differ in heat tolerance (pyrox_model.PyroxPopulation).
+        model = PyroxPopulation(TARGET_GROUPS[name])
         results[name] = model.simulate(
             heat_loads,
             sleep_quality_series=sleep_quality_series,

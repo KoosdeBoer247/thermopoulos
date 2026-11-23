@@ -20,7 +20,7 @@ Usage
                           output_path="pyrox_report.md", plot_dir="pyrox_plots_out")
 
 Group selection for the plots (not run-specific config, computed from the
-actual result every time): PYROX's own 23 groups cannot all fit legibly on
+actual result every time): PYROX's own 19 groups cannot all fit legibly on
 one trajectory/heatmap/regime plot, so a representative subset is chosen
 from the DATA itself -- the most-affected groups (by margin to critical
 strain, tie-broken by earliest emergency_day) plus the least-affected
@@ -346,7 +346,7 @@ def generate_pyrox_report(event_name: str,
       "https://doi.org/10.21203/rs.3.rs-8626369/v1 |")
     A(f"| Aantal populatiegroepen in deze suite | {n_groups_total} |")
     A("")
-    A("**Beperkingen, expliciet:** de meeste van de 23 groepen zijn in de "
+    A("**Beperkingen, expliciet:** de meeste van de 19 groepen zijn in de "
       "broncode zelf gelabeld als illustratieve, niet-gevalideerde "
       "parameterschattingen -- geen gemeten constanten. Alleen de "
       "onderliggende twee-lussen-structuur is empirisch getoetst (tegen het "

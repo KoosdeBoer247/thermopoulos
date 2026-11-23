@@ -1,0 +1,185 @@
+{
+  "plan": "toetsplan_pyrox_leeftijdsgradient_2026-11-23.md",
+  "hoofdtoets": {
+    "cv": 0.3,
+    "groepen": [
+      {
+        "band": "15–44 j",
+        "groep": "adults_18_45",
+        "E_gemeten": 0.13,
+        "F": 0.0488,
+        "piek_gem_pct": 6.6,
+        "verhouding_model": 0.071,
+        "verhouding_gemeten": 0.26,
+        "factor": 0.27
+      },
+      {
+        "band": "45–64 j",
+        "groep": "middle_aged_45_65",
+        "E_gemeten": 0.3,
+        "F": 0.3659,
+        "piek_gem_pct": 39.7,
+        "verhouding_model": 0.536,
+        "verhouding_gemeten": 0.6,
+        "factor": 0.89
+      },
+      {
+        "band": "65–84 j",
+        "groep": "elderly_65_85",
+        "E_gemeten": 0.5,
+        "F": 0.6829,
+        "piek_gem_pct": 71.8,
+        "verhouding_model": 1.0,
+        "verhouding_gemeten": 1.0,
+        "factor": 1.0
+      },
+      {
+        "band": "85+ j",
+        "groep": "very_elderly_85plus",
+        "E_gemeten": 0.85,
+        "F": 0.9756,
+        "piek_gem_pct": 98.8,
+        "verhouding_model": 1.429,
+        "verhouding_gemeten": 1.7,
+        "factor": 0.84
+      }
+    ],
+    "vorm_r_nieuw": {
+      "65-84": 0.8,
+      "85+": 0.701
+    },
+    "vorm_r_huidig": {
+      "65-84": 0.829,
+      "85+": 0.665
+    },
+    "criteria": {
+      "1_volgorde": true,
+      "2_jong_niet_nul": true,
+      "3_verhoudingen_factor_2": false,
+      "4_vorm_niet_slechter": true
+    },
+    "geslaagd": false
+  },
+  "gevoeligheid": [
+    {
+      "cv": 0.2,
+      "groepen": [
+        {
+          "band": "15–44 j",
+          "groep": "adults_18_45",
+          "E_gemeten": 0.13,
+          "F": 0.0,
+          "piek_gem_pct": 5.0,
+          "verhouding_model": 0.0,
+          "verhouding_gemeten": 0.26,
+          "factor": null
+        },
+        {
+          "band": "45–64 j",
+          "groep": "middle_aged_45_65",
+          "E_gemeten": 0.3,
+          "F": 0.2927,
+          "piek_gem_pct": 34.8,
+          "verhouding_model": 0.375,
+          "verhouding_gemeten": 0.6,
+          "factor": 0.62
+        },
+        {
+          "band": "65–84 j",
+          "groep": "elderly_65_85",
+          "E_gemeten": 0.5,
+          "F": 0.7805,
+          "piek_gem_pct": 80.4,
+          "verhouding_model": 1.0,
+          "verhouding_gemeten": 1.0,
+          "factor": 1.0
+        },
+        {
+          "band": "85+ j",
+          "groep": "very_elderly_85plus",
+          "E_gemeten": 0.85,
+          "F": 1.0,
+          "piek_gem_pct": 100.0,
+          "verhouding_model": 1.281,
+          "verhouding_gemeten": 1.7,
+          "factor": 0.75
+        }
+      ],
+      "vorm_r_nieuw": {
+        "65-84": 0.815,
+        "85+": 0.685
+      },
+      "vorm_r_huidig": {
+        "65-84": 0.829,
+        "85+": 0.665
+      },
+      "criteria": {
+        "1_volgorde": true,
+        "2_jong_niet_nul": false,
+        "3_verhoudingen_factor_2": false,
+        "4_vorm_niet_slechter": true
+      },
+      "geslaagd": false
+    },
+    {
+      "cv": 0.4,
+      "groepen": [
+        {
+          "band": "15–44 j",
+          "groep": "adults_18_45",
+          "E_gemeten": 0.13,
+          "F": 0.122,
+          "piek_gem_pct": 12.6,
+          "verhouding_model": 0.185,
+          "verhouding_gemeten": 0.26,
+          "factor": 0.71
+        },
+        {
+          "band": "45–64 j",
+          "groep": "middle_aged_45_65",
+          "E_gemeten": 0.3,
+          "F": 0.3902,
+          "piek_gem_pct": 41.9,
+          "verhouding_model": 0.593,
+          "verhouding_gemeten": 0.6,
+          "factor": 0.99
+        },
+        {
+          "band": "65–84 j",
+          "groep": "elderly_65_85",
+          "E_gemeten": 0.5,
+          "F": 0.6585,
+          "piek_gem_pct": 67.0,
+          "verhouding_model": 1.0,
+          "verhouding_gemeten": 1.0,
+          "factor": 1.0
+        },
+        {
+          "band": "85+ j",
+          "groep": "very_elderly_85plus",
+          "E_gemeten": 0.85,
+          "F": 0.9512,
+          "piek_gem_pct": 95.3,
+          "verhouding_model": 1.444,
+          "verhouding_gemeten": 1.7,
+          "factor": 0.85
+        }
+      ],
+      "vorm_r_nieuw": {
+        "65-84": 0.784,
+        "85+": 0.707
+      },
+      "vorm_r_huidig": {
+        "65-84": 0.829,
+        "85+": 0.665
+      },
+      "criteria": {
+        "1_volgorde": true,
+        "2_jong_niet_nul": true,
+        "3_verhoudingen_factor_2": true,
+        "4_vorm_niet_slechter": true
+      },
+      "geslaagd": true
+    }
+  ]
+}

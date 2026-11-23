@@ -72,7 +72,7 @@ not real-time safety systems — see §9 for what each is not validated to do.
                     │  run_pyrox.py   │   │   run_hestia.py     │
                     │  → PYROX        │   │   → HESTIA adapter  │
                     │  (population,   │   │   (individual +     │
-                    │   23 groups)    │   │    Monte Carlo)      │
+                    │   19 groups)    │   │    Monte Carlo)      │
                     └─────────────────┘   └──────────┬──────────┘
                                                       │
                                         hestia_model.py (shared core)
@@ -379,7 +379,7 @@ https://doi.org/10.21203/rs.3.rs-8626369/v1
 | h[k] | `exposure_memory_weights` | FIR kernel over ~10-14 days |
 | Δ | `net_strain_input` | |
 
-### 3.3 The 23 population groups, and what changed 2026-08
+### 3.3 The population groups (23 until 2026-11-23, now 19), and what changed 2026-08
 
 `pyrox_groups.py` defines 23 demographic/occupational groups (age bands,
 outdoor workers by exertion level, endurance athletes, and others), each
@@ -564,6 +564,77 @@ emergency zone starts at 95 % of Σ_critical while the code uses 90 % (text
 fixed). The reconstructed Paris Tmax (`PARIS_2003_TMAX`) runs 1–5 °C below
 the measured Montsouris maxima on several days; the bridge was calibrated on
 the reconstructed series, which is kept.
+
+### 3.6 Heterogeneity within a group (option B) and the age-gradient test [2026-11-23]
+
+**Author's decision.** PYROX now simulates every group as an ensemble of 41
+members that differ in heat tolerance (`pyrox_model.PyroxPopulation`), and the
+groups `endurance_athletes`, `elite_athletes`, `recreational_athletes` and
+`outdoor_workers` were removed (19 groups remain).
+
+**Why.** With one representative member per group the model acts as a switch:
+below a group's `recovery_threshold` nothing accumulates; above it the feedback
+loop drives strain to `critical_strain` within days. In the Paris-2003 run this
+gave 5 % of critical for 18–45 and 45–65 and 100 % for 65–85 and 85+, whereas the
+measured excess mortality rose gradually with age: O/E 1.1–1.2 (15–44 y), 1.3
+(45–64), 1.4–1.6 (65–84), 1.8–2.0 (85+) (Fouillet et al. 2006, table 1). A soft
+threshold alone (normally distributed threshold, σ = 0.2–0.4 × θ) was tried and
+did not help: 5 / 5–31 / 100 / 100 %. The feedback loop turns a soft input back
+into a switch.
+
+**How.** Member *i* has a resilience factor *f<sub>i</sub>* that multiplies
+`max_acclimatization_capacity` (capped at 0.95), `recovery_threshold` and
+`base_recovery_rate` together. *f* is lognormal with median 1 and
+CV = `POPULATION_HETEROGENEITY_CV` = 0.30; the 41 members sit on the
+mid-quantiles (deterministic). The group trajectory is the ensemble mean; zone
+days are read from that mean as before. New outputs: `fraction_emergency` and
+`fraction_caution` per day, `member_peak_strain`, `resilience_factors`,
+`heterogeneity_cv`. The median member (*f* = 1) is the tabulated group;
+`PyroxModel` is unchanged and still describes that typical member, so
+`verify.py` and the regime, feedback and tipping-point analyses (and the UI
+tabs Terugkoppeling, Regimes and Uitleg: kantelpunt) refer to the typical
+member. With CV = 0 the ensemble is bit-identical to `PyroxModel`
+(`tests/test_pyrox_populatie.py`).
+
+**Test (pre-registered).** Plan: `toetsplan_pyrox_leeftijdsgradient_2026-11-23.md`
+(committed before the run). Script: `toets_pyrox_leeftijdsgradient.py`;
+raw result: `toets_pyrox_leeftijdsgradient_resultaat.json`. Model measure *F* =
+share of members reaching ≥ 90 % of critical during Paris 2003; compared with
+the measured excess *E* = O/E − 1, both relative to 65–84 y.
+
+| Age band (group) | *E* measured | ratio measured | *F* (CV 0.30) | ratio model | model / measured |
+| --- | --- | --- | --- | --- | --- |
+| 15–44 (`adults_18_45`) | 0.13 | 0.26 | 0.049 | 0.07 | 0.27 |
+| 45–64 (`middle_aged_45_65`) | 0.30 | 0.60 | 0.366 | 0.54 | 0.89 |
+| 65–84 (`elderly_65_85`) | 0.50 | 1.00 | 0.683 | 1.00 | 1.00 |
+| 85+ (`very_elderly_85plus`) | 0.85 | 1.70 | 0.976 | 1.43 | 0.84 |
+
+Criteria (CV 0.30): (1) strict ordering — **met**; (2) young > 0 — **met**;
+(3) every ratio within a factor 2 — **not met** (15–44: factor 0.27);
+(4) time-shape correlation with the daily excess deaths not worse than before by
+more than 0.05 — **met** (65–84: r 0.80 vs 0.83; 85+: 0.70 vs 0.67).
+**The pre-registered test as a whole is not passed.** Sensitivity, reported as
+fixed in the plan and not used to choose CV: CV 0.20 fails criteria 2 and 3;
+CV 0.40 meets all four (15–44: factor 0.71). The test is not fully blind: one
+exploratory run with the same set-up was seen before the plan was written (stated
+in the plan).
+
+**Interpretation.** Option B removes the switch: the response is graded and
+ordered, and 45–64 and 85+ are within a factor 0.84–0.89 of the measured ratios.
+The 15–44 band responds about 3.7 times too weakly. A possible reason, not
+tested: `adults_18_45` represents *healthy* young adults, while the measured band
+includes everyone of that age, among them people with chronic disease. The 85+
+ratio is limited by saturation (*F* cannot exceed 1). An independent test with
+the age distribution of another heatwave (France 2006, UK 2022) is still needed,
+as is option A (re-placing the extrapolated groups by literature ratios), which
+was deliberately postponed until after this step.
+
+**Planned — author's decision (2026-11-23).** HESTIA gets a separate worker
+group (a work mode for outdoor workers, with ISO 8996 metabolic classes, a
+work day with work–rest cycles, and occupational limits instead of the race
+EHS endpoints). This is started only after this PYROX version has been shown to
+work well (independent test on another heatwave). Until then outdoor workers
+are not covered by the suite.
 
 ## 4. HESTIA — individual thermophysiology
 

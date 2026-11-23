@@ -1,6 +1,6 @@
 [project]
 name = "hestia-pyrox-klimatos"
-version = "2026.10.27"
+version = "2026.11.23"
 description = "Research software for heat strain at mass-participation events (HESTIA), population heat strain (PYROX) and local climate trends (Klimatos), with the Thermopoulos weather data engine."
 readme = "README.md"
 license = { file = "LICENSE" }

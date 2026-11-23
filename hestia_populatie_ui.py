@@ -583,7 +583,10 @@ def _start_ui(na_start=None):
             self.nb.add(tab_u, text="  Uitkomst  ")
             self.nb.add(tab_g, text="  Grafieken  ")
             ug.tab_uitleg(tab_u, "De uitkomst in het kort: risicobalk, kerncijfers en de volledige toelichting. "
-                                 "Het tabblad Grafieken toont het weer en de verdeling over de deelnemers.", LETTER)
+                                 "Het tabblad Grafieken toont het weer en de verdeling over de deelnemers. De knop "
+                                 "'Extra grafieken' (rechtsboven) opent o.a. de 10 deelnemers met de hoogste "
+                                 "kerntemperatuur, scatter en drempels, wanneer en waar, en starttijden vergelijken.",
+                         LETTER)
             self.rb_fig = Figure(figsize=(12, 1.1), dpi=96)
             self.rb_ax = self.rb_fig.add_axes([0.02, 0.36, 0.96, 0.32])
             self.rb_canvas = FigureCanvasTkAgg(self.rb_fig, master=tab_u)
@@ -1223,9 +1226,10 @@ def _start_ui(na_start=None):
             w.title("HESTIA populatie: extra grafieken")
             bw, bh = self.root.winfo_screenwidth(), self.root.winfo_screenheight()
             w.geometry(f"{min(1500, bw - 60)}x{min(900, bh - 100)}+40+30")
+            ug.maximaliseer(w)
             nb = ttk.Notebook(w)
             nb.pack(fill="both", expand=True)
-            self.nb = nb
+            self.nb_extra = nb
             self.ex = {}
 
             def tab(naam, titel, figsize, met_balk=False):
@@ -1249,7 +1253,7 @@ def _start_ui(na_start=None):
             tab("wie", "Wie (na volledige run)", (15, 7.5))
             tab("top", "Top 10 T_rect", (15, 5.2))
             st_ = ttk.Style()
-            st_.configure("Top.Treeview", font=("TkDefaultFont", LETTER - 1), rowheight=int(LETTER * 2.1))
+            st_.configure("Top.Treeview", font=("TkDefaultFont", LETTER - 1), rowheight=ug.px(self.root, int(LETTER * 2.1)))
             st_.configure("Top.Treeview.Heading", font=("TkDefaultFont", LETTER - 1, "bold"))
             kolommen = ("rang", "deelnemer", "geslacht", "leeftijd", "gewicht", "VO2max", "%VO2max", "tempo",
                         "kp_pacing", "motivatie", "NSAID", "piek T_rect", "min CO_res", "EHS", "> 42 °C")
@@ -1258,7 +1262,11 @@ def _start_ui(na_start=None):
             for k in kolommen:
                 tv.heading(k, text=k)
                 tv.column(k, width=90 if k not in ("rang", "EHS", "NSAID", "> 42 °C") else 62, anchor="center")
+            # Tabel vóór de grafiek inpakken: alle 10 rijen blijven zichtbaar, de grafiek krijgt de rest.
+            cvw = self.ex["top"]["cv"].get_tk_widget()
+            cvw.pack_forget()
             tv.pack(side="bottom", fill="x", padx=6, pady=(0, 4))
+            cvw.pack(side="top", fill="both", expand=True)
             self.ex["top"]["tv"] = tv
             balk = tab("st", "Starttijd vergelijken", (15, 7.0), met_balk=True)
             self.v.setdefault("st_van", tk.StringVar(value="06:00"))

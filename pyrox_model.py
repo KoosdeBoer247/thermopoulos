@@ -218,7 +218,7 @@ class GroupParameters:
     age_range: tuple = (0, 120)
     evidence_status: str = "extrapolated"
     """One of 'paper' (the three prototype groups, with documented correction)
-    or 'extrapolated' (the other 20 groups: physiologically ordered but not
+    or 'extrapolated' (the other 16 groups: physiologically ordered but not
     independently validated)."""
 
     def __post_init__(self):
@@ -565,6 +565,127 @@ class PyroxModel:
         if rate <= 0:
             return float("inf")
         return (self.group.critical_strain - current_strain) / rate
+
+
+# ============================================================================
+# POPULATION LAYER: heterogeneity within a group (option B, 2026-11-23)
+# ============================================================================
+# Why. A single representative member makes every group an on/off switch:
+# below its recovery_threshold nothing accumulates, above it the feedback
+# loop runs to critical_strain within days. For Paris 2003 that gave 5 % of
+# critical for 18-45 and 45-65 and 100 % for 65-85 and 85+, while the measured
+# excess mortality rose gradually with age (O/E 1.1-1.2, 1.3, 1.4-1.6, 1.8-2.0;
+# Fouillet et al. 2006, table 1). Softening the threshold alone does not help:
+# the feedback loop turns a soft input back into a switch.
+#
+# What. A real group consists of people who differ in heat tolerance
+# (inter-individual variation in the core-temperature response at equal heat
+# production is up to 1.1-1.9 degC; Cramer & Jay 2015, PMC4628991). Each group
+# is therefore simulated as an ensemble of members. Member i has one
+# resilience factor f_i that multiplies the three protective parameters
+# together (capacity, recovery_threshold, base_recovery_rate), so that they
+# keep moving together, as the group table requires. f is lognormal with
+# median 1 and coefficient of variation POPULATION_HETEROGENEITY_CV; the
+# members sit on the mid-quantiles of that distribution (deterministic, no
+# random numbers). Capacity is capped at MEMBER_CAPACITY_CAP.
+#
+# Output. The group trajectory is the ensemble MEAN of the member strains;
+# the zone days are read from that mean, as before. In addition the fraction
+# of members in the emergency zone (>= 90 % of critical) is returned per day.
+# The median member (f = 1) is exactly the group as tabulated; PyroxModel
+# itself is unchanged and still describes that typical member (verify.py,
+# regime and tipping-point analyses).
+#
+# Test. Pre-registered in toetsplan_pyrox_leeftijdsgradient_2026-11-23.md
+# (age gradient of Paris 2003); result in TECHNICAL_REFERENCE.md.
+
+POPULATION_HETEROGENEITY_CV: float = 0.30
+POPULATION_ENSEMBLE_SIZE: int = 41
+MEMBER_CAPACITY_CAP: float = 0.95
+
+
+def resilience_multipliers(cv: float = POPULATION_HETEROGENEITY_CV,
+                           n: int = POPULATION_ENSEMBLE_SIZE) -> np.ndarray:
+    """Resilience factors f_i on the n mid-quantiles of a lognormal
+    distribution with median 1 and coefficient of variation cv.
+    cv = 0 (or n = 1) gives the single typical member [1.0]."""
+    from statistics import NormalDist
+    if cv <= 0 or n <= 1:
+        return np.array([1.0])
+    sd = float(np.sqrt(np.log(1.0 + cv * cv)))
+    z = np.array([NormalDist().inv_cdf((i + 0.5) / n) for i in range(n)])
+    return np.exp(sd * z)
+
+
+def member_group(group: GroupParameters, factor: float) -> GroupParameters:
+    """The group as one member with resilience factor `factor` (1 = typical)."""
+    from dataclasses import replace
+    if factor == 1.0:
+        return group
+    return replace(
+        group,
+        max_acclimatization_capacity=min(MEMBER_CAPACITY_CAP,
+                                         group.max_acclimatization_capacity * factor),
+        recovery_threshold=group.recovery_threshold * factor,
+        base_recovery_rate=group.base_recovery_rate * factor,
+    )
+
+
+class PyroxPopulation:
+    """
+    A population group as an ensemble of members that differ in heat
+    tolerance (see the block comment above). `simulate()` takes the same
+    arguments as PyroxModel.simulate() and returns the same keys, where
+    cumulative_strain, effective_acclimatization and final_risk are ensemble
+    means, and adds:
+
+        fraction_emergency  per state (incl. the initial one): share of members
+                            at or above 90 % of critical_strain
+        fraction_caution    idem, at or above 50 %
+        member_peak_strain  peak strain per member (array, in member order)
+        resilience_factors  the f_i used
+        heterogeneity_cv    the cv used
+        diagnostics         those of the typical (median) member
+    """
+
+    def __init__(self, group: GroupParameters,
+                 cv: float = POPULATION_HETEROGENEITY_CV,
+                 n_members: int = POPULATION_ENSEMBLE_SIZE):
+        self.group = group
+        self.cv = cv
+        self.factors = resilience_multipliers(cv, n_members)
+
+    def simulate(self, heat_load_series: List[float],
+                 sleep_quality_series: Optional[List[float]] = None,
+                 pre_heatwave_heat_load: Optional[float] = None,
+                 initial_strain: float = 0.1,
+                 initial_state: Optional[DailyState] = None) -> Dict:
+        runs = [PyroxModel(member_group(self.group, f)).simulate(
+                    heat_load_series, sleep_quality_series=sleep_quality_series,
+                    pre_heatwave_heat_load=pre_heatwave_heat_load,
+                    initial_strain=initial_strain, initial_state=initial_state)
+                for f in self.factors]
+        strain = np.array([r["cumulative_strain"] for r in runs])
+        critical = self.group.critical_strain
+        mean_strain = strain.mean(axis=0)
+        mid = int(np.argmin(np.abs(np.log(self.factors))))
+        return {
+            "group": self.group,
+            "critical_strain": critical,
+            "cumulative_strain": mean_strain,
+            "effective_acclimatization": np.mean([r["effective_acclimatization"] for r in runs], axis=0),
+            "final_risk": np.mean([r["final_risk"] for r in runs], axis=0),
+            "diagnostics": runs[mid]["diagnostics"],
+            "peak_strain": float(mean_strain.max()),
+            "caution_day": _first_day_at_or_above(mean_strain, 0.50 * critical),
+            "danger_day": _first_day_at_or_above(mean_strain, 0.75 * critical),
+            "emergency_day": _first_day_at_or_above(mean_strain, 0.90 * critical),
+            "fraction_emergency": (strain >= 0.90 * critical).mean(axis=0),
+            "fraction_caution": (strain >= 0.50 * critical).mean(axis=0),
+            "member_peak_strain": strain.max(axis=1),
+            "resilience_factors": self.factors.copy(),
+            "heterogeneity_cv": self.cv,
+        }
 
 
 # ============================================================================

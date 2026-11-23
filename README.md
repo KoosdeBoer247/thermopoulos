@@ -2,7 +2,7 @@
 
 # Thermopoulos: HESTIA · PYROX · Klimatos
 
-**Release 2026.10.27** · research software · MIT licence
+**Release 2026.11.23** · research software · MIT licence
 
 A heat-risk modelling suite for mass-participation events, outdoor work and
 heatwaves. It starts from the human body, not from a weather index alone.
@@ -10,7 +10,7 @@ heatwaves. It starts from the human body, not from a weather index alone.
 | Component | Scale | What it does |
 |---|---|---|
 | **HESTIA** | individual and event population (runners, or walkers of a Four Days Marches type event) | JOS-3 thermophysiology (pythermalcomfort) plus a cardiovascular module: core temperature, sweat and fluid loss, heart rate, cardiac-output reserve (CO_reserve), exertional heat-illness endpoints, a personal runner analysis and a field-validation chain |
-| **PYROX** | population groups | control-theoretic heat-strain dynamics for 23 population groups during heatwaves ([preprint](https://doi.org/10.21203/rs.3.rs-8626369/v1)) |
+| **PYROX** | population groups | control-theoretic heat-strain dynamics for 19 population groups during heatwaves ([preprint](https://doi.org/10.21203/rs.3.rs-8626369/v1)) |
 | **Klimatos** | climate | trends in WBGT, UTCI and related indices over sliding 30-year windows, with HESTIA risk evolution for recurring events |
 | **Thermopoulos Data Engine** | weather | fetches forecast and archive weather (Open-Meteo) and computes solar position, globe temperature, MRT, wet-bulb, WBGT and UTCI into one Excel format that HESTIA and PYROX read |
 
@@ -282,9 +282,12 @@ reports are his. The author's own contributions include:
   Index (Moran et al. 1998) already combines core temperature and heart rate
   in one number; here both limits must be crossed at the same time, the
   cardiac reserve replaces heart rate, and duration counts.
-- **PYROX.** A control-theoretic model of heat strain in 23 population groups
+- **PYROX.** A control-theoretic model of heat strain in 19 population groups
   during heatwaves, with night-time recovery (preprint
-  doi:10.21203/rs.3.rs-8626369/v1).
+  doi:10.21203/rs.3.rs-8626369/v1). Each group is simulated as 41 members who
+  differ in heat tolerance, so the response is graded rather than on/off
+  (2026-11-23; tested against the age gradient of Paris 2003, see
+  TECHNICAL_REFERENCE.md §3.6).
 - **One chain from weather to people.** Coupling the weather pipeline
   (including measured or forecast solar radiation), individual thermophysiology
   (JOS-3) with a cardiovascular reserve model (Lloyd et al. 2022), the event

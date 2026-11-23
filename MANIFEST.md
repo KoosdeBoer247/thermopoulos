@@ -91,10 +91,13 @@ Every file in the release and what it does. History of individual files:
 | File | Purpose |
 |---|---|
 | `pyrox_model.py` | the dynamic heat-strain model (reference implementation) |
-| `pyrox_groups.py` | parameters of the 23 population groups |
+| `pyrox_groups.py` | parameters of the 19 population groups |
 | `run_pyrox.py` | PYROX on a Data Engine file |
 | `pyrox_plots.py` | diagnostic and publication figures |
 | `paris2003.py` | Paris August 2003 reference series (shape validation) |
+| `toetsplan_pyrox_leeftijdsgradient_2026-11-23.md` | pre-registered test plan: PYROX option B against the age gradient of Paris 2003 |
+| `toets_pyrox_leeftijdsgradient.py` | runs that test; writes `toets_pyrox_leeftijdsgradient_resultaat.json` |
+| `toets_pyrox_leeftijdsgradient_resultaat.json` | raw result of the test (main test and sensitivity) |
 | `verify.py` | reproduces the paper's results |
 
 ## Klimatos (climate trends)
@@ -150,6 +153,7 @@ and change no calculation. Each opens its own window; texts are in Dutch.
 | `run_all_tests.py` | runs every test script with a summary |
 | `tests/test_scripts.py` | the same scripts under pytest (slow ones marked `slow`) |
 | `tests/test_golden.py`, `tests/golden_dump.py`, `tests/golden_reference.json` | golden-output regression test against the 2026-11-04 calibration version |
+| `tests/test_pyrox_populatie.py` | PYROX population layer: CV 0 equals the single model, median member, determinism, ordering on Paris 2003, removed groups |
 | `suite_smoke_test.py` | end-to-end smoke test |
 | `test_koude_huid.py` | cold-skin limit of JOS-3 (off by default, effect in cold, none in heat, clinic variant B4) |
 | `test_leefbaarheid_uren.py` | Klimatos liveability: rest floor of the worst-hour Mmax, hours-per-year trend and projection, report section |

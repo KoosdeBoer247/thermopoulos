@@ -41,7 +41,7 @@ Data Engine-bestand wordt dat per blad opnieuw verwerkt; de terreinruwheid z0
 doet voor PYROX niet ter zake (de dagtabel gebruikt wind_10m).
 
 Status: research software. De warmtebelasting is een modelkeuze (gekalibreerd op
-Parijs 2003); 20 van de 23 groepen zijn geextrapoleerd (pyrox_groups.py).
+Parijs 2003); 16 van de 19 groepen zijn geextrapoleerd (pyrox_groups.py).
 
 Starten:  python pyrox_ui.py
 """
@@ -220,7 +220,7 @@ def onzekerheid(weer: Weer, rapport: dict, groep: str, graden: float, pre: Optio
     """Zoals pyrox_plots.plot_forecast_uncertainty: central, -D, +D, alleen op de
     verwachtingsdagen (vanaf forecast_start)."""
     from thermopoulos_loader import HEAT_LOAD_PER_DEGREE
-    from pyrox_model import PyroxModel
+    from pyrox_model import PyroxPopulation
     from pyrox_groups import TARGET_GROUPS
     loads = np.array(rapport["heat_loads"], dtype=float)
     d = graden * HEAT_LOAD_PER_DEGREE
@@ -231,8 +231,8 @@ def onzekerheid(weer: Weer, rapport: dict, groep: str, graden: float, pre: Optio
     def sim(sign):
         x = loads.copy()
         x[fc:] = np.clip(x[fc:] + sign * d, 0, None)
-        return PyroxModel(TARGET_GROUPS[groep]).simulate(x.tolist(), pre_heatwave_heat_load=p,
-                                                         sleep_quality_series=sq)["cumulative_strain"]
+        return PyroxPopulation(TARGET_GROUPS[groep]).simulate(x.tolist(), pre_heatwave_heat_load=p,
+                                                              sleep_quality_series=sq)["cumulative_strain"]
     return sim(0), sim(-1), sim(+1)
 
 
@@ -339,9 +339,9 @@ def _zone_i(v, crit) -> int:
 
 
 def _sim(groep: str, loads, sq, pre):
-    from pyrox_model import PyroxModel
+    from pyrox_model import PyroxPopulation
     from pyrox_groups import TARGET_GROUPS
-    return PyroxModel(TARGET_GROUPS[groep]).simulate([float(x) for x in loads], pre_heatwave_heat_load=pre,
+    return PyroxPopulation(TARGET_GROUPS[groep]).simulate([float(x) for x in loads], pre_heatwave_heat_load=pre,
                                                      sleep_quality_series=sq)["cumulative_strain"]
 
 
@@ -531,8 +531,8 @@ def schrijf_briefing(pad: str, app) -> str:
             p_.paragraph_format.space_after = Pt(0)
         alinea("Standaardadviezen; volg het lokale hitteplan. Marge = de warmtebelasting van de peildag houdt aan; herstel = "
                "na de laatste dag geen warmtebelasting en volledige nachtrust. '?' = uitkomst hangt af van de verwachting "
-               f"(±{nl_(app.onz)} °C). PYROX is research software: de warmtebelasting is gekalibreerd op Parijs 2003 en 20 van "
-               "de 23 groepen zijn geëxtrapoleerd.", 7.5, kleur="666666", na=0).paragraph_format.space_before = Pt(4)
+               f"(±{nl_(app.onz)} °C). PYROX is research software: de warmtebelasting is gekalibreerd op Parijs 2003 en 16 van "
+               "de 19 groepen zijn geëxtrapoleerd.", 7.5, kleur="666666", na=0).paragraph_format.space_before = Pt(4)
         doc.save(pad)
     return pad
 
@@ -609,7 +609,7 @@ def _start_ui(na_start=None):
                     pass
             st = ttk.Style()
             st.configure("TLabelframe.Label", font=("TkDefaultFont", LETTER, "bold"))
-            st.configure("P.Treeview", font=("TkDefaultFont", LETTER - 1), rowheight=int(LETTER * 2.0))
+            st.configure("P.Treeview", font=("TkDefaultFont", LETTER - 1), rowheight=ug.px(self.root, int(LETTER * 2.0)))
             st.configure("P.Treeview.Heading", font=("TkDefaultFont", LETTER - 1, "bold"))
             bw, bh = root.winfo_screenwidth(), root.winfo_screenheight()
             root.geometry(f"{min(1800, bw - 40)}x{min(1040, bh - 80)}+10+10")
@@ -737,22 +737,24 @@ def _start_ui(na_start=None):
             self.tab = {}
             UITLEG = {
                 "ov": "Startpunt. Temperatuur, dagelijkse warmtebelasting met nachtelijk herstel, en de opgebouwde "
-                      "belasting per groep als percentage van de eigen kritieke grens. De tabel geeft per groep de "
-                      "eerste dag in elke zone.",
+                      "belasting per groep als percentage van de eigen kritieke grens. Elke groep is een ensemble van "
+                      "41 leden die verschillen in hittebestendigheid; de lijn is het gemiddelde. De tabel geeft per "
+                      "groep de eerste dag in elke zone en het grootste aandeel leden in de noodsituatie.",
                 "hm": "Alle gekozen groepen in één beeld: per dag de zone. Handig om te zien welke groepen het "
                       "eerst en het langst in gevaar komen.",
-                "fb": "Voor onderzoek. Laat voor één groep zien hoe belasting en herstel elkaar dag na dag "
-                      "versterken (de terugkoppeling in het model).",
+                "fb": "Voor onderzoek. Laat voor het typische (mediane) lid van één groep zien hoe belasting en "
+                      "herstel elkaar dag na dag versterken (de terugkoppeling in het model).",
                 "onz": "Hoe gevoelig is de uitkomst voor fouten in de weersverwachting? De verwachte temperaturen "
                        "worden met ± de ingestelde marge verschoven en opnieuw doorgerekend.",
-                "reg": "Voor onderzoek. Bij welke dagelijkse belasting blijft een groep in evenwicht, en vanaf "
-                       "welke belasting loopt de opbouw door (kantelpunt)?",
+                "reg": "Voor onderzoek. Bij welke dagelijkse belasting blijft het typische (mediane) lid van een "
+                       "groep in evenwicht, en vanaf welke belasting loopt de opbouw door (kantelpunt)? Andere leden "
+                       "van de groep kantelen eerder of later.",
                 "br": "Voor veiligheidsfunctionarissen en organisatoren: kalender, marge tot de volgende zone en "
                       "nawerking na de hittegolf, in gewone taal. Zelfde inhoud als de Briefing (Word).",
                 "em": "Uitleg en presentatie. Elke groep als emmer die volloopt met hittebelasting en 's nachts "
                       "deels leegloopt. Met ▶ afspelen loopt de hittegolf dag voor dag.",
-                "kp": "Uitleg en presentatie. Het kantelpunt als landschap: een bal die terugrolt (herstel) of "
-                      "over de rand gaat (doorlopende opbouw).",
+                "kp": "Uitleg en presentatie. Het kantelpunt als landschap voor het typische (mediane) lid: een bal "
+                      "die terugrolt (herstel) of over de rand gaat (doorlopende opbouw).",
             }
             for k, titel in (("ov", "Overzicht"), ("hm", "Heatmap"), ("fb", "Terugkoppeling"),
                              ("onz", "Onzekerheid verwachting"), ("reg", "Regimes"), ("br", "Briefing"),
@@ -767,13 +769,14 @@ def _start_ui(na_start=None):
                 lbl.pack(fill="x", padx=8, pady=2)
                 tv = None
                 if k == "ov":
-                    kol = ("groep", "status", "kritiek", "piek", "piek_pct", "letop", "gevaar", "nood")
-                    kopt = ("groep", "evidentie", "kritieke grens", "piek Σ", "piek (% kritiek)", "let op (50 %)",
-                            "gevaar (75 %)", "noodsituatie (90 %)")
+                    kol = ("groep", "status", "kritiek", "piek", "piek_pct", "aandeel", "letop", "gevaar", "nood")
+                    kopt = ("groep", "evidentie", "kritieke grens", "piek Σ", "piek (% kritiek)",
+                            "max. deel in nood", "let op (50 %)", "gevaar (75 %)", "noodsituatie (90 %)")
                     tv = ttk.Treeview(f, columns=kol, show="headings", height=3, style="P.Treeview")
                     for c, t in zip(kol, kopt):
                         tv.heading(c, text=t)
-                        tv.column(c, width=300 if c == "groep" else 120, anchor="w" if c == "groep" else "center")
+                        tv.column(c, width=ug.px(self.root, 260) if c == "groep" else ug.px(self.root, 105),
+                                  anchor="w" if c == "groep" else "center")
                     tv.pack(side="bottom", fill="x", padx=6)
                 sc = None
                 if k in ("br", "em", "kp"):
@@ -1110,7 +1113,10 @@ def _start_ui(na_start=None):
             ipiek = int(np.argmax(traj))
             nood = res["emergency_day"]
             if nood is None:
-                nood_w, nood_s = "niet bereikt", "binnen deze periode"
+                fr = float(np.max(res["fraction_emergency"])) if "fraction_emergency" in res else 0.0
+                nood_w = "niet bereikt"
+                nood_s = ("door het groepsgemiddelde; wel " f"{100 * fr:.0f} % van de leden"
+                          if fr > 0 else "binnen deze periode")
             else:
                 nood_w = self._dag(nood)
                 nood_s = self._soort_dag(nood - 1)[0] if nood > 0 else "bij de start"
@@ -1123,9 +1129,11 @@ def _start_ui(na_start=None):
                      sub=f"van de eigen kritieke grens (Σ_crit = {nl(crit)})", kleur=ZONE_COLOURS[slechtst]),
                 dict(titel="Vanaf", waarde=datum, sub=f"{soort}: {soort_uitleg}",
                      kleur="#b9770e" if soort == "verwachting" else "#117a65"),
-                dict(titel="Piek", waarde=f"{pct:.0f} %",
+                dict(titel="Piek (gemiddelde van de groep)", waarde=f"{pct:.0f} %",
                      sub=f"op {pd.Timestamp(r['dates'][ipiek]).strftime('%d-%m-%Y')} "
-                         f"({self._soort_dag(ipiek)[0]})", kleur="#5d6d7e"),
+                         f"({self._soort_dag(ipiek)[0]})"
+                         + (f"; max. {100 * float(np.max(res['fraction_emergency'])):.0f} % van de leden in nood"
+                            if "fraction_emergency" in res else ""), kleur="#5d6d7e"),
             ]
             if slechtst == "emergency":
                 items.append(dict(titel="Opbouw daarvoor", waarde=f"let op {self._dag(res['caution_day'])}",
@@ -1199,9 +1207,12 @@ def _start_ui(na_start=None):
                 tv.insert("", "end", values=(
                     grp.display_name, grp.evidence_status, nl(res["critical_strain"]), nl(res["peak_strain"], 3),
                     f"{100 * res['peak_strain'] / res['critical_strain']:.0f} %",
+                    (f"{100 * float(np.max(res['fraction_emergency'])):.0f} %" if "fraction_emergency" in res else "–"),
                     self._dag(res["caution_day"]), self._dag(res["danger_day"]), self._dag(res["emergency_day"])))
             t["lbl"].config(text=(
-                "Bron: run_pyrox.assess_population (PyroxModel.simulate). Warmtebelasting per dag = (gevoelstemperatuur bij "
+                "Bron: run_pyrox.assess_population (PyroxPopulation: per groep 41 leden met verschillende hittebestendigheid, "
+                "CV 0,30; lijn = gemiddelde; 'max. deel in nood' = grootste aandeel leden ≥ 90 % van de kritieke grens). "
+                "Warmtebelasting per dag = (gevoelstemperatuur bij "
                 "Tmax − 22 °C) × 0,10 (thermopoulos_loader; modelkeuze, gekalibreerd op Parijs 2003). Slaapkwaliteit uit het "
                 "minimum van de nacht na elke dag: 1,0 tot 18 °C, 0,4 vanaf 26 °C (stippellijnen). Σ is hier weergegeven als "
                 "percentage van de eigen kritieke grens van de groep; zones 50/75/90 % zoals pyrox_plots. Datum in de tabel = "

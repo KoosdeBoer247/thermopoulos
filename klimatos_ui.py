@@ -419,7 +419,7 @@ def _start_ui(na_start=None):
                     pass
             st = ttk.Style()
             st.configure("TLabelframe.Label", font=("TkDefaultFont", LETTER, "bold"))
-            st.configure("K.Treeview", font=("TkDefaultFont", LETTER - 2), rowheight=int(LETTER * 1.9))
+            st.configure("K.Treeview", font=("TkDefaultFont", LETTER - 2), rowheight=ug.px(self.root, int(LETTER * 1.9)))
             st.configure("K.Treeview.Heading", font=("TkDefaultFont", LETTER - 2, "bold"))
             bw, bh = root.winfo_screenwidth(), root.winfo_screenheight()
             root.geometry(f"{min(1800, bw - 40)}x{min(1040, bh - 80)}+10+10")

@@ -2,7 +2,7 @@
 """
 PYROX — population group parameters
 ================================================================================
-The 23 population groups, each expressed in the readable parameter names of
+The 19 population groups, each expressed in the readable parameter names of
 pyrox_model.GroupParameters.
 
 --------------------------------------------------------------------------------
@@ -13,8 +13,8 @@ evidence_status='paper'. The paper itself states their values are "based on
 physiological plausibility and literature estimates", NOT direct measurements,
 so even these are plausibility estimates, not measured constants.
 
-The other 20 groups are labelled evidence_status='extrapolated'. Their ORDERING
-(athletes most resilient, dementia least) is grounded in the heat-vulnerability
+The other 16 groups are labelled evidence_status='extrapolated'. Their ORDERING
+(indoor workers most resilient, dementia least) is grounded in the heat-vulnerability
 literature, but the specific numbers are structured interpolations along the
 resilient -> vulnerable axis. They are illustrative, not validated. Do not cite
 them as empirical values.
@@ -104,7 +104,7 @@ def _make_group(name, display_name, *, capacity, recovery_threshold,
 
 
 # ============================================================================
-# THE 23 GROUPS
+# THE 19 GROUPS (athletes and outdoor workers removed 2026-11-23)
 # Ordered most-resilient -> most-vulnerable. Protective parameters
 # (capacity, recovery_threshold, recovery_rate) descend together.
 # ============================================================================
@@ -116,183 +116,16 @@ def _register(group: GroupParameters):
     TARGET_GROUPS[group.name] = group
 
 
-# ---- athletic / elite (extrapolated): strongest protective loops -----------
-# ---- checked (eleventh/final deep check, lighter-touch pass) --------------
-# Unlike the vulnerable-tier groups above, this checks the resilient/healthy
-# end of the roster -- CONFIRMED overall, with two genuine but narrow
-# caveats that don't change the numbers but matter for how these groups are
-# USED.
-# CONFIRMING: elite-sport exertional heat stroke (EHS) incidence is
-# empirically low (PMC9826288, 2022 review) -- consistent with these very
-# high capacity values (0.95-1.00).
-# CAVEAT 1 (about event/intensity choice, not these numbers): EHS risk is
-# higher in SHORTER, higher-intensity races (e.g. 10 km) than in marathons,
-# because athletes sustain a higher relative intensity for the (shorter)
-# duration (PMC9826288). This means pairing "elite_athletes" with a
-# high-MET/short-duration event is a materially different (higher) risk
-# scenario than pairing it with marathon-pace/duration -- relevant to how
-# HESTIA's met_value now actually drives population intensity (see the
-# met_value integration fix earlier in this changelog), not something this
-# group's own parameters should absorb.
-# CAVEAT 2 (a real, narrow, behavioural mechanism no capacity parameter can
-# represent): "high levels of motivation and exertion can in some cases
-# blunt sensory feedback from hyperthermia that under normal circumstances
-# alter behaviour" in elite competitive settings (PMC9826288) -- i.e. elite
-# athletes may override the protective urge to slow down under competitive
-# drive in a way recreational participants would not. ~85% of endurance-
-# event collapses occur AFTER crossing the finish line, most benign
-# (postural hypotension from reduced venous return once running stops), a
-# minority heat-stroke (Holtzhause & Noakes 1997, cited in GSSI review) --
-# consistent with, and an independent validation of, HESTIA's own dedicated
-# post-finish TCF module. No number changes made: this is a genuine
-# behavioural-override risk, not a capacity deficit, and the group's overall
-# very-low-incidence positioning remains well supported.
-# [2026-09] RECALIBRATED (thirteenth check in this series). All prior checks
-# in this file concluded "no number change" for the athlete-tier groups,
-# reasoning from real incidence data that their "very-low-incidence
-# positioning remains well supported". A fresh, more targeted literature
-# search this session (Périard, DeGroot & Jay 2022, PMC9826288) found this
-# was an incomplete reading: exertional heat illness incidence in endurance
-# running is 674.0 per 10,000 athlete-exposures -- the HIGHEST of any sport
-# studied, not the lowest -- and elite-competition EHS/DNF/medical-encounter
-# rates run as high as 118-170 per 1,000 finishers in marathon/race-walk
-# events (Breslow et al., cited above). [2026-10-17: this attribution is
-# wrong -- Breslow 2021 (Med Sci Sports Exerc 53:1818) reports Boston EHS,
-# 3.7/10,000 starters, not these rates; the source of the 118-170 figure is
-# still to be identified. No number in this file depends on it.] "Very-low-incidence" was true only
-# for population-level base rates, not for the athlete-exposure or
-# per-finisher rates that actually describe this group's own risk.
-#
-# Separately, and independently of the epidemiology: capacity=1.00 makes
-# net_strain_input's flip point (recovery_threshold / (1-capacity))
-# mathematically infinite -- not merely rare, but IMPOSSIBLE at any load,
-# on principle. Checked directly against the weather pipeline's own
-# heat-load formula (thermopoulos_loader.py, load=(feels_like-22)*0.10):
-# even the four next-most-resistant groups (elite/recreational athletes,
-# outdoor_workers, and the ordinary adults_18_45 baseline -- see
-# TECHNICAL_REFERENCE.md Sec 3.3 for the full sorted list) require
-# feels-like temperatures of 97-422 degC to ever reach runaway -- for
-# comparison, the highest heat index ever confirmed on Earth is 81.1 degC
-# (Dhahran, Saudi Arabia, 2003; Guinness World Records). These were not
-# "hard to reach", they were unreachable by any weather this planet has
-# ever produced.
-#
-# Recalibrated so runaway becomes reachable at genuinely extreme but
-# real-world-plausible conditions, while keeping this group the most
-# resistant of the four athlete/worker groups (endurance > elite >
-# recreational > outdoor_workers, preserving the existing relative
-# ordering, which the epidemiology above does still support in relative,
-# not absolute, terms -- endurance athletes sustain far higher relative
-# effort for far longer than recreational participants, which plausibly
-# does earn them the top spot in resistance even though it is what also
-# elevates their absolute incidence). Note the simple flip-point formula
-# (recovery_threshold/(1-capacity)) is only an approximate guide -- the
-# actual transition, verified directly via equilibrium_strain() bisection
-# rather than assumed, lands at a somewhat higher load than the formula
-# suggests for all four groups in this block (a real, narrow "stable
-# accumulation" zone exists between the safe and runaway regimes -- see
-# TECHNICAL_REFERENCE.md Sec 3.4). Empirically verified after tuning:
-# runaway now first reached at a feels-like of 97.0 degC -- still above
-# the current confirmed world record (81.1 degC, Dhahran 2003) but far
-# closer than the pre-fix literal impossibility, and deliberately left as
-# the most extreme of the four (this group's own top-of-taxonomy
-# position), not tuned further down; flagged as a judgement call open to
-# revision, not a literature-derived value.
-_register(_make_group(
-    'endurance_athletes', 'Endurance Athletes',
-    capacity=0.60, recovery_threshold=2.5, recovery_rate=0.50,
-    memory=MEMORY_STEEP, age_range=(18, 45),
-))
-_register(_make_group(
-    'elite_athletes', 'Elite Athletes',
-    # Empirically verified: runaway now first reached at a feels-like of
-    # 80.5 degC -- just under the confirmed world heat-index record
-    # (81.1 degC, Dhahran 2003).
-    capacity=0.58, recovery_threshold=2.0, recovery_rate=0.45,
-    memory=MEMORY_STEEP, age_range=(18, 40),
-))
-_register(_make_group(
-    'recreational_athletes', 'Recreational Athletes',
-    # Empirically verified: runaway now first reached at a feels-like of
-    # 77.0 degC -- within the confirmed world heat-index record range.
-    capacity=0.60, recovery_threshold=1.8, recovery_rate=0.40,
-    memory=MEMORY_LINEAR, age_range=(18, 55),
-))
+# ---- athletes and outdoor workers: REMOVED from PYROX (2026-11-23) --------
+# The groups endurance_athletes, elite_athletes, recreational_athletes and
+# outdoor_workers were removed. PYROX models the ambient, multi-day heat load
+# of daily life; the risk of athletes and outdoor workers comes from
+# exertion (metabolic heat) during sport or work, which PYROX does not
+# represent and which made these groups look like the safest of all.
+# Athletes belong in HESTIA; outdoor workers get a separate study for a
+# HESTIA work mode with ISO 8996 metabolic classes. Their earlier parameter
+# notes are kept in CHANGELOG.md (entry 2026-11-23) and the git history.
 
-# ---- healthy working-age (extrapolated) ------------------------------------
-# ---- outdoor_workers (checked, twelfth/final check) -----------------------
-# The occupational heat-mortality literature is stark: farm/agricultural
-# workers are 35x as likely as the general population to die of heat
-# exposure (NEJM 2023, doi:10.1056/NEJMp2307850); construction workers 13x
-# (95% CI 10.1-16.7), agriculture/forestry/fishing/hunting 35x (95% CI
-# 26.3-47.0) vs. the all-other-industries average, per US OSHA rulemaking
-# citing Gubernot et al. 2015 (Federal Register 2021-23250).
-# CRITICAL POPULATION-MATCH CAVEAT: these mortality multipliers are
-# overwhelmingly driven by UNACCLIMATIZED, inadequately protected workers --
-# migrant and ethnic-minority outdoor workers face disproportionate risk,
-# often without adequate water/shade/rest provisions (PMC11930879 scoping
-# review). This PYROX group is explicitly labelled "(heat-exposed,
-# ACCLIMATIZED)" -- a narrower, better-protected reference population than
-# the raw occupational mortality statistics describe. Applying the 13-35x
-# multipliers directly to this specific group would be a population
-# mismatch. Acclimatization itself takes "at least four days" to begin
-# (occupational heat-strain meta-analysis, doi:10.1080/23328940.2022.2030634)
-# -- broadly consistent with, though a shorter minimum-onset estimate than,
-# the 7-14-day full-acclimatization window used for unacclimatized_travelers
-# above.
-# [flagged for review] No number change made: the existing capacity (0.80,
-# reasonably below the athlete tier but above indoor_workers) is defensible
-# specifically for the ACCLIMATIZED, adequately-protected worker this group
-# is labelled to represent. If PYROX or HESTIA ever needs to model the
-# broader, mixed outdoor labour workforce (including unacclimatized/
-# inadequately-protected workers) as its own category, that would warrant a
-# substantially more severe, SEPARATE group informed by the 13-35x mortality
-# multipliers above -- not a correction to this one.
-_register(_make_group(
-    'outdoor_workers', 'Outdoor Workers (heat-exposed, acclimatized)',
-    # [2026-09] RECALIBRATED (thirteenth check). The capacity=0.80 value
-    # itself was, and remains, defensible on its own terms per the extensive
-    # citation trail above (acclimatized workers genuinely tolerate more
-    # heat). But combined with recovery_threshold=1.70, it gave a flip
-    # point of 8.5 -- requiring a feels-like temperature of 107 degC to
-    # ever reach runaway, above the highest heat index ever confirmed on
-    # Earth (81.1 degC, Dhahran 2003). Occupational heat-illness literature
-    # (OSHA; Thumula & Fomenko workers'-comp analysis; Nature Sci Rep
-    # 2020 on construction-worker HRI) documents real, ongoing heat
-    # illness in this exact population -- thousands of US cases/year, not
-    # zero. Capacity lowered; empirically verified (equilibrium_strain()
-    # bisection, not the simple formula estimate) that runaway is now
-    # first reached at a feels-like of 68.5 degC
-    # sits at the low end of the four athlete/worker groups (this group
-    # keeps its position as the LEAST resistant of the four, consistent
-    # with "acclimatized but still occupationally exposed, not an elite
-    # athlete") while remaining reachable under genuinely extreme,
-    # real-world-documented heat-index conditions (e.g. the Philippines'
-    # own 60 degC heat-index record, Casiguran 2023).
-    capacity=0.55,
-    # Genuine acclimatization is strongly protective: a Serbian military
-    # study found acclimatized soldiers suffered NO detrimental effects of
-    # exertional heat stress compared to unacclimatized counterparts
-    # (cited in Notley et al. 2022, comprehensive review and meta-analysis,
-    # doi:10.1080/23328940.2022.2030634, PMC9154804). US occupational heat
-    # mortality (30-60 deaths/year) is a "miniscule fraction" of total
-    # heat-attributable deaths (150,000+/year) -- consistent with this
-    # group's high capacity relative to the general population (medRxiv
-    # 2026 mortality-burden study). CAVEAT: acclimatization raises the
-    # tolerance ceiling but does not make anyone immune -- a CDC/OSHA
-    # retrospective review of 25 occupational heat illnesses (14 fatal)
-    # found WBGT-based exposure limits were exceeded in ALL 14 fatalities,
-    # most at moderate-to-heavy workload (PMC6048976, doi:10.15585/
-    # mmwr.mm6730a4). I.e. this group's high capacity applies within the
-    # standard heat-exposure-limit envelope; workload/environment
-    # combinations that exceed it carry real, fatal risk even for
-    # genuinely acclimatized workers. No number change: PYROX's existing
-    # load-vs-capacity mechanics already handle this (a large enough load
-    # overwhelms any capacity), so this is a usage caveat rather than a
-    # parameter correction.
-    recovery_threshold=1.7, recovery_rate=0.38,
-    memory=MEMORY_LINEAR, age_range=(18, 65),
-))
 
 # ===== PAPER PROTOTYPE 1: Young Healthy Adult (18-45) =======================
 # Paper Section 2.3, with the documented capacity/threshold correction.
@@ -735,7 +568,7 @@ _register(_make_group(
 _register(_make_group(
     'children_0_6', 'Children (0-6)',
     # Previously capacity=0.32, recovery_threshold=0.65 -- among the most
-    # severe of all 23 groups.
+    # severe of all groups.
     # UNLIKE children_6_10/youth_10_18 above: the evidence here does NOT
     # support walking the vulnerability back to the same degree. Infants and
     # young children ARE established as at genuinely higher risk of heat-
@@ -906,21 +739,12 @@ def get_group(name: str) -> GroupParameters:
 # silently drifting apart over time.
 # =============================================================================
 RUNNER_LEVELS = {
+    # [2026-11-23] The recreational / endurance / elite presets pointed at the
+    # athlete groups, which were removed from PYROX (see the note above the
+    # paper prototypes). A runner's heat risk is computed by HESTIA.
     "Beginner runner (untrained)": dict(
         group="adults_18_45", pace=7.5, mode="run",
         note="Untrained or newly active. No heat acclimatisation assumed.",
-    ),
-    "Recreational runner": dict(
-        group="recreational_athletes", pace=6.0, mode="run",
-        note="Runs regularly, a few times a week.",
-    ),
-    "Trained / endurance runner": dict(
-        group="endurance_athletes", pace=4.5, mode="run",
-        note="Structured training, competes at club level.",
-    ),
-    "Elite runner": dict(
-        group="elite_athletes", pace=3.25, mode="run",
-        note="High training volume and well-developed heat acclimatisation.",
     ),
 }
 
