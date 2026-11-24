@@ -26,6 +26,7 @@ visual form, the same facts-vs-recommendation distinction the Markdown
 reports already make in their own opening disclaimer line.
 """
 
+from taal import vt
 import json
 import re
 import subprocess
@@ -173,13 +174,13 @@ def parse_markdown_report(md_text: str) -> dict:
 # facts-vs-advisory distinction already made in the Markdown disclaimer line.
 THEMES = {
     "facts": {
-        "badge": "FEITENRAPPORT",
+        "badge": vt("FEITENRAPPORT", "FACT REPORT"),
         "accent": "1F5C7A",       # steady blue-teal
         "accent_light": "DCEBF0",
         "badge_text": "FFFFFF",
     },
     "advisory": {
-        "badge": "ADVIESRAPPORT",
+        "badge": vt("ADVIESRAPPORT", "ADVISORY REPORT"),
         "accent": "B7621B",       # distinct warm amber -- flags "contains a recommendation"
         "accent_light": "F6E4D2",
         "badge_text": "FFFFFF",

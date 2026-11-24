@@ -19,6 +19,8 @@ the Maastricht data (if present) and the Paris-2003 reconstruction.
 
 from __future__ import annotations
 
+from taal import vt, getal
+
 from typing import List, Dict, Optional
 
 import numpy as np
@@ -176,14 +178,14 @@ def plot_feedback_race(heat_loads: List[float],
 
     fig, ax = plt.subplots(figsize=(11, 6.6))
     ax.plot(days, strain, lw=3, color=ZONE_COLOURS["emergency"], zorder=4,
-            label="cumulatieve strain Σ  —  DIT is de hittestress-ontwikkeling")
+            label=vt("cumulatieve strain Σ  —  DIT is de hittestress-ontwikkeling", "cumulative strain Σ  —  THIS is the heat-stress development"))
     ax.plot(days, acclim_pot, lw=1.5, ls="--", color=ZONE_COLOURS["safe"],
-            label="acclimatization potential  (zonder onderdrukking)")
+            label=vt("acclimatization potential  (zonder onderdrukking)", "acclimatization potential  (without suppression)"))
     ax.plot(days, acclim_eff, lw=2.5, color=ZONE_COLOURS["safe"],
-            label="effective acclimatization  (mét onderdrukking)")
+            label=vt("effective acclimatization  (mét onderdrukking)", "effective acclimatization  (with suppression)"))
     ax.fill_between(days, acclim_eff, acclim_pot, color=ZONE_COLOURS["safe"],
                     alpha=0.15, zorder=1,
-                    label="voetafdruk van de terugkoppelingslus")
+                    label=vt("voetafdruk van de terugkoppelingslus", "footprint of the feedback loop"))
     ax.plot(days, suppression, lw=1.5, ls=":", color="#4063d8",
             label="suppression factor  (1 \u2212 \u03baΣ)")
 
@@ -211,7 +213,7 @@ def plot_feedback_race(heat_loads: List[float],
     y0 = strain[0]
     near_top = y0 > g.critical_strain * 0.7
     ax.annotate(
-        "Dit is de hittestress-\nontwikkeling",
+        vt("Dit is de hittestress-\nontwikkeling", "This is the heat-stress\ndevelopment"),
         xy=(days[0], y0), xycoords="data",
         xytext=(55, -45 if near_top else 45), textcoords="offset points",
         fontsize=10, fontweight="bold", color=ZONE_COLOURS["emergency"],
@@ -231,8 +233,10 @@ def plot_feedback_race(heat_loads: List[float],
     y_top = g.critical_strain * 1.22
     clearance = 0.03 * y_top
     ax.axhline(g.critical_strain, ls=":", color="grey", lw=1.2)
-    ax.text(len(days), g.critical_strain + clearance, "100% = kritieke grens\n"
-            "(bescherming volledig overmeesterd)", va="bottom",
+    ax.text(len(days), g.critical_strain + clearance, vt("100% = kritieke grens\n"
+            "(bescherming volledig overmeesterd)",
+                                                         "100% = critical limit\n"
+            "(protection completely overwhelmed)"), va="bottom",
             ha="right", fontsize=7.5, color="grey", linespacing=1.6)
 
     # [2026-09] A bare number like "critical Sigma = 1.75" means nothing to a
@@ -262,7 +266,7 @@ def plot_feedback_race(heat_loads: List[float],
 
     ax.set_xlabel("date" if dates is not None else "day")
     ax.set_ylabel("value")
-    ax.set_title(f"{title}\nDe ene terugkoppelingslus in actie — {g.display_name}")
+    ax.set_title(vt(f"{title}\nDe ene terugkoppelingslus in actie — {g.display_name}", f"{title}\nThe single feedback loop in action — {g.display_name}"))
     ax.set_xlim(1, len(days))
     ax.set_ylim(0, g.critical_strain * 1.22)
     leg = ax.legend(loc="center right", fontsize=8, framealpha=0.9)
@@ -270,7 +274,7 @@ def plot_feedback_race(heat_loads: List[float],
     _format_date_axis(ax, dates)
 
     principle_text = (
-        "Wat dit laat zien: het principiële fundament van PYROX\n"
+        vt("Wat dit laat zien: het principiële fundament van PYROX\n"
         "\n"
         "De rode lijn (cumulatieve strain Σ) is het eindresultaat -- de\n"
         "hittestress-ontwikkeling die dit hele model probeert te voorspellen.\n"
@@ -304,7 +308,42 @@ def plot_feedback_race(heat_loads: List[float],
         "waar de bescherming volledig is overmeesterd. Vandaar de 50/75/90%-\n"
         "lijnen (caution/danger/emergency) -- dezelfde schaalverdeling als\n"
         "elders in de suite: niet de absolute waarde telt, wel het percentage\n"
-        "van deze ene, groep-specifieke grens."
+        "van deze ene, groep-specifieke grens.",
+           "What this shows: the fundamental basis of PYROX\n"
+        "\n"
+        "The red line (cumulative strain Σ) is the end result -- the\n"
+        "heat-stress development this whole model tries to predict.\n"
+        "The other three lines explain WHY the red line does what it\n"
+        "does; they are not separate outcomes in themselves.\n"
+        "\n"
+        "Heat exposure (forcing) acts in two ways: directly\n"
+        "on the cumulative strain, and delayed via acclimatisation -- which\n"
+        "only builds up after earlier exposure (the memory kernel).\n"
+        "\n"
+        "Acclimatisation itself is NOT a loop: it is a damping path,\n"
+        "driven by the external exposure, not by the strain itself.\n"
+        "If it stopped there, this would be an ordinary stable system --\n"
+        "more exposure gives more damping, no instability.\n"
+        "\n"
+        "There is exactly ONE closed loop: cumulative strain -> suppression\n"
+        "-> (hampers) acclimatisation -> (would hamper) strain. Polarity:\n"
+        "(+)(\u2212)(\u2212) = +. That is a self-reinforcing loop -- no\n"
+        "counterweight, a downward spiral.\n"
+        "\n"
+        "The tipping point PYROX looks for is not a fixed number, but\n"
+        "the moment at which that one loop overwhelms the direct damping\n"
+        "path: the suppression factor drops towards zero, and the\n"
+        "shaded gap between the dotted potential and the\n"
+        "solid effective acclimatisation is the visible footprint\n"
+        "of that one loop, not of a second, competing loop.\n"
+        "\n"
+        "A number such as 'critical limit = 1.75' says nothing by itself -- it is\n"
+        "an internal model unit, not a physiological measure. What it IS:\n"
+        "exactly the point where the suppression factor (1 \u2212 \u03baΣ) becomes zero, so\n"
+        "where the protection is completely overwhelmed. Hence the 50/75/90%\n"
+        "lines (caution/danger/emergency) -- the same scale as\n"
+        "elsewhere in the suite: not the absolute value counts, but the percentage\n"
+        "of this one, group-specific limit.")
     )
 
     # [2026-09] Figure height/positions computed from the actual text length
@@ -376,7 +415,7 @@ def plot_paris_validation(title: str = "PYROX validation — Paris August 2003",
             # dashed = without nocturnal recovery (the paper's assumption)
             ax.plot(np.arange(len(res["cumulative_strain"])),
                     res["cumulative_strain"], lw=1.6, ls="--", color=colour,
-                    label="idem, zonder nachtelijk herstel (paper)", zorder=3)
+                    label=vt("idem, zonder nachtelijk herstel (paper)", "idem, without night-time recovery (paper)"), zorder=3)
 
     ax.set_xlabel("day of August 2003 (strain at the end of the day; 0 = before 1 Aug)")
     ax.set_ylabel("cumulative strain  Σ")
@@ -551,8 +590,10 @@ def plot_three_regimes(group_names: List[str],
                  color="grey", va="top")
         if no_runaway_found:
             ax1.text(load_max / 2, crit * 0.86,
-                     f"Geen runaway gevonden tot R\u2081={load_max:g}\n"
+                     vt(f"Geen runaway gevonden tot R\u2081={load_max:g}\n"
                      "(mogelijk pas bij hogere belasting, of nooit)",
+                        f"No runaway found up to R\u2081={load_max:g}\n"
+                     "(possibly only at higher load, or never)"),
                      ha="center", va="center", fontsize=8.5, color="#7a5b00",
                      fontweight="bold")
             ax1.text(load_max * 0.3, crit * 0.5, "1. DEAD-ZONE\n(safe)\nΣ* = 0",
@@ -599,7 +640,7 @@ def plot_three_regimes(group_names: List[str],
         # load examined. Let the trajectory itself show what it does instead
         # of a label that could be wrong.
         over_label = ("runaway to Σ_crit" if not no_runaway_found
-                     else "hoogste geteste belasting (geen runaway bevestigd)")
+                     else vt("hoogste geteste belasting (geen runaway bevestigd)", "highest load tested (no runaway confirmed)"))
         ex = [
             (safe_load, ZONE_COLOURS["safe"], "dead-zone (Σ stays 0)"),
             (edge_load, ZONE_COLOURS["danger"], "knife-edge (slow climb)"),

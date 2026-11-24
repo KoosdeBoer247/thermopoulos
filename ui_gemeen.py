@@ -24,6 +24,8 @@ Onderdelen
 """
 from __future__ import annotations
 
+from taal import vt, getal
+
 import re
 import tkinter as tk
 from pathlib import Path
@@ -32,12 +34,12 @@ from tkinter import ttk
 HIER = Path(__file__).resolve().parent
 
 SOORT = {
-    "verplicht": ("VERPLICHT", "#1f5fa8"),
-    "optioneel": ("OPTIONEEL", "#6c7a89"),
-    "model":     ("MODELINSTELLING", "#7d3c98"),
-    "actie":     ("ACTIES", "#1a7f5a"),
-    "melding":   ("ALLEEN MELDING", "#9c4400"),
-    "info":      ("VAST", "#6c7a89"),
+    "verplicht": (vt("VERPLICHT", "REQUIRED"), "#1f5fa8"),
+    "optioneel": (vt("OPTIONEEL", "OPTIONAL"), "#6c7a89"),
+    "model":     (vt("MODELINSTELLING", "MODEL SETTING"), "#7d3c98"),
+    "actie":     (vt("ACTIES", "ACTIONS"), "#1a7f5a"),
+    "melding":   (vt("ALLEEN MELDING", "NOTICE ONLY"), "#9c4400"),
+    "info":      (vt("VAST", "FIXED"), "#6c7a89"),
 }
 
 STATUS_KLEUR = {
@@ -58,7 +60,7 @@ def suite_versie() -> str:
             return m.group(1)
     except OSError:
         pass
-    return "onbekend"
+    return vt("onbekend", "unknown")
 
 
 def sectie(ouder, titel: str, soort: str, letter: int = 12, uitleg: str = ""):
@@ -79,9 +81,9 @@ def sectie(ouder, titel: str, soort: str, letter: int = 12, uitleg: str = ""):
 def invoer_legenda(ouder, letter: int = 12, extra: str = ""):
     f = tk.Frame(ouder, bg="#f2f4f6", padx=6, pady=4)
     f.pack(fill="x", padx=2, pady=(2, 4))
-    regels = [("verplicht", "nodig voor de berekening"),
-              ("optioneel", "mag leeg blijven; grijs = waarde die de suite dan gebruikt"),
-              ("model", "standaard van de suite; alleen aanpassen voor onderzoek")]
+    regels = [("verplicht", vt("nodig voor de berekening", "needed for the calculation")),
+              ("optioneel", vt("mag leeg blijven; grijs = waarde die de suite dan gebruikt", "may stay empty; grey = value the suite then uses")),
+              ("model", vt("standaard van de suite; alleen aanpassen voor onderzoek", "suite default; change only for research"))]
     for soort, uitleg in regels:
         rij = tk.Frame(f, bg="#f2f4f6")
         rij.pack(anchor="w")
@@ -116,7 +118,7 @@ class Tegels(tk.Frame):
                                    font=("TkDefaultFont", letter - 1), wraplength=1200)
         self.lbl_uitleg.pack(fill="x", padx=8, pady=(1, 3))
         self.bind("<Configure>", self._maat)
-        self.leeg("Nog geen uitkomst.")
+        self.leeg(vt("Nog geen uitkomst.", "No result yet."))
 
     def _maat(self, e):
         self.lbl_uitleg.config(wraplength=max(400, e.width - 24))
@@ -176,15 +178,17 @@ class Herkomst(tk.Frame):
             self.lbl.config(wraplength=b)
 
     def zet(self, bron: str, status: str, niet: str = "", status_tekst: str = "", extra: str = ""):
-        self.lbl_status.config(text=" " + (status_tekst or status).upper() + " ",
+        _st_en = {"simulatie": "simulation", "prognose": "forecast", "historisch": "historical",
+                  "beoordeling": "assessment", "gemengd": "mixed"}
+        self.lbl_status.config(text=" " + (status_tekst or vt(status, _st_en.get(status, status))).upper() + " ",
                                bg=STATUS_KLEUR.get(status, "#7f8c8d"))
         self.after_idle(self._maat)
-        delen = [f"Gegevensbron: {bron}", f"Suite {self.versie}"]
+        delen = [vt(f"Gegevensbron: {bron}", f"Data source: {bron}"), f"Suite {self.versie}"]
         if extra:
             delen.append(extra)
         tekst = "  │  ".join(delen)
         if niet:
-            tekst += f"  │  Dit is niet: {niet}"
+            tekst += vt(f"  │  Dit is niet: {niet}", f"  │  This is not: {niet}")
         self.lbl.config(text=tekst)
 
 

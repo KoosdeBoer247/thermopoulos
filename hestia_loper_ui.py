@@ -79,6 +79,8 @@ Starten:  python hestia_loper_ui.py
 """
 from __future__ import annotations
 
+from taal import vt, getal, engels
+
 import json
 import math
 import os
@@ -203,7 +205,7 @@ def _ruraal(df: pd.DataFrame, lat, lon, tz, z0: float) -> pd.DataFrame:
     _, _, _, _, de = _suite()
     ontbreekt = [c for c in RURAAL_NODIG if c not in df.columns]
     if ontbreekt:
-        raise ValueError("Dit weerbestand mist kolommen voor 'platteland': " + ", ".join(ontbreekt))
+        raise ValueError(vt("Dit weerbestand mist kolommen voor 'platteland': ", "This weather file lacks columns for 'rural': ") + ", ".join(ontbreekt))
     bewaar = {c: df[c].copy() for c in KUST_KOLOMMEN if c in df.columns}
     uit = de.process_weather_data(df[RURAAL_NODIG].copy(), {"population": 0}, lat, lon, tz,
                                   coastal_active=False, roughness_z0=z0)
@@ -251,8 +253,10 @@ class WeerBron:
             else:
                 dagen = (d - vandaag).days + 2          # dag zelf + volgende dag
                 if (d - vandaag).days + 1 > 16:
-                    raise ValueError("Datum ligt verder dan 16 dagen vooruit: buiten de "
-                                     "verwachtingshorizon van Open-Meteo.")
+                    raise ValueError(vt("Datum ligt verder dan 16 dagen vooruit: buiten de "
+                                     "verwachtingshorizon van Open-Meteo.",
+                                        "Date is more than 16 days ahead: outside the "
+                                     "forecast horizon of Open-Meteo."))
                 ruw = de.fetch_hourly_forecast(lat, lon, tz, min(16, dagen))
                 ruw = (de.validate_weather_data(ruw[0], "forecast"), ruw[1])
             self._ruw[sleutel] = ruw
@@ -270,13 +274,15 @@ class WeerBron:
             dag = dfv.loc[str(d.date())]
             n_toe = int(dag["coastal_correction_applied"].sum()) if "coastal_correction_applied" in dag else 0
             if n_toe:
-                bron = (f"ERA5-archief; land-zeecorrectie op {n_toe} uur van deze dag, max "
-                        f"{dag['coastal_correction_degrees'].max():+.1f} °C").replace(".", ",")
+                bron = (vt(f"ERA5-archief; land-zeecorrectie op {n_toe} uur van deze dag, max "
+                        f"{dag['coastal_correction_degrees'].max():+.1f} °C",
+                           f"ERA5 archive; land–sea correction on {n_toe} hours of this day, max "
+                        f"{dag['coastal_correction_degrees'].max():+.1f} °C")).replace(".", ",")
             else:
                 reden = ""
                 if "coastal_correction_reason" in dag and len(dag):
                     reden = str(dag["coastal_correction_reason"].mode().iloc[0])
-                bron = f"ERA5-archief; land-zeecorrectie niet toegepast ({reden})"
+                bron = vt(f"ERA5-archief; land-zeecorrectie niet toegepast ({reden})", f"ERA5 archive; land–sea correction not applied ({reden})")
         else:
             bron = "forecast"
         return Weer(dfv, dict(kandidaat), lat, lon, tz,
@@ -292,8 +298,10 @@ class WeerBron:
         gevonden, gezien = hl._zoek_blad(xl, start, eind)
         if gevonden is None:
             raise ValueError(
-                f"Geen tabblad in {pad.name} heeft volledige weerdata voor "
-                f"{start:%Y-%m-%d %H:%M} - {eind:%H:%M}.\nBeschikbaar:\n  " + "\n  ".join(gezien))
+                vt(f"Geen tabblad in {pad.name} heeft volledige weerdata voor "
+                f"{start:%Y-%m-%d %H:%M} - {eind:%H:%M}.\nBeschikbaar:\n  ",
+                   f"No sheet in {pad.name} has complete weather data for "
+                f"{start:%Y-%m-%d %H:%M} - {eind:%H:%M}.\nAvailable:\n  ") + "\n  ".join(gezien))
         df, city, lat, lon, tz, sheet = gevonden
         if route == "platteland":
             vsl = (str(pad), sheet, "platteland")
@@ -337,11 +345,14 @@ def controleer_dekking(weer: Weer, inv) -> None:
     kol = [c for c in hl.WEER_KOLOMMEN if c in weer.df.columns]
     v = weer.df.loc[lo:hi, kol]
     if len(v) == 0 or v.index.min() > lo or v.index.max() < hi:
-        raise ValueError(f"Het weer dekt {start:%d-%m %H:%M} - {eind:%H:%M} niet volledig "
+        raise ValueError(vt(f"Het weer dekt {start:%d-%m %H:%M} - {eind:%H:%M} niet volledig "
                          f"(beschikbaar {weer.df.index.min():%d-%m %H:%M} t/m "
-                         f"{weer.df.index.max():%d-%m %H:%M}).")
+                         f"{weer.df.index.max():%d-%m %H:%M}).",
+                            f"The weather does not fully cover {start:%d-%m %H:%M} - {eind:%H:%M} "
+                         f"(available {weer.df.index.min():%d-%m %H:%M} to "
+                         f"{weer.df.index.max():%d-%m %H:%M})."))
     if v.isna().any().any():
-        raise ValueError("Het weer heeft ontbrekende waarden in het loopvenster.")
+        raise ValueError(vt("Het weer heeft ontbrekende waarden in het loopvenster.", "The weather has missing values in the running window."))
 
 
 @dataclass
@@ -458,10 +469,10 @@ def eindresultaat(t: Taak):
     def terugspelen(interp_data, lat, lon, met_value, clo_value, profile, tf, accl):
         i = next(teller)
         if asdict(profile) != asdict(t.profielen[i]):
-            raise RuntimeError(f"Profiel van lid {i} wijkt af van het berekende profiel.")
+            raise RuntimeError(vt(f"Profiel van lid {i} wijkt af van het berekende profiel.", f"Profile of member {i} differs from the calculated profile."))
         if (len(interp_data) != len(t.interp) or abs(clo_value - t.clo) > 1e-12
                 or abs(tf - t.tf) > 1e-12 or abs(accl - t.accl) > 1e-12):
-            raise RuntimeError("Invoer van het terugspelen wijkt af van de berekening.")
+            raise RuntimeError(vt("Invoer van het terugspelen wijkt af van de berekening.", "Replay input differs from the calculation."))
         return sporen[i]
 
     with _TERUGSPEEL_SLOT, \
@@ -469,7 +480,7 @@ def eindresultaat(t: Taak):
             _vervang(hl, "_weer", lambda inv, eind: (t.weer.tuple, t.weer.label)):
         r = hl.analyseer_loper(t.inv, n_ensemble=t.n, seed=t.seed, gevoeligheid=False)
     if next(teller, None) is not None:
-        raise RuntimeError("Niet alle berekende leden zijn teruggespeeld.")
+        raise RuntimeError(vt("Niet alle berekende leden zijn teruggespeeld.", "Not all calculated members were replayed."))
     return r
 
 
@@ -487,13 +498,13 @@ def eindresultaat(t: Taak):
 # Herkomst: 3 en 4 zijn HEAT-Lim-uitkomsten (livability_Mmax: non_livable;
 # Survivability: False); de grenzen 3 MET en 25 °C zijn Klimatos-instellingen
 # (LIVEABILITY_ACTIVITY_MET, LIVEABILITY_TA_MIN), geen HEAT-Lim-grenzen.
-RUST_CAT = {0: "niet beoordeeld: < 25 °C (Klimatos-grens)",
-            1: "leefbaar, ≥ 3 MET (Klimatos-grens)",
-            2: "leefbaar, < 3 MET (Klimatos-grens)",
-            3: "rust niet leefbaar (HEAT-Lim)",
-            4: "niet overleefbaar bij 3 u aanhoudend (HEAT-Lim)"}
-RUST_CAT_KORT = {0: "niet beoordeeld (< 25 °C)", 1: "leefbaar (≥ 3 MET)", 2: "leefbaar, < 3 MET",
-                 3: "rust niet leefbaar", 4: "niet overleefbaar bij 3 u aanhoudend"}
+RUST_CAT = {0: vt("niet beoordeeld: < 25 °C (Klimatos-grens)", "not assessed: < 25 °C (Klimatos limit)"),
+            1: vt("leefbaar, ≥ 3 MET (Klimatos-grens)", "liveable, ≥ 3 MET (Klimatos limit)"),
+            2: vt("leefbaar, < 3 MET (Klimatos-grens)", "liveable, < 3 MET (Klimatos limit)"),
+            3: vt("rust niet leefbaar (HEAT-Lim)", "rest not liveable (HEAT-Lim)"),
+            4: vt("niet overleefbaar bij 3 u aanhoudend (HEAT-Lim)", "not survivable at 3 h sustained (HEAT-Lim)")}
+RUST_CAT_KORT = {0: vt("niet beoordeeld (< 25 °C)", "not assessed (< 25 °C)"), 1: vt("leefbaar (≥ 3 MET)", "liveable (≥ 3 MET)"), 2: vt("leefbaar, < 3 MET", "liveable, < 3 MET"),
+                 3: vt("rust niet leefbaar", "rest not liveable"), 4: vt("niet overleefbaar bij 3 u aanhoudend", "not survivable at 3 h sustained")}
 
 
 @dataclass
@@ -527,13 +538,16 @@ def bereken_rust(weer: Weer, start: pd.Timestamp, eind: pd.Timestamp,
     nodig = ["T_air_urban", "wind_1.5m", "MRT", "RH_urban" if "RH_urban" in weer.df.columns else "RH"]
     ontbreekt = [c for c in nodig if c not in weer.df.columns]
     if ontbreekt:
-        raise ValueError("Het weer mist kolommen voor HEAT-Lim: " + ", ".join(ontbreekt))
+        raise ValueError(vt("Het weer mist kolommen voor HEAT-Lim: ", "The weather lacks columns for HEAT-Lim: ") + ", ".join(ontbreekt))
     if len(d) == 0 or d.index.min() > s.floor("h") or d.index.max() < e.ceil("h"):
-        raise ValueError(f"Het weer dekt {start:%d-%m %H:%M} - {eind:%d-%m %H:%M} niet volledig "
+        raise ValueError(vt(f"Het weer dekt {start:%d-%m %H:%M} - {eind:%d-%m %H:%M} niet volledig "
                          f"(beschikbaar {weer.df.index.min():%d-%m %H:%M} t/m "
-                         f"{weer.df.index.max():%d-%m %H:%M}).")
+                         f"{weer.df.index.max():%d-%m %H:%M}).",
+                            f"The weather does not fully cover {start:%d-%m %H:%M} - {eind:%d-%m %H:%M} "
+                         f"(available {weer.df.index.min():%d-%m %H:%M} to "
+                         f"{weer.df.index.max():%d-%m %H:%M})."))
     if d[nodig].isna().any().any():
-        raise ValueError("Het weer heeft ontbrekende waarden in dit venster.")
+        raise ValueError(vt("Het weer heeft ontbrekende waarden in dit venster.", "The weather has missing values in this window."))
     # --- zoals Klimatos_ClimateShift.liveability_year_metrics() -------------
     Ta = d["T_air_urban"].values
     RH = d["RH_urban"].values if "RH_urban" in d.columns else d["RH"].values
@@ -575,13 +589,13 @@ def rust_profielen_voor_leeftijd(leeftijd: int) -> list[str]:
 
 
 def rust_tabel(r: RustResultaat) -> pd.DataFrame:
-    t = pd.DataFrame({"tijd": [x.tz_localize(None) for x in r.uren], "T_air (°C)": r.ta,
-                      "RH (%)": r.rh, "wind 1,5 m HEAT-Lim (m/s)": r.av,
-                      "MRT HEAT-Lim (°C)" + (" = T_air (schaduw)" if r.instellingen["zon"] == "shade" else ""): r.mrt})
+    t = pd.DataFrame({vt("tijd", "time"): [x.tz_localize(None) for x in r.uren], "T_air (°C)": r.ta,
+                      "RH (%)": r.rh, vt("wind 1,5 m HEAT-Lim (m/s)", "wind 1.5 m HEAT-Lim (m/s)"): r.av,
+                      "MRT HEAT-Lim (°C)" + (vt(" = T_air (schaduw)", " = T_air (shade)") if r.instellingen["zon"] == "shade" else ""): r.mrt})
     for k, naam in (("young", "18-40"), ("old", "65+")):
         t[f"Mmax {naam} (MET)"] = r.mmax[k]
-        t[f"overleefbaar {naam}"] = r.surv[k]
-        t[f"categorie {naam}"] = [RUST_CAT[c] for c in r.cat[k]]
+        t[vt(f"overleefbaar {naam}", f"survivable {naam}")] = r.surv[k]
+        t[vt(f"categorie {naam}", f"category {naam}")] = [RUST_CAT[c] for c in r.cat[k]]
     return t
 
 
@@ -609,12 +623,12 @@ def _start_ui(na_start=None):
     KLEUR = {"lijn": "#1f5fa8", "band": "#1f5fa8", "rood": "#c0392b", "oranje": "#e67e22",
              "geel": "#d4ac0d", "groen": "#27ae60", "grijs": "#7f8c8d"}
     KORT_LABEL = {
-        "koorts_of_ziekte_recent": "Koorts of (darm)infectie, afgelopen week",
-        "slecht_geslapen": "Slecht of kort geslapen",
-        "alcohol_dag_ervoor": "Alcohol de dag ervoor",
-        "eerder_hitteziekte": "Eerder hitteziekte gehad",
-        "medicatie_hart_bloeddruk_zweten": "Medicatie hart/bloeddruk/zweten",
-        "hart_vaat_aandoening": "Hart- of vaataandoening",
+        "koorts_of_ziekte_recent": vt("Koorts of (darm)infectie, afgelopen week", "Fever or (gut) infection, past week"),
+        "slecht_geslapen": vt("Slecht of kort geslapen", "Slept badly or briefly"),
+        "alcohol_dag_ervoor": vt("Alcohol de dag ervoor", "Alcohol the day before"),
+        "eerder_hitteziekte": vt("Eerder hitteziekte gehad", "Earlier heat illness"),
+        "medicatie_hart_bloeddruk_zweten": vt("Medicatie hart/bloeddruk/zweten", "Medication heart/blood pressure/sweating"),
+        "hart_vaat_aandoening": vt("Hart- of vaataandoening", "Heart or vascular condition"),
     }
     assert set(KORT_LABEL) == set(hl.NIET_GEMODELLEERD)
     SIGNAAL_KLEUR = {"groen": "#27ae60", "geel": "#d4ac0d", "oranje": "#e67e22", "rood": "#c0392b"}
@@ -622,7 +636,7 @@ def _start_ui(na_start=None):
     class App:
         def __init__(self, root):
             self.root = root
-            root.title("HESTIA · persoonlijke hitte-analyse voor hardlopers  (research software)")
+            root.title(vt("HESTIA · persoonlijke hitte-analyse voor hardlopers  (research software)", "HESTIA · personal heat analysis for runners  (research software)"))
             for naam in ("TkDefaultFont", "TkTextFont", "TkFixedFont", "TkMenuFont", "TkHeadingFont"):
                 try:
                     tkfont.nametofont(naam).configure(size=LETTER)
@@ -678,60 +692,62 @@ def _start_ui(na_start=None):
             self.rust = None
             self._focus = None
             ug.invoer_legenda(self.form, LETTER)
-            r = self._sectie("Persoon", "verplicht")
-            self._keuze(r, "geslacht", "Geslacht", ["man", "vrouw"], "man")
-            self._getal(r, "leeftijd", "Leeftijd (jaar)", "45")
-            self._getal(r, "gewicht", "Gewicht (kg)", "75")
-            self._getal(r, "lengte", "Lengte (cm)", "180")
+            r = self._sectie(vt("Persoon", "Person"), "verplicht")
+            self._keuze(r, "geslacht", vt("Geslacht", "Sex"), [vt("man", "man"), vt("vrouw", "woman")], vt("man", "man"))
+            self._getal(r, "leeftijd", vt("Leeftijd (jaar)", "Age (years)"), "45")
+            self._getal(r, "gewicht", vt("Gewicht (kg)", "Weight (kg)"), "75")
+            self._getal(r, "lengte", vt("Lengte (cm)", "Height (cm)"), "180")
 
-            r = self._sectie("Fitheid", "verplicht")
-            self._getal(r, "trainingskm", "Training (km/week)", "30")
-            self._vink(r, "acclim", "Hitte-geacclimatiseerd", False)
+            r = self._sectie(vt("Fitheid", "Fitness"), "verplicht")
+            self._getal(r, "trainingskm", vt("Training (km/week)", "Training (km/week)"), "30")
+            self._vink(r, "acclim", vt("Hitte-geacclimatiseerd", "Heat-acclimatised"), False)
 
-            r = self._sectie("Fitheid, nauwkeuriger", "optioneel",
-                             "Leeg laten mag. Grijs = waarde die de suite dan zelf gebruikt; een eigen "
-                             "meting maakt de berekening persoonlijker.")
-            self._getal(r, "hr_rust", "Rusthartslag (/min)", "", hint="Lloyd 2022, vgl. 9", suite=True)
-            self._getal(r, "hr_max", "Max. hartslag (/min)", "", hint="Tanaka 2001", suite=True)
+            r = self._sectie(vt("Fitheid, nauwkeuriger", "Fitness, more precise"), "optioneel",
+                             vt("Leeg laten mag. Grijs = waarde die de suite dan zelf gebruikt; een eigen "
+                             "meting maakt de berekening persoonlijker.",
+                                "May stay empty. Grey = value the suite then uses itself; your own "
+                             "measurement makes the calculation more personal."))
+            self._getal(r, "hr_rust", vt("Rusthartslag (/min)", "Resting heart rate (/min)"), "", hint=vt("Lloyd 2022, vgl. 9", "Lloyd 2022, eq. 9"), suite=True)
+            self._getal(r, "hr_max", vt("Max. hartslag (/min)", "Max. heart rate (/min)"), "", hint="Tanaka 2001", suite=True)
             self._getal(r, "vo2max", "VO2max (mL/kg/min)", "", hint="", suite=True)
-            self._getal(r, "wedstr_km", "Recente wedstrijd: km", "", hint="alleen voor VO2max",
+            self._getal(r, "wedstr_km", vt("Recente wedstrijd: km", "Recent race: km"), "", hint=vt("alleen voor VO2max", "only for VO2max"),
                         suite=True)
-            self._getal(r, "wedstr_tijd", "Recente wedstrijd: tijd", "", hint="u:mm:ss / mm:ss",
+            self._getal(r, "wedstr_tijd", vt("Recente wedstrijd: tijd", "Recent race: time"), "", hint=vt("u:mm:ss / mm:ss", "h:mm:ss / mm:ss"),
                         suite=True)
-            self._getal(r, "vet", "Vetpercentage (%)", "", hint="Nikolaidis 2021", suite=True)
+            self._getal(r, "vet", vt("Vetpercentage (%)", "Body fat (%)"), "", hint="Nikolaidis 2021", suite=True)
             self.lbl_vo2_bron = self.hint["vo2max"]
 
-            r = self._sectie("Activiteit", "verplicht")
-            self._keuze(r, "activiteit", "Activiteit", ["hardlopen", "rust (HEAT-Lim)"], "hardlopen")
+            r = self._sectie(vt("Activiteit", "Activity"), "verplicht")
+            self._keuze(r, "activiteit", vt("Activiteit", "Activity"), [vt("hardlopen", "running"), vt("rust (HEAT-Lim)", "rest (HEAT-Lim)")], vt("hardlopen", "running"))
             self.v["activiteit"].trace_add("write", lambda *a: self._wissel_modus())
-            self._getal(r, "duur", "Duur in rust (uur)", "6")
-            self._keuze(r, "zon", "Rust in", ["zon", "schaduw"], "zon")
-            self._getal(r, "afstand", "Afstand (km)", "10")
-            rij = self._rij(r, "Verwachte snelheid")
+            self._getal(r, "duur", vt("Duur in rust (uur)", "Duration at rest (hours)"), "6")
+            self._keuze(r, "zon", vt("Rust in", "Rest in"), [vt("zon", "sun"), vt("schaduw", "shade")], vt("zon", "sun"))
+            self._getal(r, "afstand", vt("Afstand (km)", "Distance (km)"), "10")
+            rij = self._rij(r, vt("Verwachte snelheid", "Expected speed"))
             self.v["snelheid"] = tk.StringVar(value="11")
             e = ttk.Entry(rij, textvariable=self.v["snelheid"], width=7)
             e.pack(side="left")
             self.widget["snelheid"] = e
-            self.v["eenheid"] = tk.StringVar(value="km/u")
-            cb = ttk.Combobox(rij, textvariable=self.v["eenheid"], values=["km/u", "min/km"],
+            self.v["eenheid"] = tk.StringVar(value=vt("km/u", "km/h"))
+            cb = ttk.Combobox(rij, textvariable=self.v["eenheid"], values=[vt("km/u", "km/h"), "min/km"],
                               width=7, state="readonly")
             cb.pack(side="left", padx=4)
             self.widget["eenheid"] = cb
             self.v["snelheid"].trace_add("write", lambda *a: self._gewijzigd())
             self.v["eenheid"].trace_add("write", lambda *a: self._eenheid_om())
-            self._eenheid_vorig = "km/u"
+            self._eenheid_vorig = vt("km/u", "km/h")
             self.lbl_tempo = ttk.Label(r, text="", foreground="#555")
             self.lbl_tempo.pack(anchor="w", padx=4)
-            self._keuze(r, "kleding", "Kleding",
-                        ["licht (singlet + korte broek)", "normaal (T-shirt + korte broek)",
-                         "lang (lange mouwen/broek)"], "licht (singlet + korte broek)")
-            self._vink(r, "drinkt", "Drinkt bij elke post", True)
-            self._vink(r, "nsaid", "NSAID (bijv. ibuprofen) voor/tijdens", False)
+            self._keuze(r, "kleding", vt("Kleding", "Clothing"),
+                        [vt("licht (singlet + korte broek)", "light (singlet + shorts)"), vt("normaal (T-shirt + korte broek)", "normal (T-shirt + shorts)"),
+                         vt("lang (lange mouwen/broek)", "long (long sleeves/trousers)")], vt("licht (singlet + korte broek)", "light (singlet + shorts)"))
+            self._vink(r, "drinkt", vt("Drinkt bij elke post", "Drinks at every station"), True)
+            self._vink(r, "nsaid", vt("NSAID (bijv. ibuprofen) voor/tijdens", "NSAID (e.g. ibuprofen) before/during"), False)
 
-            r = self._sectie("Datum, tijd en plaats", "verplicht")
-            self._getal(r, "datum", "Datum (JJJJ-MM-DD)", pd.Timestamp.now().strftime("%Y-%m-%d"),
+            r = self._sectie(vt("Datum, tijd en plaats", "Date, time and location"), "verplicht")
+            self._getal(r, "datum", vt("Datum (JJJJ-MM-DD)", "Date (YYYY-MM-DD)"), pd.Timestamp.now().strftime("%Y-%m-%d"),
                         weer=True)
-            rij = self._rij(r, "Starttijd")
+            rij = self._rij(r, vt("Starttijd", "Start time"))
             self.v["start_min"] = tk.DoubleVar(value=10 * 60)
             self.v["starttijd"] = tk.StringVar(value="10:00")
             ent = ttk.Entry(rij, textvariable=self.v["starttijd"], width=6)
@@ -742,40 +758,44 @@ def _start_ui(na_start=None):
                            command=lambda x: self._schuif())
             sc.pack(fill="x", padx=4, pady=(0, 4))
 
-            self._keuze(r, "bron", "Weerbron", ["online (Open-Meteo)", "Data Engine-bestand"],
+            self._keuze(r, "bron", vt("Weerbron", "Weather source"), ["online (Open-Meteo)", vt("Data Engine-bestand", "Data Engine file")],
                         "online (Open-Meteo)", weer=True)
-            rij = self._rij(r, "Plaats")
+            rij = self._rij(r, vt("Plaats", "Location"))
             self.v["plaats"] = tk.StringVar(value="Schagen")
             pe = ttk.Entry(rij, textvariable=self.v["plaats"], width=16)
             pe.pack(side="left")
             pe.bind("<Return>", lambda e: self._zoek_plaats())
-            ttk.Button(rij, text="Zoek", command=self._zoek_plaats, width=6).pack(side="left", padx=3)
+            ttk.Button(rij, text=vt("Zoek", "Search"), command=self._zoek_plaats, width=6).pack(side="left", padx=3)
             self.v["kandidaat"] = tk.StringVar(value="")
             self.cb_kand = ttk.Combobox(r, textvariable=self.v["kandidaat"], state="readonly", width=44)
             self.cb_kand.pack(fill="x", padx=4, pady=2)
             self.cb_kand.bind("<<ComboboxSelected>>", lambda e: self._weer_gewijzigd())
-            rij = self._rij(r, "Bestand")
+            rij = self._rij(r, vt("Bestand", "File"))
             self.v["excel"] = tk.StringVar(value="")
             ttk.Entry(rij, textvariable=self.v["excel"], width=16).pack(side="left")
-            ttk.Button(rij, text="Kies…", command=self._kies_excel, width=6).pack(side="left", padx=3)
-            self._keuze(r, "route", "Route", ["stad", "platteland"], "stad", weer=True)
+            ttk.Button(rij, text=vt("Kies…", "Choose…"), command=self._kies_excel, width=6).pack(side="left", padx=3)
+            self._keuze(r, "route", "Route", [vt("stad", "urban"), vt("platteland", "rural")], vt("stad", "urban"), weer=True)
 
-            r = self._sectie("Niet in het model", "melding",
-                             "Deze factoren rekent het model niet mee; aanvinken geeft alleen een "
-                             "waarschuwing bij de uitkomst.")
+            r = self._sectie(vt("Niet in het model", "Not in the model"), "melding",
+                             vt("Deze factoren rekent het model niet mee; aanvinken geeft alleen een "
+                             "waarschuwing bij de uitkomst.",
+                                "The model does not take these factors into account; ticking them only gives a "
+                             "warning with the result."))
             for k, kort in KORT_LABEL.items():
                 self._vink(r, k, kort, False, herreken=False)
 
-            r = self._sectie("Berekening en bestanden", "model",
-                             "Aantal ensemble-leden en seed: standaard van de suite. Meer leden = "
-                             "nauwkeuriger banden, maar langzamer.")
-            self._getal(r, "n", "Ensemble-leden", "200")
+            r = self._sectie(vt("Berekening en bestanden", "Calculation and files"), "model",
+                             vt("Aantal ensemble-leden en seed: standaard van de suite. Meer leden = "
+                             "nauwkeuriger banden, maar langzamer.",
+                                "Number of ensemble members and seed: suite default. More members = "
+                             "more precise bands, but slower."))
+            self._getal(r, "n", vt("Ensemble-leden", "Ensemble members"), "200")
             self._getal(r, "seed", "Seed", "42")
             rij = ttk.Frame(r)
             rij.pack(fill="x", pady=4)
-            ttk.Button(rij, text="Invoer opslaan", command=self._opslaan).pack(side="left", padx=2)
-            ttk.Button(rij, text="Invoer laden", command=self._laden).pack(side="left", padx=2)
-            ttk.Button(rij, text="Excel-export", command=self._export).pack(side="left", padx=2)
+            ttk.Button(rij, text=vt("Invoer opslaan", "Save input"), command=self._opslaan).pack(side="left", padx=2)
+            ttk.Button(rij, text=vt("Invoer laden", "Load input"), command=self._laden).pack(side="left", padx=2)
+            ttk.Button(rij, text=vt("Excel-export", "Excel export"), command=self._export).pack(side="left", padx=2)
 
             # ------------------------------------------------ rechts: grafieken
             rechts = ttk.Frame(self.root, padding=(4, 6))
@@ -785,7 +805,7 @@ def _start_ui(na_start=None):
             # Knoppen eerst plaatsen: dan blijven ze altijd zichtbaar, ook bij een lange kop- of statustekst.
             self.pb = ttk.Progressbar(boven, length=ug.px(self.root, 160), maximum=1.0)
             self.pb.pack(side="right")
-            ttk.Button(boven, text="Scatter T_rect–CO_reserve", command=self._open_scatter).pack(
+            ttk.Button(boven, text=vt("Scatter T_rect–CO_reserve", "Scatter T_rect–CO_reserve"), command=self._open_scatter).pack(
                 side="right", padx=8)
             self.lbl_signaal = tk.Label(boven, text="  —  ", font=("TkDefaultFont", LETTER + 2, "bold"),
                                         bg="#dddddd", padx=10, pady=4)
@@ -799,10 +819,12 @@ def _start_ui(na_start=None):
             self.nb.pack(fill="both", expand=True, pady=(4, 0))
             tab_u = ttk.Frame(self.nb, padding=(2, 4))
             tab_g = ttk.Frame(self.nb, padding=(2, 2))
-            self.nb.add(tab_u, text="  Uitkomst  ")
-            self.nb.add(tab_g, text="  Grafieken  ")
-            ug.tab_uitleg(tab_u, "De uitkomst in het kort: kerncijfers en de volledige toelichting. Het tabblad "
-                                 "Grafieken toont het weer, de kerntemperatuur en de CO-reserve tijdens de loop.", LETTER)
+            self.nb.add(tab_u, text=vt("  Uitkomst  ", "  Result  "))
+            self.nb.add(tab_g, text=vt("  Grafieken  ", "  Charts  "))
+            ug.tab_uitleg(tab_u, vt("De uitkomst in het kort: kerncijfers en de volledige toelichting. Het tabblad "
+                                 "Grafieken toont het weer, de kerntemperatuur en de CO-reserve tijdens de loop.",
+                                    "The result in brief: key figures and the full explanation. The "
+                                 "Charts tab shows the weather, the core temperature and the CO reserve during the run."), LETTER)
             self.tegels = ug.Tegels(tab_u, LETTER)
             self.tegels.pack(fill="x", pady=(2, 4))
             self.herkomst = ug.Herkomst(tab_u, LETTER)
@@ -876,7 +898,7 @@ def _start_ui(na_start=None):
         RUST_VELDEN = ["duur", "zon"]
 
         def _is_rust(self):
-            return self.v["activiteit"].get().startswith("rust")
+            return self.v["activiteit"].get().startswith(vt("rust", "rest"))
 
         def _wissel_modus(self, herbereken=True):
             rust = self._is_rust()
@@ -902,7 +924,7 @@ def _start_ui(na_start=None):
             w = {k: "" for k in self.suiteveld}
             bron_vo2 = ""
             try:
-                geslacht = self.v["geslacht"].get()
+                geslacht = self._geslacht()
                 leeftijd = int(self._f("leeftijd"))
                 try:
                     tempo = hl.min_naar_tempo(self._tempo())
@@ -923,8 +945,8 @@ def _start_ui(na_start=None):
                     af = hl.afleiden(hl.LoperInvoer(**basis))
                 inv0 = hl.LoperInvoer(**basis)
                 w["vo2max"] = hl.nl(af.vo2max)
-                bron_vo2 = ("uit wedstrijd" if "wedstrijd" in af.vo2max_bron
-                            else "populatiegemiddelde" if "populatie" in af.vo2max_bron else "")
+                bron_vo2 = (vt("uit wedstrijd", "from race") if "wedstrijd" in af.vo2max_bron
+                            else vt("populatiegemiddelde", "population mean") if "populatie" in af.vo2max_bron else "")
                 cvr = CVRModel(RunnerProfile(
                     mass=inv0.gewicht_kg, height=inv0.lengte_cm, age=leeftijd,
                     sex=inv0.gender_en, vo2max=af.vo2max,
@@ -967,15 +989,15 @@ def _start_ui(na_start=None):
             if s == "":
                 if opt:
                     return None
-                raise ValueError(f"'{k}' is leeg")
+                raise ValueError(vt(f"'{k}' is leeg", f"'{k}' is empty"))
             return float(s)
 
         def _tempo(self) -> float:
             x = self.v["snelheid"].get().strip().replace(",", ".")
-            if self.v["eenheid"].get() == "km/u":
+            if self.v["eenheid"].get() == vt("km/u", "km/h"):
                 kmu = float(x)
                 if kmu <= 0:
-                    raise ValueError("snelheid moet groter dan 0 zijn")
+                    raise ValueError(vt("snelheid moet groter dan 0 zijn", "speed must be greater than 0"))
                 return 60.0 / kmu
             return hl.tempo_naar_min(x)
 
@@ -987,10 +1009,10 @@ def _start_ui(na_start=None):
                 oud = self._eenheid_vorig
                 self._eenheid_vorig = nieuw
                 x = self.v["snelheid"].get().strip().replace(",", ".")
-                if oud == "km/u":
+                if oud == vt("km/u", "km/h"):
                     self.v["snelheid"].set(hl.min_naar_tempo(60.0 / float(x)))
                 else:
-                    self.v["snelheid"].set(f"{60.0 / hl.tempo_naar_min(x):.2f}".replace(".", ","))
+                    self.v["snelheid"].set(getal(60.0 / hl.tempo_naar_min(x), 2))
             except Exception:
                 pass
 
@@ -1001,13 +1023,24 @@ def _start_ui(na_start=None):
             try:
                 t = self._tempo()
                 km = self._f("afstand")
-                self.lbl_tempo.config(text=f"= {hl.min_naar_tempo(t)} min/km, {60 / t:.1f} km/u; "
-                                           f"looptijd ≈ {hl.min_naar_tempo(km * t)} (mm:ss)".replace(".", ",", 1))
+                self.lbl_tempo.config(text=vt(f"= {hl.min_naar_tempo(t)} min/km, {60 / t:.1f} km/u; "
+                                           f"looptijd ≈ {hl.min_naar_tempo(km * t)} (mm:ss)",
+                                              f"= {hl.min_naar_tempo(t)} min/km, {60 / t:.1f} km/h; "
+                                           f"running time ≈ {hl.min_naar_tempo(km * t)} (mm:ss)").replace(".", "," if not engels() else ".", 1))
             except Exception:
                 self.lbl_tempo.config(text="")
 
         def _kleding(self):
-            return self.v["kleding"].get().split()[0]
+            """Sleutel van hestia_loper.KLEDING_CLO, los van de getoonde taal."""
+            return ("licht", "normaal", "lang")[max(0, self.widget["kleding"].current())]
+
+        def _geslacht(self):
+            """'man' of 'vrouw' voor hestia_loper.LoperInvoer, los van de getoonde taal."""
+            return ("man", "vrouw")[max(0, self.widget["geslacht"].current())]
+
+        def _route(self):
+            """Sleutel voor de suite ('stad'/'platteland')."""
+            return ("stad", "platteland")[max(0, self.widget["route"].current())]
 
         def _invoer(self):
             d = pd.Timestamp(self.v["datum"].get().strip()).strftime("%Y-%m-%d")
@@ -1015,7 +1048,7 @@ def _start_ui(na_start=None):
             excel = self.v["bron"].get().startswith("Data")
             kw = dict(
                 lengte_cm=self._f("lengte"), gewicht_kg=self._f("gewicht"),
-                leeftijd=int(self._f("leeftijd")), geslacht=self.v["geslacht"].get(),
+                leeftijd=int(self._f("leeftijd")), geslacht=self._geslacht(),
                 evenement="Hardloop-UI", datum=d, starttijd=self.v["starttijd"].get().strip(),
                 plaats=self._plaatsnaam(), afstand_km=self._f("afstand"),
                 tempo_min_per_km=hl.min_naar_tempo(self._tempo()),
@@ -1056,7 +1089,7 @@ def _start_ui(na_start=None):
                 self.v["start_min"].set(int(u) * 60 + int(m))
                 self._gewijzigd()
             except Exception:
-                self._fout("Starttijd onleesbaar; gebruik UU:MM.")
+                self._fout(vt("Starttijd onleesbaar; gebruik UU:MM.", "Start time unreadable; use HH:MM."))
 
         def _gewijzigd(self, vertraging=600):
             self._toon_tempo()
@@ -1073,26 +1106,26 @@ def _start_ui(na_start=None):
             naam = self.v["plaats"].get().strip()
             if not naam or self.v["bron"].get().startswith("Data"):
                 return
-            self.lbl_status.config(text=f"Plaats zoeken: {naam} …")
+            self.lbl_status.config(text=vt(f"Plaats zoeken: {naam} …", f"Searching location: {naam} …"))
 
             def werk():
                 try:
                     self.q.put(("kandidaten", de.geocode_city_candidates(naam)))
                 except Exception as e:
-                    self.q.put(("fout", f"Plaats zoeken mislukt: {e}"))
+                    self.q.put(("fout", vt(f"Plaats zoeken mislukt: {e}", f"Location search failed: {e}")))
             threading.Thread(target=werk, daemon=True).start()
 
         def _kies_excel(self):
-            p = filedialog.askopenfilename(title="Data Engine-bestand",
-                                           filetypes=[("Excel", "*.xlsx"), ("Alle", "*.*")],
+            p = filedialog.askopenfilename(title=vt("Data Engine-bestand", "Data Engine file"),
+                                           filetypes=[("Excel", "*.xlsx"), (vt("Alle", "All"), "*.*")],
                                            initialdir=str(HIER))
             if p:
                 self.v["excel"].set(p)
-                self.v["bron"].set("Data Engine-bestand")
+                self.v["bron"].set(vt("Data Engine-bestand", "Data Engine file"))
                 try:
                     self._xl_bereik = self.weerbron.excel_bereik(p)
                 except Exception as e:
-                    self._fout(f"Bestand niet leesbaar: {e}")
+                    self._fout(vt(f"Bestand niet leesbaar: {e}", f"File not readable: {e}"))
 
         # -------------------------------------------------------- berekenen
         def _herbereken(self):
@@ -1103,27 +1136,27 @@ def _start_ui(na_start=None):
                 inv = self._invoer()
                 n, seed = int(self._f("n")), int(self._f("seed"))
                 if not 1 <= n <= 2000:
-                    raise ValueError("ensemble-leden: 1 t/m 2000")
+                    raise ValueError(vt("ensemble-leden: 1 t/m 2000", "ensemble members: 1 to 2000"))
                 inv.valideer()
             except Exception as e:
                 self._fout(str(e))
                 return
             excel = inv.weerbron == "excel"
             if excel:
-                sleutel = ("excel", inv.weer_excel, self.v["route"].get())
+                sleutel = ("excel", inv.weer_excel, self._route())
             else:
                 k = self._kandidaat()
                 if k is None:
-                    self._fout("Kies eerst een plaats (Zoek).")
+                    self._fout(vt("Kies eerst een plaats (Zoek).", "First choose a location (Search)."))
                     return
                 sleutel = ("online", k.get("id", (k["latitude"], k["longitude"])), inv.datum,
-                           self.v["route"].get())
+                           self._route())
             self._annuleer()
             self.gen += 1
             gen = self.gen
-            route = self.v["route"].get()
+            route = self._route()
             if excel or sleutel != self._weer_sleutel or self._weer is None:
-                self.lbl_status.config(text="Weer laden …")
+                self.lbl_status.config(text=vt("Weer laden …", "Loading weather …"))
                 kand = None if excel else self._kandidaat()
 
                 def werk():
@@ -1136,7 +1169,7 @@ def _start_ui(na_start=None):
                         self.q.put(("weer", gen, sleutel, w,
                                     lambda w_: self._start(gen, inv, w_, n, seed)))
                     except Exception as ex:
-                        self.q.put(("fout", f"Weer: {ex}", gen))
+                        self.q.put(("fout", vt(f"Weer: {ex}", f"Weather: {ex}"), gen))
                 threading.Thread(target=werk, daemon=True).start()
             else:
                 self._start(gen, inv, self._weer, n, seed)
@@ -1148,35 +1181,35 @@ def _start_ui(na_start=None):
                 start = pd.Timestamp(f"{d} {int(u):02d}:{int(mi):02d}")
                 duur = self._f("duur")
                 if not 1 <= duur <= 24:
-                    raise ValueError("duur in rust: 1 t/m 24 uur")
+                    raise ValueError(vt("duur in rust: 1 t/m 24 uur", "duration at rest: 1 to 24 hours"))
                 int(self._f("leeftijd"))
             except Exception as e:
-                self._fout(f"Invoer: {e}")
+                self._fout(vt(f"Invoer: {e}", f"Input: {e}"))
                 return
             eind = start + pd.Timedelta(hours=duur)
-            zon = self.v["zon"].get() == "zon"
+            zon = self.v["zon"].get() == vt("zon", "sun")
             excel = self.v["bron"].get().startswith("Data")
-            route = self.v["route"].get()
+            route = self._route()
             if excel:
                 pad = self.v["excel"].get().strip()
                 if not pad:
-                    self._fout("Kies een Data Engine-bestand.")
+                    self._fout(vt("Kies een Data Engine-bestand.", "Choose a Data Engine file."))
                     return
                 sleutel = ("excel", pad, route)
             else:
                 kand = self._kandidaat()
                 if kand is None:
-                    self._fout("Kies eerst een plaats (Zoek).")
+                    self._fout(vt("Kies eerst een plaats (Zoek).", "First choose a location (Search)."))
                     return
                 sleutel = ("online", kand.get("id", (kand["latitude"], kand["longitude"])), d, route)
                 if eind.normalize() > pd.Timestamp(d) + pd.Timedelta(days=1):
-                    self._fout("Het rustvenster mag niet verder lopen dan de dag na de gekozen datum.")
+                    self._fout(vt("Het rustvenster mag niet verder lopen dan de dag na de gekozen datum.", "The rest window may not run beyond the day after the chosen date."))
                     return
             self._annuleer()
             self.gen += 1
             gen = self.gen
             self.taak, self.resultaat = None, None
-            self.lbl_status.config(text="HEAT-Lim berekenen …")
+            self.lbl_status.config(text=vt("HEAT-Lim berekenen …", "Calculating HEAT-Lim …"))
             self.pb["value"] = 0
 
             def rekenen(w):
@@ -1199,8 +1232,8 @@ def _start_ui(na_start=None):
                         w = self.weerbron.online(kand, d, route)
                     self.q.put(("weer", gen, sleutel, w, rekenen))
                 except Exception as ex:
-                    self.q.put(("fout", f"Weer: {ex}", gen))
-            self.lbl_status.config(text="Weer laden …")
+                    self.q.put(("fout", vt(f"Weer: {ex}", f"Weather: {ex}"), gen))
+            self.lbl_status.config(text=vt("Weer laden …", "Loading weather …"))
             threading.Thread(target=laad, daemon=True).start()
 
         def _start(self, gen, inv, weer, n, seed):
@@ -1223,7 +1256,7 @@ def _start_ui(na_start=None):
             self._signaal(None)
             self._toon_tekst()
             self.pb["value"] = 0
-            self.lbl_status.config(text=f"Berekenen … 0/{n}")
+            self.lbl_status.config(text=vt(f"Berekenen … 0/{n}", f"Calculating … 0/{n}"))
 
         def _lid_klaar(self, f):
             if f.cancelled():
@@ -1231,7 +1264,7 @@ def _start_ui(na_start=None):
             try:
                 self.q.put(("lid",) + f.result())
             except Exception as e:
-                self.q.put(("fout", f"Ensemble-lid mislukt: {e}\n{traceback.format_exc()}"))
+                self.q.put(("fout", vt(f"Ensemble-lid mislukt: {e}\n{traceback.format_exc()}", f"Ensemble member failed: {e}\n{traceback.format_exc()}")))
 
         def _annuleer(self):
             for f in self.futures:
@@ -1268,12 +1301,14 @@ def _start_ui(na_start=None):
                             self._teken_rust(rr)
                             self._toon_tekst()
                             self.pb["value"] = 1.0
-                            self.lbl_status.config(text="Klaar (HEAT-Lim, per uur)")
+                            self.lbl_status.config(text=vt("Klaar (HEAT-Lim, per uur)", "Done (HEAT-Lim, per hour)"))
                     elif soort == "kandidaten":
                         self.kandidaten = m[1]
                         self.cb_kand["values"] = [
-                            f"{k.get('name')}, {k.get('admin1', '')} ({k.get('country_code', '')})"
-                            f" – {k.get('population', 0) or 0:,} inw.".replace(",", ".")
+                            vt(f"{k.get('name')}, {k.get('admin1', '')} ({k.get('country_code', '')})"
+                            f" – {k.get('population', 0) or 0:,} inw.",
+                               f"{k.get('name')}, {k.get('admin1', '')} ({k.get('country_code', '')})"
+                            f" – {k.get('population', 0) or 0:,} inhabitants").replace(",", "." if not engels() else ",")
                             for k in self.kandidaten]
                         if self.kandidaten:
                             self.cb_kand.current(0)
@@ -1285,7 +1320,7 @@ def _start_ui(na_start=None):
                             self._teken_fysiologie(self.taak, r)
                             self._signaal(r.signaal)
                             self._toon_tekst()
-                            self.lbl_status.config(text=f"Klaar: n = {self.taak.n} (seed {self.taak.seed})")
+                            self.lbl_status.config(text=vt(f"Klaar: n = {self.taak.n} (seed {self.taak.seed})", f"Done: n = {self.taak.n} (seed {self.taak.seed})"))
                     elif soort == "fout":
                         if len(m) < 3 or m[2] == self.gen:
                             self._fout(m[1])
@@ -1301,21 +1336,21 @@ def _start_ui(na_start=None):
                 t = self.taak
                 k = len(t.traces)
                 self.pb["value"] = k / t.n
-                self.lbl_status.config(text=f"Voorlopig: n = {k}/{t.n}")
-                self.tegels.leeg(f"Berekenen … n = {k}/{t.n}. De grafieken tonen de voorlopige banden.")
+                self.lbl_status.config(text=vt(f"Voorlopig: n = {k}/{t.n}", f"Provisional: n = {k}/{t.n}"))
+                self.tegels.leeg(vt(f"Berekenen … n = {k}/{t.n}. De grafieken tonen de voorlopige banden.", f"Calculating … n = {k}/{t.n}. The charts show the provisional bands."))
                 nu = time.monotonic()
                 if k == t.n or nu - self._laatst_getekend >= 0.7:
                     self._laatst_getekend = nu
                     self._teken_fysiologie(t, None)
                 if k == t.n:
-                    self.lbl_status.config(text="Samenvatten (hestia_loper) …")
+                    self.lbl_status.config(text=vt("Samenvatten (hestia_loper) …", "Summarising (hestia_loper) …"))
                     gen = t.gen
 
                     def werk():
                         try:
                             self.q.put(("eind", gen, eindresultaat(t)))
                         except Exception as e:
-                            self.q.put(("fout", f"Samenvatten mislukt: {e}\n{traceback.format_exc()}", gen))
+                            self.q.put(("fout", vt(f"Samenvatten mislukt: {e}\n{traceback.format_exc()}", f"Summary failed: {e}\n{traceback.format_exc()}"), gen))
                     threading.Thread(target=werk, daemon=True).start()
             self.root.after(250, self._poll)
 
@@ -1331,16 +1366,16 @@ def _start_ui(na_start=None):
         def _teken_weer(self, t, wind2=None):
             m = t.meteo
             tijd = self._lokaal(m["time"])
-            route = self.v["route"].get()
+            route = self._route()
             for k in ("t", "wbgt", "rh", "wind"):
                 self.ax[k].clear()
             a = self.ax["t"]
             a.plot(tijd, m["t_air"], color=KLEUR["rood"], lw=2,
-                   label="luchttemp. " + ("stad (met UHI)" if route == "stad" else "platteland"))
+                   label=vt("luchttemp. ", "air temp. ") + (vt("stad (met UHI)", "urban (with UHI)") if route == "stad" else vt("platteland", "rural")))
             if route == "stad" and np.isfinite(m.get("t_air_rural", [np.nan])).any():
                 a.plot(tijd, m["t_air_rural"], color=KLEUR["grijs"], lw=1, ls="--",
-                       label="platteland (zonder UHI)")
-            a.set_title("Luchttemperatuur")
+                       label=vt("platteland (zonder UHI)", "rural (without UHI)"))
+            a.set_title(vt("Luchttemperatuur", "Air temperature"))
             a.set_ylabel("°C")
             a.legend(loc="best")
             a = self.ax["wbgt"]
@@ -1351,17 +1386,17 @@ def _start_ui(na_start=None):
             a.set_ylabel("°C")
             a = self.ax["rh"]
             a.plot(tijd, m["rh"], color="#2471a3", lw=2)
-            a.set_title("Relatieve luchtvochtigheid")
+            a.set_title(vt("Relatieve luchtvochtigheid", "Relative humidity"))
             a.set_ylabel("%")
             a = self.ax["wind"]
-            a.plot(tijd, m["wind10"], color=KLEUR["grijs"], lw=1.5, label="10 m (weerdata)")
+            a.plot(tijd, m["wind10"], color=KLEUR["grijs"], lw=1.5, label=vt("10 m (weerdata)", "10 m (weather data)"))
             if wind2 is None:
                 a.plot(tijd[:len(t.wind_fysiologie)], t.wind_fysiologie, color="#117a65", lw=2,
-                       label="1,5 m (zoals het model rekent)")
+                       label=vt("1,5 m (zoals het model rekent)", "1.5 m (as the model calculates)"))
             else:
                 a.plot(*wind2, color="#117a65", lw=2, marker="o", ms=4,
-                       label="1,5 m zoals HEAT-Lim rekent (min. 0,5)")
-            a.set_title("Windsnelheid")
+                       label=vt("1,5 m zoals HEAT-Lim rekent (min. 0,5)", "1.5 m as HEAT-Lim calculates (min. 0.5)"))
+            a.set_title(vt("Windsnelheid", "Wind speed"))
             a.set_ylabel("m/s")
             a.set_ylim(bottom=0)
             a.legend(loc="best")
@@ -1380,45 +1415,45 @@ def _start_ui(na_start=None):
                 n_txt = f"n = {t.n}"
             else:
                 b = voorlopige_banden(t)
-                n_txt = f"voorlopig, n = {len(t.traces)}/{t.n}"
+                n_txt = vt(f"voorlopig, n = {len(t.traces)}/{t.n}", f"provisional, n = {len(t.traces)}/{t.n}")
             start = t.start_aware.tz_localize(None)
             if b is not None:
                 x = [start + pd.Timedelta(minutes=float(mm)) for mm in b["minutes"]]
                 fin = start + pd.Timedelta(minutes=float(b["median_stop_minute"]))
-                for k, sleutel, titel, eenheid in (("kern", "t_rect", "Kerntemperatuur (T_rect)", "°C"),
-                                                   ("co", "co_reserve", "Cardiac-output-reserve", "L/min")):
+                for k, sleutel, titel, eenheid in (("kern", "t_rect", vt("Kerntemperatuur (T_rect)", "Core temperature (T_rect)"), "°C"),
+                                                   ("co", "co_reserve", vt("Cardiac-output-reserve", "Cardiac output reserve"), "L/min")):
                     ax = self.ax[k]
                     ax.fill_between(x, b[f"{sleutel}_lo"], b[f"{sleutel}_hi"], color=KLEUR["band"],
-                                    alpha=0.18, lw=0, label="95%-band ensemble")
-                    ax.plot(x, b[f"{sleutel}_median"], color=KLEUR["lijn"], lw=2, label="mediaan")
+                                    alpha=0.18, lw=0, label=vt("95%-band ensemble", "95% band ensemble"))
+                    ax.plot(x, b[f"{sleutel}_median"], color=KLEUR["lijn"], lw=2, label=vt("mediaan", "median"))
                     ax.axvline(fin, color="k", lw=1, ls="--")
-                    ax.text(fin, 1.0, " finish (mediaan)", transform=ax.get_xaxis_transform(),
+                    ax.text(fin, 1.0, vt(" finish (mediaan)", " finish (median)"), transform=ax.get_xaxis_transform(),
                             va="top", fontsize=9)
                     ax.set_title(f"{titel}   ({n_txt})")
                     ax.set_ylabel(eenheid)
                 kern = self.ax["kern"]
                 kern.axhline(39.5, color=KLEUR["oranje"], lw=1, ls=":")
                 kern.axhline(40.5, color=KLEUR["rood"], lw=1, ls=":")
-                kern.text(x[0], 39.5, " 39,5", color=KLEUR["oranje"], va="bottom", fontsize=9)
-                kern.text(x[0], 40.5, " 40,5", color=KLEUR["rood"], va="bottom", fontsize=9)
+                kern.text(x[0], 39.5, " " + getal(39.5), color=KLEUR["oranje"], va="bottom", fontsize=9)
+                kern.text(x[0], 40.5, " " + getal(40.5), color=KLEUR["rood"], va="bottom", fontsize=9)
                 g42 = hm.T_THERMAL_ONLY_CRITICAL
                 lo42, hi42 = kern.get_ylim()
                 if hi42 >= g42 - 0.3:
                     kern.axhline(g42, color="#6e0b0b", lw=1.4, ls="--")
-                    kern.text(0.01, g42, f" {g42:.0f} °C: model buiten getoetst gebied",
+                    kern.text(0.01, g42, vt(f" {g42:.0f} °C: model buiten getoetst gebied", f" {g42:.0f} °C: model outside its tested range"),
                               transform=kern.get_yaxis_transform(), va="bottom", fontsize=8, color="#6e0b0b")
                     kern.set_ylim(lo42, max(hi42, g42 + 0.3))
                 co = self.ax["co"]
                 co.axhline(2.0, color=KLEUR["oranje"], lw=1, ls=":")
                 co.axhline(0.0, color=KLEUR["rood"], lw=1.2)
-                co.text(x[0], 2.0, " 2,0", color=KLEUR["oranje"], va="bottom", fontsize=9)
-                co.text(x[0], 0.0, " 0: onder nul = extrapolatie", color=KLEUR["rood"],
+                co.text(x[0], 2.0, " " + getal(2.0), color=KLEUR["oranje"], va="bottom", fontsize=9)
+                co.text(x[0], 0.0, vt(" 0: onder nul = extrapolatie", " 0: below zero = extrapolation"), color=KLEUR["rood"],
                         va="bottom", fontsize=9)
                 kern.legend(loc="lower right")
                 xmin, xmax = start, x[-1]
             else:
-                for k, titel in (("kern", "Kerntemperatuur (T_rect)"), ("co", "Cardiac-output-reserve")):
-                    self.ax[k].set_title(f"{titel}   (berekenen …)")
+                for k, titel in (("kern", vt("Kerntemperatuur (T_rect)", "Core temperature (T_rect)")), ("co", vt("Cardiac-output-reserve", "Cardiac output reserve"))):
+                    self.ax[k].set_title(vt(f"{titel}   (berekenen …)", f"{titel}   (calculating …)"))
                 xmin = start
                 xmax = t.finish_aware.tz_localize(None) + pd.Timedelta(minutes=30)
             for k in self.ax:
@@ -1437,7 +1472,7 @@ def _start_ui(na_start=None):
             self._teken_weer(rr, wind2=(uren, rr.av))
             leeftijd = int(self._f("leeftijd"))
             eigen = rust_profielen_voor_leeftijd(leeftijd)
-            naam = {"young": "18–40 jaar", "old": "65+"}
+            naam = {"young": vt("18–40 jaar", "18–40 years"), "old": "65+"}
             kl = {"young": "#2e86c1", "old": "#884ea0"}
             a = self.ax["kern"]
             a.clear()
@@ -1445,17 +1480,17 @@ def _start_ui(na_start=None):
                 dik = k in eigen
                 a.plot(uren, rr.mmax[k], color=kl[k], lw=2.6 if dik else 1.2, marker="o",
                        ms=5 if dik else 3, alpha=1.0 if dik else 0.6,
-                       label=f"HEAT-Lim {naam[k]}" + ("  (jouw leeftijd)" if dik and len(eigen) == 1 else ""))
+                       label=f"HEAT-Lim {naam[k]}" + (vt("  (jouw leeftijd)", "  (your age)") if dik and len(eigen) == 1 else ""))
             act = rr.instellingen["activiteit_met"]
             vloer = rr.instellingen["rustniveau_met"]["young"]
             a.axhline(act, color=KLEUR["oranje"], lw=1, ls="--")
-            a.text(uren[0], act, f" {hl.nl(act)} MET: normale activiteit", color=KLEUR["oranje"],
+            a.text(uren[0], act, vt(f" {hl.nl(act)} MET: normale activiteit", f" {hl.nl(act)} MET: normal activity"), color=KLEUR["oranje"],
                    va="bottom", fontsize=9)
             a.axhline(vloer, color=KLEUR["rood"], lw=1.2)
-            a.text(uren[0], vloer, f" rustniveau {hl.nl(vloer)} MET", color=KLEUR["rood"],
+            a.text(uren[0], vloer, vt(f" rustniveau {hl.nl(vloer)} MET", f" rest level {hl.nl(vloer)} MET"), color=KLEUR["rood"],
                    va="bottom", fontsize=9)
             a.set_ylim(bottom=0)
-            a.set_title("Max. volhoudbare activiteit (Mmax), per uur")
+            a.set_title(vt("Max. volhoudbare activiteit (Mmax), per uur", "Max. sustainable activity (Mmax), per hour"))
             a.set_ylabel("MET")
             a.legend(loc="best")
             b = self.ax["co"]
@@ -1470,8 +1505,10 @@ def _start_ui(na_start=None):
             b.set_yticklabels([naam["young"], naam["old"]])
             b.set_ylim(-0.6, 1.6)
             b.grid(False)
-            b.set_title(f"HEAT-Lim per uur, rust in de "
-                        f"{'zon' if rr.instellingen['zon'] == 'outdoor' else 'schaduw'}")
+            b.set_title(vt(f"HEAT-Lim per uur, rust in de "
+                        f"{'zon' if rr.instellingen['zon'] == 'outdoor' else 'schaduw'}",
+                           f"HEAT-Lim per hour, rest in the "
+                        f"{'sun' if rr.instellingen['zon'] == 'outdoor' else 'shade'}"))
             b.legend(handles=[Patch(color=kleur_cat[i], label=RUST_CAT[i]) for i in (1, 2, 3, 4, 0)],
                      loc="upper center", bbox_to_anchor=(0.5, -0.12), ncol=2, fontsize=8, frameon=False)
             x0, x1 = uren[0] - half, uren[-1] + half
@@ -1490,8 +1527,10 @@ def _start_ui(na_start=None):
             kleur = {0: "#aab7b8", 1: "#27ae60", 2: "#d4ac0d", 3: "#e67e22", 4: "#c0392b"}[c]
             tekst = f"HEAT-Lim: {RUST_CAT_KORT[c]}"
             if c >= 2:
-                tekst += (f" zoals om {uur:%H:%M} ({'zon' if zon else 'schaduw'}, "
-                          f"wind {hl.nl(float(wind))} m/s)")
+                tekst += (vt(f" zoals om {uur:%H:%M} ({'zon' if zon else 'schaduw'}, "
+                          f"wind {hl.nl(float(wind))} m/s)",
+                             f" as at {uur:%H:%M} ({'sun' if zon else 'shade'}, "
+                          f"wind {hl.nl(float(wind))} m/s)"))
             self.lbl_signaal.config(text=f"  {tekst}  ", bg=kleur,
                                     fg="black" if c in (0, 2) else "white")
 
@@ -1508,55 +1547,80 @@ def _start_ui(na_start=None):
             w, ins = rr.weer, rr.instellingen
 
             def dec(x, n):
-                return f"{float(x):.{n}f}".replace(".", ",")
-            self.txt.insert("end", "Weer: ", "vet")
+                return getal(float(x), n)
+            self.txt.insert("end", vt("Weer: ", "Weather: "), "vet")
             uhi = ""
             if "UHI_delta" in w.df.columns:
                 dd = w.df.loc[rr.uren[0]:rr.uren[-1], "UHI_delta"]
                 if len(dd):
-                    uhi = f"; UHI gemiddeld {hl.nl(float(dd.mean()))} °C"
-            self.txt.insert("end", f"{w.label}; {w.city.get('name', '')} "
+                    uhi = vt(f"; UHI gemiddeld {hl.nl(float(dd.mean()))} °C", f"; UHI mean {hl.nl(float(dd.mean()))} °C")
+            self.txt.insert("end", vt(f"{w.label}; {w.city.get('name', '')} "
                                    f"({(w.city.get('population') or 0):,} inw.){uhi}; "
-                                   f"route {self.v['route'].get()}.\n".replace(",", "."))
-            self.txt.insert("end", "Methode: ", "vet")
-            self.txt.insert("end", f"HEAT-Lim (Vanos et al. 2023) zoals Klimatos: per uur, "
+                                   f"route {self.v['route'].get()}.\n",
+                                      f"{w.label}; {w.city.get('name', '')} "
+                                   f"({(w.city.get('population') or 0):,} inhabitants){uhi}; "
+                                   f"route {self.v['route'].get()}.\n").replace(",", "." if not engels() else ","))
+            self.txt.insert("end", vt("Methode: ", "Method: "), "vet")
+            self.txt.insert("end", vt(f"HEAT-Lim (Vanos et al. 2023) zoals Klimatos: per uur, "
                                    f"{ins['blootstelling_u']} u blootstelling, "
                                    f"{'in de zon (MRT uit de Data Engine)' if ins['zon'] == 'outdoor' else 'in de schaduw (MRT = luchttemperatuur)'}, "
                                    f"wind op 1,5 m minimaal {hl.nl(ins['wind_min'])} m/s, "
-                                   f"alleen uren vanaf {ins['ta_min']:g} °C.\n")
+                                   f"alleen uren vanaf {ins['ta_min']:g} °C.\n",
+                                      f"HEAT-Lim (Vanos et al. 2023) as in Klimatos: per hour, "
+                                   f"{ins['blootstelling_u']} h exposure, "
+                                   f"{'in the sun (MRT from the Data Engine)' if ins['zon'] == 'outdoor' else 'in the shade (MRT = air temperature)'}, "
+                                   f"wind at 1.5 m at least {hl.nl(ins['wind_min'])} m/s, "
+                                   f"only hours from {ins['ta_min']:g} °C.\n"))
             leeftijd = int(self._f("leeftijd"))
             eigen = rust_profielen_voor_leeftijd(leeftijd)
-            naam = {"young": "18–40 jaar", "old": "65+"}
+            naam = {"young": vt("18–40 jaar", "18–40 years"), "old": "65+"}
             if len(eigen) == 2:
-                self.txt.insert("end", f"⚠ Voor {leeftijd} jaar heeft HEAT-Lim geen profiel (alleen 18–40 "
+                self.txt.insert("end", vt(f"⚠ Voor {leeftijd} jaar heeft HEAT-Lim geen profiel (alleen 18–40 "
                                        f"en 65+); beide worden getoond, de kleur bovenaan volgt de "
-                                       f"zwaarste van de twee.\n", "waarsch")
+                                       f"zwaarste van de twee.\n",
+                                          f"⚠ For {leeftijd} years HEAT-Lim has no profile (only 18–40 "
+                                       f"and 65+); both are shown, the colour at the top follows the "
+                                       f"more severe of the two.\n"), "waarsch")
             ev = rr.beoordeeld
             for k in ("young", "old"):
                 p = ins["profielen"][k]
                 mm = rr.mmax[k]
                 laagste = hl.nl(float(np.nanmin(mm))) if np.isfinite(mm).any() else "—"
                 c = rr.cat[k]
-                self.txt.insert("end", f"{naam[k]}" + (" (jouw leeftijd)" if k in eigen and len(eigen) == 1 else "")
+                self.txt.insert("end", f"{naam[k]}" + (vt(" (jouw leeftijd)", " (your age)") if k in eigen and len(eigen) == 1 else "")
                                 + ": ", "vet")
                 self.txt.insert("end",
-                    f"laagste Mmax {laagste} MET; uren onder {hl.nl(ins['activiteit_met'])} MET: "
+                    vt(f"laagste Mmax {laagste} MET; uren onder {hl.nl(ins['activiteit_met'])} MET: "
                     f"{int(np.sum(c >= 2))}; rust niet leefbaar: {int(np.sum(c == 3))}; niet overleefbaar: "
                     f"{int(np.sum(c == 4))}; niet beoordeeld (< {ins['ta_min']:g} °C): {int(np.sum(~ev))} "
                     f"van {len(c)} uur.  Profiel: {dec(p['Mass'], 1)} kg, kleding Icl {dec(p['Icl'], 2)}, "
                     f"max. huidbevochtiging {dec(H.wmax(p['wmax_condition']), 2)}, max. zweet "
-                    f"{dec(p['smax_rate'], 2)} L/u.\n")
-            self.txt.insert("end", "In rust gebruikt HEAT-Lim de gepubliceerde profielen: geslacht, gewicht, "
-                                   "lengte, fitheid en kleding uit het formulier tellen niet mee.\n", "waarsch")
+                    f"{dec(p['smax_rate'], 2)} L/u.\n",
+                       f"lowest Mmax {laagste} MET; hours below {hl.nl(ins['activiteit_met'])} MET: "
+                    f"{int(np.sum(c >= 2))}; rest not liveable: {int(np.sum(c == 3))}; not survivable: "
+                    f"{int(np.sum(c == 4))}; not assessed (< {ins['ta_min']:g} °C): {int(np.sum(~ev))} "
+                    f"of {len(c)} hours.  Profile: {dec(p['Mass'], 1)} kg, clothing Icl {dec(p['Icl'], 2)}, "
+                    f"max. skin wettedness {dec(H.wmax(p['wmax_condition']), 2)}, max. sweat "
+                    f"{dec(p['smax_rate'], 2)} L/h.\n"))
+            self.txt.insert("end", vt("In rust gebruikt HEAT-Lim de gepubliceerde profielen: geslacht, gewicht, "
+                                   "lengte, fitheid en kleding uit het formulier tellen niet mee.\n",
+                                      "At rest HEAT-Lim uses the published profiles: sex, weight, "
+                                   "height, fitness and clothing from the form do not count.\n"), "waarsch")
             for k, (tekst, uitleg) in hl.NIET_GEMODELLEERD.items():
                 if self.v[k].get():
                     self.txt.insert("end", f"⚠ {tekst}: {uitleg}\n", "waarsch")
-            self.txt.insert("end", "Lezen: HEAT-Lim rekent per uur een evenwichtstoestand. 'Niet overleefbaar' "
+            self.txt.insert("end", vt("Lezen: HEAT-Lim rekent per uur een evenwichtstoestand. 'Niet overleefbaar' "
                                    f"betekent: als de omstandigheden van dat uur {ins['blootstelling_u']} uur "
                                    "onveranderd aanhouden, met iemand die stilzit, overschrijdt de warmteopslag "
-                                   "de kritieke grens. Het is geen voorspelling voor de hele dag.\n")
-            self.txt.insert("end", "Research software: niet gevalideerd voor operationele beslissingen. "
-                                   "HEAT-Lim rekent buiten; binnenshuis zit er niet in.")
+                                   "de kritieke grens. Het is geen voorspelling voor de hele dag.\n",
+                                      "Reading: HEAT-Lim calculates an equilibrium state per hour. 'Not survivable' "
+                                   f"means: if the conditions of that hour persist unchanged for {ins['blootstelling_u']} hours, "
+                                   "for someone sitting still, heat storage exceeds "
+                                   "the critical limit. It is not a prediction for the whole day.\n"))
+            self.txt.insert("end", vt("Research software: niet gevalideerd voor operationele beslissingen. "
+                                   "HEAT-Lim rekent buiten; binnenshuis zit er niet in.",
+                                      "Research software: not validated for operational decisions. "
+                                   "HEAT-Lim calculates outdoors; indoors is not included."))
             self.txt.config(state="disabled")
 
         def _dien_vrij_in(self):
@@ -1574,7 +1638,7 @@ def _start_ui(na_start=None):
                 self.sc_win.lift()
                 return
             w = tk.Toplevel(self.root)
-            w.title("T_rect tegen CO_reserve  (research software)")
+            w.title(vt("T_rect tegen CO_reserve  (research software)", "T_rect against CO_reserve  (research software)"))
             bw, bh = self.root.winfo_screenwidth(), self.root.winfo_screenheight()
             w.geometry(f"{min(1150, bw - 60)}x{min(860, bh - 100)}+60+40")
             self.sc_fig = Figure(figsize=(11, 8), dpi=96, constrained_layout=True)
@@ -1602,8 +1666,10 @@ def _start_ui(na_start=None):
             ax.clear()
             t = self.taak
             if self._is_rust() or t is None:
-                ax.text(0.5, 0.5, "Alleen bij hardlopen: in rust rekent de suite met HEAT-Lim\n"
-                                  "(geen kerntemperatuur of CO_reserve).", ha="center", va="center",
+                ax.text(0.5, 0.5, vt("Alleen bij hardlopen: in rust rekent de suite met HEAT-Lim\n"
+                                  "(geen kerntemperatuur of CO_reserve).",
+                                     "Only for running: at rest the suite calculates with HEAT-Lim\n"
+                                  "(no core temperature or CO_reserve)."), ha="center", va="center",
                         transform=ax.transAxes, fontsize=13)
                 ax.set_axis_off()
                 self.sc_lbl.config(text="")
@@ -1613,7 +1679,7 @@ def _start_ui(na_start=None):
             std = scatter_paren([t.traces[i] for i in sorted(t.traces)])
             alle = vrij + std
             if not alle:
-                ax.text(0.5, 0.5, "Berekenen …", ha="center", va="center", transform=ax.transAxes,
+                ax.text(0.5, 0.5, vt("Berekenen …", "Calculating …"), ha="center", va="center", transform=ax.transAxes,
                         fontsize=14)
                 ax.set_axis_off()
                 self.sc_canvas.draw_idle()
@@ -1623,13 +1689,13 @@ def _start_ui(na_start=None):
             x_lo, x_hi = min(co) - 0.3, max(co) + 0.3
             y_lo, y_hi = min(min(tt), 38.5), max(max(tt), 41.0)
             ax.axhspan(39.5, 40.5, color="#f0a30a", alpha=0.18, zorder=0,
-                       label="T_rect > 39,5 °C (EHE-drempel)")
+                       label=vt("T_rect > 39,5 °C (EHE-drempel)", "T_rect > 39.5 °C (EHE threshold)"))
             ax.axhspan(40.5, y_hi, color="#d62728", alpha=0.22, zorder=0,
-                       label="T_rect > 40,5 °C (klinische EHS-drempel)")
+                       label=vt("T_rect > 40,5 °C (klinische EHS-drempel)", "T_rect > 40.5 °C (clinical EHS threshold)"))
             ax.axvline(0, color="black", lw=1, ls=":", zorder=1)
             if std:
                 ax.scatter([c for _, c in std], [x for x, _ in std], s=8, color="#9a9a9a", alpha=0.35,
-                           zorder=2, label=f"met hartplafond (standaard, zoals hoofdgrafieken)")
+                           zorder=2, label=vt(f"met hartplafond (standaard, zoals hoofdgrafieken)", f"with cardiovascular ceiling (default, as main charts)"))
             if vrij:
                 ta = np.array([x for x, _ in vrij])
                 ca = np.array([c for _, c in vrij])
@@ -1637,41 +1703,50 @@ def _start_ui(na_start=None):
                 in_ehe = (ta > 39.5) & (ca < tol)
                 in_kl = (ta >= 40.5) & (ca <= tol)
                 ax.scatter(ca[~in_ehe], ta[~in_ehe], s=12, color="steelblue", alpha=0.55, zorder=3,
-                           label="zonder hartplafond: tijdstap")
+                           label=vt("zonder hartplafond: tijdstap", "without cardiovascular ceiling: time step"))
                 ax.scatter(ca[in_ehe & ~in_kl], ta[in_ehe & ~in_kl], s=18, color="black", alpha=0.8,
-                           zorder=4, label="voldoet aan EHE (T > 39,5 EN COr < 0)")
+                           zorder=4, label=vt("voldoet aan EHE (T > 39,5 EN COr < 0)", "meets EHE (T > 39.5 AND COr < 0)"))
                 if in_kl.any():
                     ax.scatter(ca[in_kl], ta[in_kl], s=26, marker="X", color="#8B0000", zorder=4,
-                               label="voldoet aan klinisch criterium (T ≥ 40,5 EN COr ≤ 0)")
+                               label=vt("voldoet aan klinisch criterium (T ≥ 40,5 EN COr ≤ 0)", "meets clinical criterion (T ≥ 40.5 AND COr ≤ 0)"))
                 for mstats, kleur, naam, ms, dy in (
                         (K._ehe_margin_stats(vrij, 39.5, 0.0), "#c07800", "EHE", 140, 8),
-                        (K._ehe_margin_stats(vrij, 40.5, 0.0), "#8B0000", "klinisch", 80, -16)):
+                        (K._ehe_margin_stats(vrij, 40.5, 0.0), "#8B0000", vt("klinisch", "clinical"), 80, -16)):
                     if mstats is None:
                         continue
                     ax.scatter([mstats["closest_c"]], [mstats["closest_t"]], s=ms, facecolors="none",
                                edgecolors=kleur, linewidths=2, zorder=5,
-                               label=f"dichtst bij {naam}-drempel")
+                               label=vt(f"dichtst bij {naam}-drempel", f"closest to {naam} threshold"))
                     bn = mstats["closest_bottleneck"]
-                    noot = (f"{hl.nl(bn)} van {naam}" if bn > 0 else f"{naam} overschreden")
+                    noot = (vt(f"{hl.nl(bn)} van {naam}", f"{hl.nl(bn)} of {naam}") if bn > 0 else vt(f"{naam} overschreden", f"{naam} exceeded"))
                     ax.annotate(noot, xy=(mstats["closest_c"], mstats["closest_t"]), xytext=(10, dy),
                                 textcoords="offset points", fontsize=10, color=kleur, fontweight="bold",
                                 zorder=6, bbox=dict(boxstyle="round,pad=0.2", fc="white", ec=kleur, alpha=0.9))
             ax.set_xlim(x_lo, x_hi)
             ax.set_ylim(y_lo, y_hi)
-            ax.set_xlabel("CO_reserve (L/min)  —  links van 0: onvervulde vraag (alleen zonder plafond)")
+            ax.set_xlabel(vt("CO_reserve (L/min)  —  links van 0: onvervulde vraag (alleen zonder plafond)", "CO_reserve (L/min)  —  left of 0: unmet demand (only without ceiling)"))
             ax.set_ylabel("T_rect (°C)")
-            ax.set_title(f"T_rect tegen CO_reserve, alle tijdstappen (loop + nafinish)\n"
+            ax.set_title(vt(f"T_rect tegen CO_reserve, alle tijdstappen (loop + nafinish)\n"
                          f"zonder plafond: {len(t.traces_vrij)}/{t.n} leden, {len(vrij)} punten;  "
-                         f"met plafond: {len(t.traces)}/{t.n} leden")
+                         f"met plafond: {len(t.traces)}/{t.n} leden",
+                            f"T_rect against CO_reserve, all time steps (run + post-finish)\n"
+                         f"without ceiling: {len(t.traces_vrij)}/{t.n} members, {len(vrij)} points;  "
+                         f"with ceiling: {len(t.traces)}/{t.n} members"))
             ax.grid(alpha=0.25)
             ax.legend(fontsize=9, loc="lower left")
             self.sc_lbl.config(text=(
-                "Gekleurd: tweede ensemble met CV_CEILING_FORCED = False (zelfde profielen en seeds): de loper "
+                vt("Gekleurd: tweede ensemble met CV_CEILING_FORCED = False (zelfde profielen en seeds): de loper "
                 "houdt zijn tempo vast als het hart aan het plafond zit, dus CO_reserve loopt door onder 0. "
                 "Onder 0 is dat de onvervulde zuurstofvraag in liters bloed per minuut (modelkeuze in de "
                 "CVR-module, niet gevalideerd), geen werkelijk stromend bloed. Grijs: de standaardberekening "
                 "met plafond, die de loper laat vertragen; daarop zijn alle andere grafieken gebaseerd. "
-                "Zones, kleuring en markeringen zoals Klimatos (plot_trect_co_reserve_scatter)."))
+                "Zones, kleuring en markeringen zoals Klimatos (plot_trect_co_reserve_scatter).",
+                   "Coloured: second ensemble with CV_CEILING_FORCED = False (same profiles and seeds): the runner "
+                "keeps their pace when the heart is at the ceiling, so CO_reserve continues below 0. "
+                "Below 0 that is the unmet oxygen demand in litres of blood per minute (model choice in the "
+                "CVR module, not validated), not blood actually flowing. Grey: the standard calculation "
+                "with ceiling, which lets the runner slow down; all other charts are based on it. "
+                "Zones, colouring and markers as Klimatos (plot_trect_co_reserve_scatter).")))
             self.sc_canvas.draw_idle()
 
         def _signaal(self, s):
@@ -1699,56 +1774,78 @@ def _start_ui(na_start=None):
                 s, e = t.start_aware, t.finish_aware
                 d = w.df.loc[s.floor("h"):e.ceil("h"), "UHI_delta"]
                 if len(d):
-                    uhi = f"; UHI gemiddeld {hl.nl(float(d.mean()))} °C"
-            self.txt.insert("end", "Weer: ", "vet")
-            self.txt.insert("end", f"{w.label}; {w.city.get('name', '')} "
+                    uhi = vt(f"; UHI gemiddeld {hl.nl(float(d.mean()))} °C", f"; UHI mean {hl.nl(float(d.mean()))} °C")
+            self.txt.insert("end", vt("Weer: ", "Weather: "), "vet")
+            self.txt.insert("end", vt(f"{w.label}; {w.city.get('name', '')} "
                                    f"({(w.city.get('population') or 0):,} inw.){uhi}; "
-                                   f"route {self.v['route'].get()}.\n".replace(",", "."))
-            self.txt.insert("end", "Fitheid: ", "vet")
-            self.txt.insert("end", f"VO2max {hl.nl(af.vo2max)} ({af.vo2max_bron}); tempo vraagt "
+                                   f"route {self.v['route'].get()}.\n",
+                                      f"{w.label}; {w.city.get('name', '')} "
+                                   f"({(w.city.get('population') or 0):,} inhabitants){uhi}; "
+                                   f"route {self.v['route'].get()}.\n").replace(",", "." if not engels() else ","))
+            self.txt.insert("end", vt("Fitheid: ", "Fitness: "), "vet")
+            self.txt.insert("end", vt(f"VO2max {hl.nl(af.vo2max)} ({af.vo2max_bron}); tempo vraagt "
                                    f"{af.pct_vo2max:.0%} van VO2max; HRmax {af.hr_max:.0f} "
                                    f"({af.hr_max_bron}); training_factor {hl.nl(af.training_factor)}; "
-                                   f"clo {hl.nl(af.clo)}.\n")
+                                   f"clo {hl.nl(af.clo)}.\n",
+                                      f"VO2max {hl.nl(af.vo2max)} ({af.vo2max_bron}); pace requires "
+                                   f"{af.pct_vo2max:.0%} of VO2max; HRmax {af.hr_max:.0f} "
+                                   f"({af.hr_max_bron}); training_factor {hl.nl(af.training_factor)}; "
+                                   f"clo {hl.nl(af.clo)}.\n"))
             r = self.resultaat
             if r is not None:
                 s = r.samenvatting()
-                self.txt.insert("end", "Uitkomst (mediaan [95%]): ", "vet")
+                self.txt.insert("end", vt("Uitkomst (mediaan [95%]): ", "Result (median [95%]): "), "vet")
                 self.txt.insert("end",
-                    f"piek T_rect {hl.nl(s['t_rect_max']['med'])} [{hl.nl(s['t_rect_max']['lo'])}–"
+                    vt(f"piek T_rect {hl.nl(s['t_rect_max']['med'])} [{hl.nl(s['t_rect_max']['lo'])}–"
                     f"{hl.nl(s['t_rect_max']['hi'])}] °C; laagste CO_reserve {hl.nl(s['co_min']['med'])} "
                     f"[{hl.nl(s['co_min']['lo'])}–{hl.nl(s['co_min']['hi'])}] L/min; piekhartslag "
                     f"{s['hr_piek']['med']:.0f}/min; vochtverlies {hl.nl(s['dehyd']['med'])}% "
                     f"(tot {hl.nl(s['dehyd']['hi'])}%); finish ≈ "
-                    f"{hl.min_naar_tempo(s['finish']['med'])} (mm:ss).\n")
-                self.txt.insert("end", "Modelsignaal: ", "vet")
+                    f"{hl.min_naar_tempo(s['finish']['med'])} (mm:ss).\n",
+                       f"peak T_rect {hl.nl(s['t_rect_max']['med'])} [{hl.nl(s['t_rect_max']['lo'])}–"
+                    f"{hl.nl(s['t_rect_max']['hi'])}] °C; lowest CO_reserve {hl.nl(s['co_min']['med'])} "
+                    f"[{hl.nl(s['co_min']['lo'])}–{hl.nl(s['co_min']['hi'])}] L/min; peak heart rate "
+                    f"{s['hr_piek']['med']:.0f}/min; fluid loss {hl.nl(s['dehyd']['med'])}% "
+                    f"(up to {hl.nl(s['dehyd']['hi'])}%); finish ≈ "
+                    f"{hl.min_naar_tempo(s['finish']['med'])} (mm:ss).\n"))
+                self.txt.insert("end", vt("Modelsignaal: ", "Model signal: "), "vet")
                 self.txt.insert("end", " ".join(r.signaal["redenen"]) + "\n")
                 if s["t_rect_max"]["hi"] > hm.T_THERMAL_ONLY_CRITICAL:
-                    self.txt.insert("end", f"⚠ Piek-T_rect komt boven {hm.T_THERMAL_ONLY_CRITICAL:.0f} °C "
+                    self.txt.insert("end", vt(f"⚠ Piek-T_rect komt boven {hm.T_THERMAL_ONLY_CRITICAL:.0f} °C "
                                            "(T_THERMAL_ONLY_CRITICAL: kritieke thermische maximumtemperatuur). "
                                            "Daarboven rekent het model buiten zijn getoetste gebied en heeft het "
                                            "geen mechanisme dat de loop beëindigt: in werkelijkheid is de loper "
-                                           "dan al eerder uitgevallen.\n", "waarsch")
+                                           "dan al eerder uitgevallen.\n",
+                                              f"⚠ Peak T_rect exceeds {hm.T_THERMAL_ONLY_CRITICAL:.0f} °C "
+                                           "(T_THERMAL_ONLY_CRITICAL: critical thermal maximum). "
+                                           "Above it the model calculates outside its tested range and has "
+                                           "no mechanism that ends the run: in reality the runner "
+                                           "would already have dropped out earlier.\n"), "waarsch")
             for x in af.waarschuwingen:
                 self.txt.insert("end", "⚠ " + x + "\n", "waarsch")
             try:
                 if np.nanmax(t.meteo["wbgt"]) < 18:
-                    self.txt.insert("end", "⚠ WBGT onder ca. 18: het model berekent de kerntemperatuur bij "
+                    self.txt.insert("end", vt("⚠ WBGT onder ca. 18: het model berekent de kerntemperatuur bij "
                                            "koel weer enkele tienden te hoog (README, Known issue 9).\n",
+                                              "⚠ WBGT below about 18: the model calculates the core temperature in "
+                                           "cool weather a few tenths too high (README, Known issue 9).\n"),
                                     "waarsch")
             except ValueError:
                 pass
             for k, (tekst, uitleg) in hl.NIET_GEMODELLEERD.items():
                 if self.v[k].get():
                     self.txt.insert("end", f"⚠ {tekst}: {uitleg}\n", "waarsch")
-            self.txt.insert("end", "Research software: niet gevalideerd voor operationele "
-                                   "beslissingen; de officiële WBGT-protocollen en medische staf beslissen.")
+            self.txt.insert("end", vt("Research software: niet gevalideerd voor operationele "
+                                   "beslissingen; de officiële WBGT-protocollen en medische staf beslissen.",
+                                      "Research software: not validated for operational "
+                                   "decisions; the official WBGT protocols and medical staff decide."))
             self.txt.config(state="disabled")
 
         # ------------------------------------------- uitkomsttegels en herkomst
         def _weer_status(self, start_aware):
             nu = pd.Timestamp.now(tz=start_aware.tz)
-            return ("historisch", "simulatie · historisch weer") if start_aware < nu else \
-                   ("prognose", "simulatie · verwachtingsweer")
+            return ("historisch", vt("simulatie · historisch weer", "simulation · historical weather")) if start_aware < nu else \
+                   ("prognose", vt("simulatie · verwachtingsweer", "simulation · forecast weather"))
 
         def _toon_herkomst(self):
             if self._is_rust():
@@ -1758,9 +1855,11 @@ def _start_ui(na_start=None):
                 st, st_t = self._weer_status(rr.start_aware)
                 self.herkomst.zet(
                     f"{rr.weer.label}; {rr.weer.city.get('name', '')}", st, status_tekst=st_t,
-                    extra="model: HEAT-Lim (Vanos et al. 2023) zoals in Klimatos, gepubliceerde profielen",
-                    niet="een meting of een medisch advies; HEAT-Lim rekent per uur een evenwichtstoestand "
-                         "voor iemand die stilzit, buiten.")
+                    extra=vt("model: HEAT-Lim (Vanos et al. 2023) zoals in Klimatos, gepubliceerde profielen", "model: HEAT-Lim (Vanos et al. 2023) as in Klimatos, published profiles"),
+                    niet=vt("een meting of een medisch advies; HEAT-Lim rekent per uur een evenwichtstoestand "
+                         "voor iemand die stilzit, buiten.",
+                            "a measurement or medical advice; HEAT-Lim calculates an equilibrium state per hour "
+                         "for someone sitting still, outdoors."))
                 return
             t = self.taak
             if t is None:
@@ -1769,17 +1868,19 @@ def _start_ui(na_start=None):
             self.herkomst.zet(
                 f"{t.weer.label}; {t.weer.city.get('name', '')}, route {self.v['route'].get()}", st,
                 status_tekst=st_t,
-                extra=f"model: HESTIA (JOS-3 + CVR) via hestia_loper, ensemble n = {t.n}, seed {t.seed}",
-                niet="een gemeten kerntemperatuur of een medisch advies (voorspelde modeltoestand).")
+                extra=vt(f"model: HESTIA (JOS-3 + CVR) via hestia_loper, ensemble n = {t.n}, seed {t.seed}", f"model: HESTIA (JOS-3 + CVR) via hestia_loper, ensemble n = {t.n}, seed {t.seed}"),
+                niet=vt("een gemeten kerntemperatuur of een medisch advies (voorspelde modeltoestand).", "a measured core temperature or medical advice (predicted model state)."))
 
         def _toon_tegels(self):
             t, r = self.taak, self.resultaat
             if t is None:
-                self.tegels.leeg("Nog geen uitkomst.")
+                self.tegels.leeg(vt("Nog geen uitkomst.", "No result yet."))
                 return
             if r is None:
-                self.tegels.leeg(f"Berekenen … n = {len(t.traces)}/{t.n}. De grafieken tonen de "
-                                 "voorlopige banden.")
+                self.tegels.leeg(vt(f"Berekenen … n = {len(t.traces)}/{t.n}. De grafieken tonen de "
+                                 "voorlopige banden.",
+                                    f"Calculating … n = {len(t.traces)}/{t.n}. The charts show the "
+                                 "provisional bands."))
                 return
             s, a = r.samenvatting(), r.assessment
             tr, co = s["t_rect_max"], s["co_min"]
@@ -1799,67 +1900,77 @@ def _start_ui(na_start=None):
             if m_t or m_c:
                 delen = []
                 if m_t:
-                    delen.append(f"T_rect 39,5 °C om {m_t}")
+                    delen.append(vt(f"T_rect 39,5 °C om {m_t}", f"T_rect 39.5 °C at {m_t}"))
                 if m_c:
-                    delen.append(f"CO-reserve 2,0 om {m_c}")
+                    delen.append(vt(f"CO-reserve 2,0 om {m_c}", f"CO reserve 2.0 at {m_c}"))
                 kritiek = " · ".join(delen)
                 kl_k = KLEUR["oranje"]
             else:
-                kritiek = "niet bereikt"
+                kritiek = vt("niet bereikt", "not reached")
                 kl_k = KLEUR["groen"]
-            sub_k = "mediaan van het ensemble"
+            sub_k = vt("mediaan van het ensemble", "median of the ensemble")
             if h_t and h_t != m_t:
-                sub_k += f"; bovenkant 95%-band 39,5 °C om {h_t}"
+                sub_k += vt(f"; bovenkant 95%-band 39,5 °C om {h_t}", f"; top of 95% band 39.5 °C at {h_t}")
             sig = r.signaal or {}
             items = [
-                dict(titel="Piek kerntemperatuur", waarde=f"{hl.nl(tr['med'])} °C",
-                     sub=f"95%-band {hl.nl(tr['lo'])}–{hl.nl(tr['hi'])} °C", kleur=kl_t),
-                dict(titel="Laagste CO-reserve", waarde=f"{hl.nl(co['med'])} L/min",
-                     sub=f"95%-band {hl.nl(co['lo'])}–{hl.nl(co['hi'])} L/min", kleur=kl_c),
-                dict(titel="Grenswaarde bereikt", waarde=kritiek if len(kritiek) < 22 else kritiek.split(" · ")[0],
+                dict(titel=vt("Piek kerntemperatuur", "Peak core temperature"), waarde=f"{hl.nl(tr['med'])} °C",
+                     sub=vt(f"95%-band {hl.nl(tr['lo'])}–{hl.nl(tr['hi'])} °C", f"95% band {hl.nl(tr['lo'])}–{hl.nl(tr['hi'])} °C"), kleur=kl_t),
+                dict(titel=vt("Laagste CO-reserve", "Lowest CO reserve"), waarde=f"{hl.nl(co['med'])} L/min",
+                     sub=vt(f"95%-band {hl.nl(co['lo'])}–{hl.nl(co['hi'])} L/min", f"95% band {hl.nl(co['lo'])}–{hl.nl(co['hi'])} L/min"), kleur=kl_c),
+                dict(titel=vt("Grenswaarde bereikt", "Limit value reached"), waarde=kritiek if len(kritiek) < 22 else kritiek.split(" · ")[0],
                      sub=(kritiek.split(" · ")[1] + "; " if " · " in kritiek else "") + sub_k, kleur=kl_k),
-                dict(titel="Looptijd (mediaan, mm:ss)", waarde=hl.min_naar_tempo(s["finish"]["med"]),
-                     sub=f"traagste 2,5%: {hl.min_naar_tempo(s['finish']['hi'])}; vochtverlies "
-                         f"{hl.nl(s['dehyd']['med'])}%", kleur="#5d6d7e"),
-                dict(titel="Modelsignaal", waarde=hl.SIGNAAL_TEKST.get(sig.get("kleur"), "—"),
-                     sub=f"n = {t.n} ensemble-leden", kleur=SIGNAAL_KLEUR.get(sig.get("kleur"), "#7f8c8d")),
+                dict(titel=vt("Looptijd (mediaan, mm:ss)", "Running time (median, mm:ss)"), waarde=hl.min_naar_tempo(s["finish"]["med"]),
+                     sub=vt(f"traagste 2,5%: {hl.min_naar_tempo(s['finish']['hi'])}; vochtverlies "
+                         f"{hl.nl(s['dehyd']['med'])}%",
+                            f"slowest 2.5%: {hl.min_naar_tempo(s['finish']['hi'])}; fluid loss "
+                         f"{hl.nl(s['dehyd']['med'])}%"), kleur="#5d6d7e"),
+                dict(titel=vt("Modelsignaal", "Model signal"), waarde=hl.SIGNAAL_TEKST.get(sig.get("kleur"), "—"),
+                     sub=vt(f"n = {t.n} ensemble-leden", f"n = {t.n} ensemble members"), kleur=SIGNAAL_KLEUR.get(sig.get("kleur"), "#7f8c8d")),
             ]
-            uitleg = ("Betekenis: " + " ".join(sig.get("redenen", []))).strip()
+            uitleg = (vt("Betekenis: ", "Meaning: ") + " ".join(sig.get("redenen", []))).strip()
             if tr["hi"] > hm.T_THERMAL_ONLY_CRITICAL:
-                uitleg += (f"  ⚠ Bovenkant boven {hm.T_THERMAL_ONLY_CRITICAL:.0f} °C: daar rekent het model "
-                           "buiten zijn getoetste gebied (zie onder).")
+                uitleg += (vt(f"  ⚠ Bovenkant boven {hm.T_THERMAL_ONLY_CRITICAL:.0f} °C: daar rekent het model "
+                           "buiten zijn getoetste gebied (zie onder).",
+                              f"  ⚠ Upper end above {hm.T_THERMAL_ONLY_CRITICAL:.0f} °C: there the model calculates "
+                           "outside its tested range (see below)."))
             self.tegels.zet(items, uitleg)
 
         def _toon_tegels_rust(self):
             rr = self.rust
             if rr is None:
-                self.tegels.leeg("Berekenen (HEAT-Lim) …")
+                self.tegels.leeg(vt("Berekenen (HEAT-Lim) …", "Calculating (HEAT-Lim) …"))
                 return
             ins = rr.instellingen
             eigen = rust_profielen_voor_leeftijd(int(self._f("leeftijd")))
-            naam = {"young": "18–40 jaar", "old": "65+"}
+            naam = {"young": vt("18–40 jaar", "18–40 years"), "old": "65+"}
             kleur_cat = {0: "#aab7b8", 1: "#27ae60", 2: "#d4ac0d", 3: "#e67e22", 4: "#c0392b"}
             items = []
             for k in eigen:
                 mm, c = rr.mmax[k], rr.cat[k]
                 laagste = hl.nl(float(np.nanmin(mm))) + " MET" if np.isfinite(mm).any() else "—"
-                items.append(dict(titel=f"Laagste Mmax, {naam[k]}", waarde=laagste,
-                                  sub=f"normale activiteit = {hl.nl(ins['activiteit_met'])} MET",
+                items.append(dict(titel=vt(f"Laagste Mmax, {naam[k]}", f"Lowest Mmax, {naam[k]}"), waarde=laagste,
+                                  sub=vt(f"normale activiteit = {hl.nl(ins['activiteit_met'])} MET", f"normal activity = {hl.nl(ins['activiteit_met'])} MET"),
                                   kleur=kleur_cat[int(c.max())]))
-                items.append(dict(titel=f"Uren, {naam[k]}", waarde=f"{int(np.sum(c >= 2))} van {len(c)}",
-                                  sub=f"onder normale activiteit; niet leefbaar {int(np.sum(c == 3))}, "
+                items.append(dict(titel=vt(f"Uren, {naam[k]}", f"Hours, {naam[k]}"), waarde=vt(f"{int(np.sum(c >= 2))} van {len(c)}", f"{int(np.sum(c >= 2))} of {len(c)}"),
+                                  sub=vt(f"onder normale activiteit; niet leefbaar {int(np.sum(c == 3))}, "
                                       f"niet overleefbaar {int(np.sum(c == 4))}",
+                                         f"below normal activity; not liveable {int(np.sum(c == 3))}, "
+                                      f"not survivable {int(np.sum(c == 4))}"),
                                   kleur=kleur_cat[int(c.max())]))
             zwaarst = max(int(rr.cat[k].max()) for k in eigen)
-            items.append(dict(titel="Zwaarste uur", waarde=RUST_CAT_KORT[zwaarst],
-                              sub=f"rust in de {'zon' if ins['zon'] == 'outdoor' else 'schaduw'}, "
-                                  f"{ins['blootstelling_u']} u blootstelling", kleur=kleur_cat[zwaarst]))
-            self.tegels.zet(items, "Betekenis: per uur, als de omstandigheden van dat uur "
-                                   f"{ins['blootstelling_u']} uur aanhouden. Geen voorspelling voor de hele dag.")
+            items.append(dict(titel=vt("Zwaarste uur", "Most severe hour"), waarde=RUST_CAT_KORT[zwaarst],
+                              sub=vt(f"rust in de {'zon' if ins['zon'] == 'outdoor' else 'schaduw'}, "
+                                  f"{ins['blootstelling_u']} u blootstelling",
+                                     f"rest in the {'sun' if ins['zon'] == 'outdoor' else 'shade'}, "
+                                  f"{ins['blootstelling_u']} h exposure"), kleur=kleur_cat[zwaarst]))
+            self.tegels.zet(items, vt("Betekenis: per uur, als de omstandigheden van dat uur "
+                                   f"{ins['blootstelling_u']} uur aanhouden. Geen voorspelling voor de hele dag.",
+                                      "Meaning: per hour, if the conditions of that hour persist for "
+                                   f"{ins['blootstelling_u']} hours. Not a prediction for the whole day."))
 
         def _fout(self, tekst):
-            self.tegels.leeg("Geen uitkomst: zie de melding onder de grafieken.")
-            self.lbl_status.config(text="Fout – zie onder")
+            self.tegels.leeg(vt("Geen uitkomst: zie de melding onder de grafieken.", "No result: see the message below the charts."))
+            self.lbl_status.config(text=vt("Fout – zie onder", "Error – see below"))
             self.txt.config(state="normal")
             self.txt.delete("1.0", "end")
             self.txt.insert("end", tekst, "waarsch")
@@ -1885,26 +1996,25 @@ def _start_ui(na_start=None):
             try:
                 inv = hl.LoperInvoer.laden(p)
             except Exception as e:
-                self._fout(f"Laden mislukt: {e}")
+                self._fout(vt(f"Laden mislukt: {e}", f"Loading failed: {e}"))
                 return
-            zet = {"geslacht": inv.geslacht, "leeftijd": inv.leeftijd, "gewicht": inv.gewicht_kg,
+            self.v["geslacht"].set(self.widget["geslacht"]["values"][("man", "vrouw").index(inv.geslacht)])
+            zet = {"leeftijd": inv.leeftijd, "gewicht": inv.gewicht_kg,
                    "lengte": inv.lengte_cm, "trainingskm": inv.trainingskm_per_week,
                    "afstand": inv.afstand_km, "datum": inv.datum, "plaats": inv.plaats}
             opt = {"hr_rust": inv.hr_rust_bekend, "hr_max": inv.hr_max_bekend,
                    "vo2max": inv.vo2max_bekend, "wedstr_km": inv.wedstrijd_afstand_km,
                    "wedstr_tijd": inv.wedstrijd_tijd, "vet": inv.vetpercentage_bekend}
             for k, x in {**zet, **opt}.items():
-                self.v[k].set("" if x is None else str(x).replace(".", ",") if isinstance(x, float) else str(x))
+                self.v[k].set("" if x is None else (str(x) if engels() else str(x).replace(".", ","))
+                              if isinstance(x, float) else str(x))
             self.v["eenheid"].set("min/km")
             self._eenheid_vorig = "min/km"
             self.v["snelheid"].set(inv.tempo_min_per_km)
             for k, attr in (("drinkt", "drinkt_bij_elke_post"), ("nsaid", "nsaid_voor_of_tijdens"),
                             ("acclim", "hitte_geacclimatiseerd")):
                 self.v[k].set(bool(getattr(inv, attr)))
-            self.v["kleding"].set(next(w for w in ["licht (singlet + korte broek)",
-                                                   "normaal (T-shirt + korte broek)",
-                                                   "lang (lange mouwen/broek)"]
-                                       if w.startswith(inv.kleding)))
+            self.v["kleding"].set(self.widget["kleding"]["values"][("licht", "normaal", "lang").index(inv.kleding)])
             for k in hl.NIET_GEMODELLEERD:
                 self.v[k].set(bool(getattr(inv, k)))
             self.v["starttijd"].set(inv.starttijd)
@@ -1914,7 +2024,7 @@ def _start_ui(na_start=None):
                 if not pad.is_absolute():
                     pad = Path(p).parent / pad
                 self.v["excel"].set(str(pad))
-                self.v["bron"].set("Data Engine-bestand")
+                self.v["bron"].set(vt("Data Engine-bestand", "Data Engine file"))
             else:
                 self.v["bron"].set("online (Open-Meteo)")
                 self._zoek_plaats()
@@ -1922,18 +2032,18 @@ def _start_ui(na_start=None):
         def _export(self):
             if self._is_rust():
                 if self.rust is None:
-                    messagebox.showinfo("Excel-export", "Er is nog geen resultaat.")
+                    messagebox.showinfo(vt("Excel-export", "Excel export"), vt("Er is nog geen resultaat.", "There is no result yet."))
                     return
                 p = filedialog.asksaveasfilename(defaultextension=".xlsx",
                                                  filetypes=[("Excel", "*.xlsx")], initialdir=str(HIER))
                 if p:
                     try:
-                        rust_tabel(self.rust).to_excel(p, sheet_name="HEAT-Lim per uur", index=False)
+                        rust_tabel(self.rust).to_excel(p, sheet_name=vt("HEAT-Lim per uur", "HEAT-Lim per hour"), index=False)
                     except Exception as e:
-                        self._fout(f"Export mislukt: {e}")
+                        self._fout(vt(f"Export mislukt: {e}", f"Export failed: {e}"))
                 return
             if self.resultaat is None:
-                messagebox.showinfo("Excel-export", "Er is nog geen volledig resultaat.")
+                messagebox.showinfo(vt("Excel-export", "Excel export"), vt("Er is nog geen volledig resultaat.", "There is no full result yet."))
                 return
             p = filedialog.asksaveasfilename(defaultextension=".xlsx", filetypes=[("Excel", "*.xlsx")],
                                              initialdir=str(HIER))
@@ -1941,7 +2051,7 @@ def _start_ui(na_start=None):
                 try:
                     hl.exporteer_excel(self.resultaat, p)
                 except Exception as e:
-                    self._fout(f"Export mislukt: {e}")
+                    self._fout(vt(f"Export mislukt: {e}", f"Export failed: {e}"))
 
         def _sluit(self):
             self._annuleer()

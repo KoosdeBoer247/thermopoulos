@@ -53,6 +53,8 @@ Every file in the release and what it does. History of individual files:
 | `individual_engine.py` | one-person wrapper of the same physiology (scenarios, EHS/EHE/EAC criteria) |
 | `local_storage.py` | local-only persistence for the personal app |
 | `hestia_bridge.py` | adapter for Klimatos and the app (weather to engine input, summaries) |
+| `hestia_werk.py` | work mode: a group of outdoor workers over a working day (own time loop on the engine's building blocks; work–rest schedule, occupational limits, WBGT against ISO 7243, PHS check) |
+| `hestia_werk_rapport.py` | Word report of the work mode |
 | `intercept_estimation.py` | calibration of the collapse-risk intercepts per endpoint (Boston, Dam tot Damloop 2024 with real weather) |
 | `intercept_controle_2026-11-04.json` | raw results of the current calibration |
 | `intercept_controle_2026-11-01.json` | raw results of the previous calibration (before the HUTAS wettedness change) |
@@ -121,15 +123,18 @@ Every file in the release and what it does. History of individual files:
 ## Visual interfaces (Tkinter)
 
 Separate scripts on top of the suite: they only call existing suite functions
-and change no calculation. Each opens its own window; texts are in Dutch.
+and change no calculation. Each opens its own window, in Dutch or English (chosen
+on the start screen; see `taal.py`).
 
 | File | Purpose |
 |---|---|
-| `thermopoulos_ui.py` | start screen: choose one of the four interfaces below (keys 1–4); each opens in its own process |
+| `thermopoulos_ui.py` | start screen: choose one of the five interfaces below (keys 1–5); each opens in its own process. Dutch by default; the British flag switches the start screen and the interfaces opened from it to English (the Dutch flag switches back) |
+| `taal.py` | language of the interfaces and of the charts and Word reports made from them: `vt(nl, en)` for texts, `getal()` for decimal comma (NL) or point (EN), dates; set by `--lang en` or the environment variable `THERMOPOULOS_TAAL`, which spawned workers inherit. Display only: the values passed to the suite are the same in both languages |
 | `hestia_loper_ui.py` | one runner (or a person at rest): core temperature, CO reserve, WBGT, air temperature, humidity and wind during the run; online weather or a Data Engine file; live recalculation when the start time changes; HEAT-Lim rest mode |
 | `hestia_populatie_ui.py` | event population: progressive Monte Carlo through `run_monte_carlo_adult`, EHS per 1000 with interval, risk bar, when/where/who, ten hottest participants, start-time comparison, Excel export |
+| `hestia_werk_ui.py` | outdoor workers over a working day (`hestia_werk.py`): work–rest schedule and breaks, core temperature, fluid loss and heart rate of the group against occupational limits, WBGT per hour against ISO 7243, PHS (ISO 7933) check, ten hottest workers, Word report (`hestia_werk_rapport.py`) |
 | `pyrox_ui.py` | PYROX: strain per group via `run_pyrox.assess_population`, heatmap, feedback loop, forecast uncertainty, regimes with stability of the equilibrium and the tipping zone, briefing (calendar, margin, after-effect), buckets, tipping-point landscape, Excel, Word report and an A4 briefing (`python-docx`) |
-| `ui_gemeen.py` | shared presentation parts for the four interfaces (display only, no calculations): input sections labelled required / optional / model setting, result tiles with a one-line interpretation, a provenance line (data source, suite version, status, what the result is not) and a short explanation per tab |
+| `ui_gemeen.py` | shared presentation parts for the interfaces (display only, no calculations): input sections labelled required / optional / model setting, result tiles with a one-line interpretation, a provenance line (data source, suite version, status, what the result is not) and a short explanation per tab |
 | `klimatos_ui.py` | Klimatos: year-by-year fetch through `build_annual_maxima` with a disk cache (resumable), analysis through `Klimatos_ClimateShift.main()` itself, elapsed/remaining clocks, quick 30-year exploration, EHS evolution on request, and an assessment mode that runs the ERA5 land-sea correction for every year (kept separate from the suite results) |
 
 ## Menu and tests
@@ -153,6 +158,8 @@ and change no calculation. Each opens its own window; texts are in Dutch.
 | `run_all_tests.py` | runs every test script with a summary |
 | `tests/test_scripts.py` | the same scripts under pytest (slow ones marked `slow`) |
 | `tests/test_golden.py`, `tests/golden_dump.py`, `tests/golden_reference.json` | golden-output regression test against the 2026-11-04 calibration version |
+| `tests/test_hestia_werk.py` | work mode: schedule, group of workers, limits and a short working day end to end |
+| `tests/test_taal.py` | language layer: text and number functions, English texts, the work-mode calculation and a PYROX report identical in Dutch and English |
 | `tests/test_pyrox_populatie.py` | PYROX population layer: CV 0 equals the single model, median member, determinism, ordering on Paris 2003, removed groups |
 | `suite_smoke_test.py` | end-to-end smoke test |
 | `test_koude_huid.py` | cold-skin limit of JOS-3 (off by default, effect in cold, none in heat, clinic variant B4) |

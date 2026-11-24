@@ -47,6 +47,8 @@ Starten:  python pyrox_ui.py
 """
 from __future__ import annotations
 
+from taal import vt, getal, datum as taal_datum
+
 import os
 import queue
 import threading
@@ -59,7 +61,7 @@ import numpy as np
 import pandas as pd
 
 HIER = Path(__file__).resolve().parent
-COMBI = "Verleden + verwachting (gecombineerd)"
+COMBI = vt("Verleden + verwachting (gecombineerd)", "Past + forecast (combined)")
 
 
 # =============================================================================
@@ -155,8 +157,8 @@ class WeerLader:
                               dagtabel(self._verwerk(fr, fc, kand, route)))
         dh, df_ = self._cache[k]
         comb, fs = combineer(dh, df_, n_verleden, n_verwachting)
-        return Weer(comb, kand["name"], f"online: {n_verleden} d ERA5-archief + {n_verwachting} d verwachting",
-                    fs, f"Hindcast_{n_verleden}d + verwachting_{n_verwachting}d")
+        return Weer(comb, kand["name"], vt(f"online: {n_verleden} d ERA5-archief + {n_verwachting} d verwachting", f"online: {n_verleden} d ERA5 archive + {n_verwachting} d forecast"),
+                    fs, vt(f"Hindcast_{n_verleden}d + verwachting_{n_verwachting}d", f"Hindcast_{n_verleden}d + forecast_{n_verwachting}d"))
 
     def online_historisch(self, kand, route, van, tot) -> Weer:
         import Thermopoulos_Data_Engine as de
@@ -164,11 +166,11 @@ class WeerLader:
         k = ("hist", round(lat, 4), round(lon, 4), van, tot, route)
         if k not in self._cache:
             if pd.Timestamp(tot) >= pd.Timestamp.now().normalize():
-                raise ValueError("Historische periode: 'tot' moet in het verleden liggen.")
+                raise ValueError(vt("Historische periode: 'tot' moet in het verleden liggen.", "Historical period: 'to' must be in the past."))
             r, c = de.fetch_historical_data(lat, lon, tz, start_date=van, end_date=tot)
             r = de.validate_weather_data(r, "historical")
             self._cache[k] = dagtabel(self._verwerk(r, c, kand, route))
-        return Weer(self._cache[k], kand["name"], f"online: ERA5-archief {van} t/m {tot}", None,
+        return Weer(self._cache[k], kand["name"], vt(f"online: ERA5-archief {van} t/m {tot}", f"online: ERA5 archive {van} to {tot}"), None,
                     "Historical_Custom")
 
     # ----------------------------------------------------------------- excel
@@ -191,11 +193,13 @@ class WeerLader:
         data, dagen = self._cache[k]
         if blad == COMBI:
             if "Hindcast_14d" not in dagen or "Forecast_7d" not in dagen:
-                raise ValueError("Voor 'verleden + verwachting' zijn de bladen Hindcast_14d en Forecast_7d nodig.")
+                raise ValueError(vt("Voor 'verleden + verwachting' zijn de bladen Hindcast_14d en Forecast_7d nodig.", "For 'past + forecast' the sheets Hindcast_14d and Forecast_7d are needed."))
             comb, fs = combineer(dagen["Hindcast_14d"], dagen["Forecast_7d"], n_verleden, n_verwachting)
-            return Weer(comb, data.city, f"{Path(pad).name}: Hindcast_14d (laatste {n_verleden} d) + "
-                                         f"Forecast_7d (eerste {n_verwachting} d)", fs,
-                        f"Hindcast_{n_verleden}d + verwachting_{n_verwachting}d")
+            return Weer(comb, data.city, vt(f"{Path(pad).name}: Hindcast_14d (laatste {n_verleden} d) + "
+                                         f"Forecast_7d (eerste {n_verwachting} d)",
+                                            f"{Path(pad).name}: Hindcast_14d (last {n_verleden} d) + "
+                                         f"Forecast_7d (first {n_verwachting} d)"), fs,
+                        vt(f"Hindcast_{n_verleden}d + verwachting_{n_verwachting}d", f"Hindcast_{n_verleden}d + forecast_{n_verwachting}d"))
         fs = 0 if "forecast" in blad.lower() else None   # zoals generate_pyrox_report
         return Weer(dagen[blad], data.city, f"{Path(pad).name}: {blad}", fs, blad)
 
@@ -322,15 +326,15 @@ def piekvoorbeeld(grp, R, voor=5, na=40, duur=3):
 # -----------------------------------------------------------------------------
 # Briefing: marge, nawerking, zekerheid, kantellandschap (alles via simulate)
 # -----------------------------------------------------------------------------
-DAGNAAM = ["ma", "di", "wo", "do", "vr", "za", "zo"]
+DAGNAAM = [vt("ma", "Mon"), vt("di", "Tue"), vt("wo", "Wed"), vt("do", "Thu"), vt("vr", "Fri"), vt("za", "Sat"), vt("zo", "Sun")]
 ZONE_VOLGORDE = ["safe", "caution", "danger", "emergency"]
-ZONE_WOORD = {"safe": "veilig", "caution": "let op", "danger": "gevaar", "emergency": "noodsituatie"}
+ZONE_WOORD = {"safe": vt("veilig", "safe"), "caution": vt("let op", "caution"), "danger": vt("gevaar", "danger"), "emergency": vt("noodsituatie", "emergency")}
 MAX_DAGEN = 30
 
 
 def dagtekst(d) -> str:
     d = pd.Timestamp(d)
-    return f"{DAGNAAM[d.dayofweek]} {d:%d-%m}"
+    return f"{DAGNAAM[d.dayofweek]} {taal_datum(d, False)}"
 
 
 def _zone_i(v, crit) -> int:
@@ -432,16 +436,16 @@ def kalenderzin(weer, rapport: dict, groep: str, graden: float, pre) -> str:
             if fs is None or c < fs:
                 woord = ""
             else:
-                woord = " (zeker)" if (lo is not None and lo <= c) else " (waarschijnlijk)"
-            delen.append(f"{w} vanaf {dagtekst(datums[c])}{woord}")
+                woord = vt(" (zeker)", " (certain)") if (lo is not None and lo <= c) else vt(" (waarschijnlijk)", " (likely)")
+            delen.append(vt(f"{w} vanaf {dagtekst(datums[c])}{woord}", f"{w} from {dagtekst(datums[c])}{woord}"))
         elif hi is not None and fs is not None:
-            delen.append(f"{w} mogelijk vanaf {dagtekst(datums[hi])}")
+            delen.append(vt(f"{w} mogelijk vanaf {dagtekst(datums[hi])}", f"{w} possible from {dagtekst(datums[hi])}"))
     naam = TARGET_GROUPS[groep].display_name
     if not delen:
-        return f"{naam}: blijft veilig."
+        return vt(f"{naam}: blijft veilig.", f"{naam}: stays safe.")
     boven = [i for i, z in enumerate(zk) if z[0] >= 1]
-    t_m = (" — boven 'let op' t/m het einde van de periode" if boven and boven[-1] == len(zk) - 1
-           else (f" — weer veilig vanaf {dagtekst(datums[boven[-1] + 1])}" if boven else ""))
+    t_m = (vt(" — boven 'let op' t/m het einde van de periode", " — above 'caution' until the end of the period") if boven and boven[-1] == len(zk) - 1
+           else (vt(f" — weer veilig vanaf {dagtekst(datums[boven[-1] + 1])}", f" — safe again from {dagtekst(datums[boven[-1] + 1])}") if boven else ""))
     return f"{naam}: " + "; ".join(delen) + t_m + "."
 
 
@@ -461,10 +465,10 @@ def landschap(groep: str, R: float, n: int = 101):
 
 
 ADVIES = {
-    "safe": ["Geen extra maatregelen nodig; volg de verwachting."],
-    "rest": ["Breng kwetsbare groepen in beeld (o.a. ouderen, alleenwonenden, zorginstellingen) en houd dagelijks contact.",
-             "Zorg voor koele ruimtes overdag en zo koel mogelijke nachten; let op voldoende drinken.",
-             "Schaal niet af zodra het koeler wordt: opgebouwde belasting werkt na (zie 'Nawerking')."],
+    "safe": [vt("Geen extra maatregelen nodig; volg de verwachting.", "No extra measures needed; follow the forecast.")],
+    "rest": [vt("Breng kwetsbare groepen in beeld (o.a. ouderen, alleenwonenden, zorginstellingen) en houd dagelijks contact.", "Identify vulnerable groups (e.g. older people, people living alone, care homes) and keep in daily contact."),
+             vt("Zorg voor koele ruimtes overdag en zo koel mogelijke nachten; let op voldoende drinken.", "Provide cool rooms during the day and nights as cool as possible; make sure people drink enough."),
+             vt("Schaal niet af zodra het koeler wordt: opgebouwde belasting werkt na (zie 'Nawerking').", "Do not scale down as soon as it gets cooler: accumulated strain has an after-effect (see 'After-effect').")],
 }
 
 
@@ -501,12 +505,14 @@ def schrijf_briefing(pad: str, app) -> str:
             par.paragraph_format.space_after = Pt(na)
             return par
 
-        alinea(f"Hittebriefing — {weer.city}", 20, True, na=0)
+        alinea(vt(f"Hittebriefing — {weer.city}", f"Heat briefing — {weer.city}"), 20, True, na=0)
         d0, d1 = pd.Timestamp(r["dates"][0]), pd.Timestamp(r["dates"][-1])
-        verw = (f" · verwachting vanaf {dagtekst(r['dates'][weer.forecast_start])}"
+        verw = (vt(f" · verwachting vanaf {dagtekst(r['dates'][weer.forecast_start])}", f" · forecast from {dagtekst(r['dates'][weer.forecast_start])}")
                 if weer.forecast_start is not None and 0 <= weer.forecast_start < len(r["dates"]) else "")
-        alinea(f"{dagtekst(d0)} {d0.year} t/m {dagtekst(d1)} {d1.year}{verw} · woonomgeving {app.v['route'].get()} · "
-               f"gemaakt {pd.Timestamp.now():%d-%m-%Y %H:%M} · PYROX (research software)", 8.5, kleur="666666", na=6)
+        alinea(vt(f"{dagtekst(d0)} {d0.year} t/m {dagtekst(d1)} {d1.year}{verw} · woonomgeving {app.v['route'].get()} · "
+               f"gemaakt {pd.Timestamp.now():%d-%m-%Y %H:%M} · PYROX (research software)",
+                  f"{dagtekst(d0)} {d0.year} to {dagtekst(d1)} {d1.year}{verw} · living environment {app.v['route'].get()} · "
+               f"made {taal_datum(pd.Timestamp.now())} {pd.Timestamp.now():%H:%M} · PYROX (research software)"), 8.5, kleur="666666", na=6)
         par = alinea(tekst, 13, True, kleur="000000" if zone == "danger" else "FFFFFF", na=6)
         sh = OxmlElement("w:shd")
         sh.set(qn("w:val"), "clear")
@@ -517,11 +523,11 @@ def schrijf_briefing(pad: str, app) -> str:
             p_ = doc.add_paragraph(style="List Bullet")
             p_.add_run(z).font.size = Pt(9.5)
             p_.paragraph_format.space_after = Pt(0)
-        alinea(f"Marge vanaf {dagtekst(r['dates'][peil])} (als het zo heet blijft) en herstel (als het daarna koel wordt)",
+        alinea(vt(f"Marge vanaf {dagtekst(r['dates'][peil])} (als het zo heet blijft) en herstel (als het daarna koel wordt)", f"Margin from {dagtekst(r['dates'][peil])} (if it stays this hot) and recovery (if it then becomes cool)"),
                10.5, True, na=2).paragraph_format.space_before = Pt(6)
         tab = doc.add_table(rows=1, cols=5)
         tab.style = "Light Grid Accent 1"
-        for c, t in zip(tab.rows[0].cells, ("Groep", "Nu", "Tot gevaar", "Tot noodsituatie", "Herstel na koel weer")):
+        for c, t in zip(tab.rows[0].cells, (vt("Groep", "Group"), vt("Nu", "Now"), vt("Tot gevaar", "To danger"), vt("Tot noodsituatie", "To emergency"), vt("Herstel na koel weer", "Recovery after cool weather"))):
             c.text = t
         for rij in rijen:
             cells = tab.add_row().cells
@@ -534,23 +540,29 @@ def schrijf_briefing(pad: str, app) -> str:
                         run.font.size = Pt(9)
         doc.add_picture(beelden["emmers"], width=Cm(15.5))
         doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
-        alinea("Wat te doen", 10.5, True, na=1)
+        alinea(vt("Wat te doen", "What to do"), 10.5, True, na=1)
         for a in ADVIES["safe" if zone == "safe" else "rest"]:
             p_ = doc.add_paragraph(style="List Bullet")
             p_.add_run(a).font.size = Pt(9.5)
             p_.paragraph_format.space_after = Pt(0)
-        alinea("Standaardadviezen; volg het lokale hitteplan. Zones = gemiddelde belasting van de groep op 50 / 75 / 90 % van "
+        alinea(vt("Standaardadviezen; volg het lokale hitteplan. Zones = gemiddelde belasting van de groep op 50 / 75 / 90 % van "
                "haar kritieke grens; dat is ongeveer het aandeel leden van die groep in de noodsituatie. "
                "Marge = de warmtebelasting van de peildag houdt aan; herstel = "
                "na de laatste dag geen warmtebelasting en volledige nachtrust. '?' = uitkomst hangt af van de verwachting "
                f"(±{nl_(app.onz)} °C). PYROX is research software: de warmtebelasting is gekalibreerd op Parijs 2003 en 16 van "
-               "de 19 groepen zijn geëxtrapoleerd.", 7.5, kleur="666666", na=0).paragraph_format.space_before = Pt(4)
+               "de 19 groepen zijn geëxtrapoleerd.",
+                  "Standard advice; follow the local heat plan. Zones = mean strain of the group at 50 / 75 / 90 % of "
+               "its critical limit; that is roughly the share of members of the group in emergency. "
+               "Margin = the heat load of the reference day persists; recovery = "
+               "no heat load after the last day and full night rest. '?' = outcome depends on the forecast "
+               f"(±{nl_(app.onz)} °C). PYROX is research software: the heat load is calibrated on Paris 2003 and 16 of "
+               "the 19 groups are extrapolated."), 7.5, kleur="666666", na=0).paragraph_format.space_before = Pt(4)
         doc.save(pad)
     return pad
 
 
 def nl_(x, d=1):
-    return f"{x:.{d}f}".replace(".", ",")
+    return getal(x, d)
 
 
 def _rapport_proces(event_name, rapport, stam, word, aanhangsel=""):
@@ -563,7 +575,7 @@ def _rapport_proces(event_name, rapport, stam, word, aanhangsel=""):
     md = stam + ".md"
     tekst = generate_pyrox_report(event_name, rapport, md)
     if aanhangsel:
-        eind = "*Einde rapport.*"
+        eind = vt("*Einde rapport.*", "*End of report.*")
         tekst = (tekst.replace(eind, aanhangsel.rstrip() + "\n\n" + eind, 1) if eind in tekst
                  else tekst.rstrip() + "\n\n" + aanhangsel)
         Path(md).write_text(tekst, encoding="utf-8")
@@ -574,7 +586,7 @@ def _rapport_proces(event_name, rapport, stam, word, aanhangsel=""):
             export_report_docx(tekst, stam + ".docx", report_kind="facts", event_name=event_name)
             uit.append(stam + ".docx")
         except Exception as e:
-            uit.append(f"Word-export lukte niet ({e}); het Markdown-rapport staat er wel.")
+            uit.append(vt(f"Word-export lukte niet ({e}); het Markdown-rapport staat er wel.", f"Word export failed ({e}); the Markdown report is there."))
     return uit
 
 
@@ -603,17 +615,17 @@ def _start_ui(na_start=None):
     LETTER = 12
     matplotlib.rcParams.update({"font.size": 11, "axes.titlesize": 12, "axes.titleweight": "bold",
                                 "axes.grid": True, "grid.alpha": 0.3, "legend.fontsize": 9})
-    ZONE_NL = {"safe": "veilig", "caution": "let op", "danger": "gevaar", "emergency": "noodsituatie"}
+    ZONE_NL = {"safe": vt("veilig", "safe"), "caution": vt("let op", "caution"), "danger": vt("gevaar", "danger"), "emergency": vt("noodsituatie", "emergency")}
     ZONES = ["safe", "caution", "danger", "emergency"]
     VOLGORDE = list(TARGET_GROUPS)           # resilient -> kwetsbaar (zoals pyrox_groups)
 
     def nl(x, d=2):
-        return f"{x:.{d}f}".replace(".", ",")
+        return getal(x, d)
 
     class App:
         def __init__(self, root):
             self.root = root
-            root.title("PYROX · meerdaagse hittebelasting van bevolkingsgroepen  (research software)")
+            root.title(vt("PYROX · meerdaagse hittebelasting van bevolkingsgroepen  (research software)", "PYROX · multi-day heat strain of population groups  (research software)"))
             for naam in ("TkDefaultFont", "TkTextFont", "TkFixedFont", "TkMenuFont", "TkHeadingFont"):
                 try:
                     tkfont.nametofont(naam).configure(size=LETTER)
@@ -656,46 +668,48 @@ def _start_ui(na_start=None):
             self.v, self.w = {}, {}
 
             ug.invoer_legenda(self.form, LETTER)
-            r = self._sectie("Weer", "verplicht")
-            self._keuze(r, "bron", "Weerbron", ["online (Open-Meteo)", "Data Engine-bestand"],
+            r = self._sectie(vt("Weer", "Weather"), "verplicht")
+            self._keuze(r, "bron", vt("Weerbron", "Weather source"), ["online (Open-Meteo)", vt("Data Engine-bestand", "Data Engine file")],
                         "online (Open-Meteo)", weer=True)
-            rij = self._rij(r, "Bestand")
+            rij = self._rij(r, vt("Bestand", "File"))
             self.v["excel"] = tk.StringVar(value="")
             ttk.Entry(rij, textvariable=self.v["excel"], width=14).pack(side="left")
-            ttk.Button(rij, text="Kies…", command=self._kies_excel, width=6).pack(side="left", padx=3)
-            self._keuze(r, "blad", "Blad", [COMBI], COMBI, weer=True, breed=36)
-            rij = self._rij(r, "Plaats")
+            ttk.Button(rij, text=vt("Kies…", "Choose…"), command=self._kies_excel, width=6).pack(side="left", padx=3)
+            self._keuze(r, "blad", vt("Blad", "Sheet"), [COMBI], COMBI, weer=True, breed=36)
+            rij = self._rij(r, vt("Plaats", "Location"))
             self.v["plaats"] = tk.StringVar(value="Schagen")
             pe = ttk.Entry(rij, textvariable=self.v["plaats"], width=14)
             pe.pack(side="left")
             pe.bind("<Return>", lambda e: self._zoek_plaats())
-            ttk.Button(rij, text="Zoek", command=self._zoek_plaats, width=6).pack(side="left", padx=3)
+            ttk.Button(rij, text=vt("Zoek", "Search"), command=self._zoek_plaats, width=6).pack(side="left", padx=3)
             self.v["kandidaat"] = tk.StringVar(value="")
             self.cb_kand = ttk.Combobox(r, textvariable=self.v["kandidaat"], state="readonly", width=40)
             self.cb_kand.pack(fill="x", padx=4, pady=2)
             self.cb_kand.bind("<<ComboboxSelected>>", lambda e: self._weer_gewijzigd())
-            self._keuze(r, "periode", "Periode (online)", ["verwachting met verleden", "historische periode"],
-                        "verwachting met verleden", weer=True)
-            self._tekst(r, "n_verl", "Verleden (dagen)", "14", weer=True)
-            self._tekst(r, "n_verw", "Verwachting (dagen)", "7", weer=True)
+            self._keuze(r, "periode", vt("Periode (online)", "Period (online)"), [vt("verwachting met verleden", "forecast with past"), vt("historische periode", "historical period")],
+                        vt("verwachting met verleden", "forecast with past"), weer=True)
+            self._tekst(r, "n_verl", vt("Verleden (dagen)", "Past (days)"), "14", weer=True)
+            self._tekst(r, "n_verw", vt("Verwachting (dagen)", "Forecast (days)"), "7", weer=True)
             vandaag = pd.Timestamp.now().normalize()
-            self._tekst(r, "van", "Van (historisch)", (vandaag - pd.Timedelta(days=30)).strftime("%Y-%m-%d"),
+            self._tekst(r, "van", vt("Van (historisch)", "From (historical)"), (vandaag - pd.Timedelta(days=30)).strftime("%Y-%m-%d"),
                         weer=True)
-            self._tekst(r, "tot", "Tot (historisch)", (vandaag - pd.Timedelta(days=2)).strftime("%Y-%m-%d"),
+            self._tekst(r, "tot", vt("Tot (historisch)", "To (historical)"), (vandaag - pd.Timedelta(days=2)).strftime("%Y-%m-%d"),
                         weer=True)
-            self._keuze(r, "route", "Woonomgeving", ["stad", "platteland"], "stad", weer=True)
+            self._keuze(r, "route", vt("Woonomgeving", "Living environment"), [vt("stad", "urban"), vt("platteland", "rural")], vt("stad", "urban"), weer=True)
 
-            r = self._sectie("Groepen", "verplicht", "Kies minstens één groep. Volgorde: van "
-                             "veerkrachtig naar kwetsbaar, zoals in pyrox_groups.")
+            r = self._sectie(vt("Groepen", "Groups"), "verplicht", vt("Kies minstens één groep. Volgorde: van "
+                             "veerkrachtig naar kwetsbaar, zoals in pyrox_groups.",
+                                                        "Choose at least one group. Order: from "
+                             "resilient to vulnerable, as in pyrox_groups."))
             knop = ttk.Frame(r)
             knop.pack(fill="x", pady=(0, 4))
-            ttk.Label(knop, text="Snel kiezen:").pack(side="left", padx=(0, 4))
-            ttk.Button(knop, text="Paper-groepen", command=lambda: self._zet_groepen(PAPER_PROTOTYPES)).pack(side="left")
-            ttk.Button(knop, text="Alle", command=lambda: self._zet_groepen(VOLGORDE)).pack(side="left", padx=3)
-            ttk.Button(knop, text="Geen", command=lambda: self._zet_groepen([])).pack(side="left")
+            ttk.Label(knop, text=vt("Snel kiezen:", "Quick choice:")).pack(side="left", padx=(0, 4))
+            ttk.Button(knop, text=vt("Paper-groepen", "Paper groups"), command=lambda: self._zet_groepen(PAPER_PROTOTYPES)).pack(side="left")
+            ttk.Button(knop, text=vt("Alle", "All"), command=lambda: self._zet_groepen(VOLGORDE)).pack(side="left", padx=3)
+            ttk.Button(knop, text=vt("Geen", "None"), command=lambda: self._zet_groepen([])).pack(side="left")
             for status, kop, uitleg in (
-                    ("paper", "Uit het paper", "gekalibreerd; de best onderbouwde groepen"),
-                    ("extrapolated", "Geëxtrapoleerd", "afgeleid van de paper-groepen; minder zeker")):
+                    ("paper", vt("Uit het paper", "From the paper"), vt("gekalibreerd; de best onderbouwde groepen", "calibrated; the best supported groups")),
+                    ("extrapolated", vt("Geëxtrapoleerd", "Extrapolated"), vt("afgeleid van de paper-groepen; minder zeker", "derived from the paper groups; less certain"))):
                 ttk.Label(r, text=kop, font=("TkDefaultFont", LETTER, "bold")).pack(anchor="w", pady=(4, 0))
                 ttk.Label(r, text=uitleg, foreground="#777", font=("TkDefaultFont", LETTER - 2)).pack(anchor="w")
                 for g in VOLGORDE:
@@ -706,24 +720,28 @@ def _start_ui(na_start=None):
                     ttk.Checkbutton(r, text=grp.display_name, variable=self.v["g_" + g]).pack(anchor="w", padx=(10, 0))
                     self.v["g_" + g].trace_add("write", lambda *a: self._gewijzigd())
 
-            r = self._sectie("Model", "model", "Standaard van de suite. 'Groep voor detail' kiest alleen "
-                             "welke groep de tabbladen Terugkoppeling, Regimes en Uitleg tonen.")
+            r = self._sectie("Model", "model", vt("Standaard van de suite. 'Groep voor detail' kiest alleen "
+                             "welke groep de tabbladen Terugkoppeling, Regimes en Uitleg tonen.",
+                                                  "Suite default. 'Group for detail' only chooses "
+                             "which group the tabs Feedback, Regimes and Explanation show."))
             self.v["nacht"] = tk.BooleanVar(value=True)
-            ttk.Checkbutton(r, text="Nachtelijk herstel (warme nachten remmen herstel)",
+            ttk.Checkbutton(r, text=vt("Nachtelijk herstel (warme nachten remmen herstel)", "Night-time recovery (warm nights hamper recovery)"),
                             variable=self.v["nacht"]).pack(anchor="w")
             self.v["nacht"].trace_add("write", lambda *a: self._gewijzigd())
-            self._tekst(r, "pre", "Belasting vóór hittegolf", "", hint="leeg: eerste dag")
-            self._tekst(r, "onz", "Onzekerheid verwachting ±°C", "2")
-            self._keuze(r, "fb", "Groep voor detail", [TARGET_GROUPS[g].display_name for g in VOLGORDE],
+            self._tekst(r, "pre", vt("Belasting vóór hittegolf", "Heat load before heatwave"), "", hint=vt("leeg: eerste dag", "empty: first day"))
+            self._tekst(r, "onz", vt("Onzekerheid verwachting ±°C", "Forecast uncertainty ±°C"), "2")
+            self._keuze(r, "fb", vt("Groep voor detail", "Group for detail"), [TARGET_GROUPS[g].display_name for g in VOLGORDE],
                         TARGET_GROUPS["very_elderly_85plus"].display_name, breed=36)
-            r = self._sectie("Uitvoer", "actie")
+            r = self._sectie(vt("Uitvoer", "Output"), "actie")
             rij = ttk.Frame(r)
             rij.pack(fill="x", pady=4)
-            ttk.Button(rij, text="Excel-export", command=self._export).pack(side="left", padx=2)
-            ttk.Button(rij, text="Rapport (Word)", command=self._rapport).pack(side="left", padx=2)
-            ttk.Button(rij, text="Briefing (Word)", command=self._briefing).pack(side="left", padx=2)
-            ttk.Label(r, text="Rapport: volledig technisch verslag. Briefing: één A4 voor "
-                              "veiligheidsfunctionarissen.", foreground="#555", wraplength=430,
+            ttk.Button(rij, text=vt("Excel-export", "Excel export"), command=self._export).pack(side="left", padx=2)
+            ttk.Button(rij, text=vt("Rapport (Word)", "Report (Word)"), command=self._rapport).pack(side="left", padx=2)
+            ttk.Button(rij, text=vt("Briefing (Word)", "Briefing (Word)"), command=self._briefing).pack(side="left", padx=2)
+            ttk.Label(r, text=vt("Rapport: volledig technisch verslag. Briefing: één A4 voor "
+                              "veiligheidsfunctionarissen.",
+                                 "Report: full technical account. Briefing: one A4 for "
+                              "safety officers."), foreground="#555", wraplength=430,
                       font=("TkDefaultFont", LETTER - 2)).pack(anchor="w")
 
             # ---- rechts
@@ -734,7 +752,7 @@ def _start_ui(na_start=None):
             self.lbl_kop = tk.Label(boven, text="  —  ", font=("TkDefaultFont", LETTER + 2, "bold"),
                                     bg="#dddddd", padx=10, pady=4)
             self.lbl_kop.pack(side="left")
-            ttk.Button(boven, text="Briefing voor niet-specialisten →",
+            ttk.Button(boven, text=vt("Briefing voor niet-specialisten →", "Briefing for non-specialists →"),
                        command=lambda: self.nb.select(self.tab["br"]["f"])).pack(side="right", padx=4)
             self.lbl_status = ttk.Label(boven, text="", font=("TkDefaultFont", LETTER - 2), wraplength=420,
                                         justify="left")
@@ -748,33 +766,52 @@ def _start_ui(na_start=None):
             self.nb = nb
             self.tab = {}
             UITLEG = {
-                "ov": "Startpunt. Temperatuur, dagelijkse warmtebelasting met nachtelijk herstel, en de opgebouwde "
+                "ov": vt("Startpunt. Temperatuur, dagelijkse warmtebelasting met nachtelijk herstel, en de opgebouwde "
                       "belasting per groep als percentage van de eigen kritieke grens. Elke groep is een ensemble van "
                       "41 leden die verschillen in hittebestendigheid; de lijn is het gemiddelde. De tabel geeft per "
                       "groep de eerste dag in elke zone en het grootste aandeel leden in de noodsituatie.",
-                "hm": "Alle gekozen groepen in één beeld: per dag de zone. Handig om te zien welke groepen het "
+                         "Starting point. Temperature, daily heat load with night-time recovery, and the accumulated "
+                      "strain per group as a percentage of its own critical limit. Each group is an ensemble of "
+                      "41 members who differ in heat tolerance; the line is the mean. The table gives per "
+                      "group the first day in each zone and the largest share of members in emergency."),
+                "hm": vt("Alle gekozen groepen in één beeld: per dag de zone. Handig om te zien welke groepen het "
                       "eerst en het langst in gevaar komen.",
-                "fb": "Voor onderzoek. Laat voor het typische (mediane) lid van één groep zien hoe belasting en "
+                         "All chosen groups in one view: the zone per day. Useful to see which groups are "
+                      "first and longest in danger."),
+                "fb": vt("Voor onderzoek. Laat voor het typische (mediane) lid van één groep zien hoe belasting en "
                       "herstel elkaar dag na dag versterken (de terugkoppeling in het model).",
-                "onz": "Hoe gevoelig is de uitkomst voor fouten in de weersverwachting? De verwachte temperaturen "
+                         "For research. Shows for the typical (median) member of one group how strain and "
+                      "recovery reinforce each other day after day (the feedback in the model)."),
+                "onz": vt("Hoe gevoelig is de uitkomst voor fouten in de weersverwachting? De verwachte temperaturen "
                        "worden met ± de ingestelde marge verschoven en opnieuw doorgerekend.",
-                "reg": "Voor onderzoek. Bij welke dagelijkse belasting blijft het typische (mediane) lid van een "
+                          "How sensitive is the outcome to errors in the weather forecast? The forecast temperatures "
+                       "are shifted by ± the set margin and recalculated."),
+                "reg": vt("Voor onderzoek. Bij welke dagelijkse belasting blijft het typische (mediane) lid van een "
                        "groep in evenwicht, en vanaf welke belasting loopt de opbouw door (kantelpunt)? Andere leden "
                        "van de groep kantelen eerder of later.",
-                "br": "Voor veiligheidsfunctionarissen en organisatoren: kalender, marge tot de volgende zone en "
+                          "For research. At which daily load does the typical (median) member of a "
+                       "group stay in equilibrium, and from which load does the build-up run away (tipping point)? Other "
+                       "members of the group tip earlier or later."),
+                "br": vt("Voor veiligheidsfunctionarissen en organisatoren: kalender, marge tot de volgende zone en "
                       "nawerking na de hittegolf, in gewone taal. Zelfde inhoud als de Briefing (Word).",
-                "em": "Uitleg en presentatie. Elke groep als emmer die volloopt met hittebelasting en 's nachts "
+                         "For safety officers and organisers: calendar, margin to the next zone and "
+                      "after-effect after the heatwave, in plain language. Same content as the Briefing (Word)."),
+                "em": vt("Uitleg en presentatie. Elke groep als emmer die volloopt met hittebelasting en 's nachts "
                       "deels leegloopt. Met ▶ afspelen loopt de hittegolf dag voor dag.",
-                "kp": "Uitleg en presentatie. Het kantelpunt als landschap voor het typische (mediane) lid: een bal "
+                         "Explanation and presentation. Each group as a bucket that fills with heat strain and "
+                      "partly empties at night. With ▶ play the heatwave runs day by day."),
+                "kp": vt("Uitleg en presentatie. Het kantelpunt als landschap voor het typische (mediane) lid: een bal "
                       "die terugrolt (herstel) of over de rand gaat (doorlopende opbouw).",
+                         "Explanation and presentation. The tipping point as a landscape for the typical (median) member: a ball "
+                      "that rolls back (recovery) or goes over the edge (runaway build-up)."),
             }
-            for k, titel in (("ov", "Overzicht"), ("hm", "Heatmap"), ("fb", "Terugkoppeling"),
-                             ("onz", "Onzekerheid verwachting"), ("reg", "Regimes"), ("br", "Briefing"),
-                             ("em", "Emmers"), ("kp", "Uitleg: kantelpunt")):
+            for k, titel in (("ov", vt("Overzicht", "Overview")), ("hm", "Heatmap"), ("fb", vt("Terugkoppeling", "Feedback")),
+                             ("onz", vt("Onzekerheid verwachting", "Forecast uncertainty")), ("reg", "Regimes"), ("br", vt("Briefing", "Briefing")),
+                             ("em", vt("Emmers", "Buckets")), ("kp", vt("Uitleg: kantelpunt", "Explanation: tipping point"))):
                 f = ttk.Frame(nb)
                 nb.add(f, text=titel)
                 ug.tab_uitleg(f, UITLEG[k], LETTER)
-                ink = ug.Inklap(f, "Toelichting bij deze grafiek (bron en rekenwijze)", LETTER)
+                ink = ug.Inklap(f, vt("Toelichting bij deze grafiek (bron en rekenwijze)", "Explanation of this chart (source and method)"), LETTER)
                 ink.pack(side="bottom", fill="x", pady=(0, 2))
                 lbl = ttk.Label(ink.binnen, text="", font=("TkDefaultFont", LETTER - 1), wraplength=1250,
                                 justify="left")
@@ -782,8 +819,8 @@ def _start_ui(na_start=None):
                 tv = None
                 if k == "ov":
                     kol = ("groep", "status", "kritiek", "piek", "piek_pct", "aandeel", "letop", "gevaar", "nood")
-                    kopt = ("groep", "evidentie", "kritieke grens", "piek Σ", "piek (% kritiek)",
-                            "max. deel in nood", "let op (50 %)", "gevaar (75 %)", "noodsituatie (90 %)")
+                    kopt = (vt("groep", "group"), vt("evidentie", "evidence"), vt("kritieke grens", "critical limit"), vt("piek Σ", "peak Σ"), vt("piek (% kritiek)", "peak (% critical)"),
+                            vt("max. deel in nood", "max. share in emergency"), vt("let op (50 %)", "caution (50 %)"), vt("gevaar (75 %)", "danger (75 %)"), vt("noodsituatie (90 %)", "emergency (90 %)"))
                     tv = ttk.Treeview(f, columns=kol, show="headings", height=3, style="P.Treeview")
                     for c, t in zip(kol, kopt):
                         tv.heading(c, text=t)
@@ -794,7 +831,7 @@ def _start_ui(na_start=None):
                 if k in ("br", "em", "kp"):
                     balk = ttk.Frame(f)
                     balk.pack(side="bottom", fill="x", padx=8)
-                    ttk.Label(balk, text={"br": "Peildag (marge):", "em": "Dag:", "kp": "Dag:"}[k]).pack(side="left")
+                    ttk.Label(balk, text={"br": vt("Peildag (marge):", "Reference day (margin):"), "em": vt("Dag:", "Day:"), "kp": vt("Dag:", "Day:")}[k]).pack(side="left")
                     self.v["dag_" + k] = tk.IntVar(value=0)
                     sc = tk.Scale(balk, from_=0, to=1, orient="horizontal", showvalue=False, length=700,
                                   variable=self.v["dag_" + k], command=lambda _v, kk=k: self._dag_gewijzigd(kk))
@@ -803,11 +840,11 @@ def _start_ui(na_start=None):
                     lbd.pack(side="left")
                     self.v["lbl_dag_" + k] = lbd
                     if k == "em":
-                        self.knop_af = ttk.Button(balk, text="▶ afspelen", command=self._afspelen)
+                        self.knop_af = ttk.Button(balk, text=vt("▶ afspelen", "▶ play"), command=self._afspelen)
                         self.knop_af.pack(side="left", padx=8)
                     if k == "kp":
                         self.v["kp_eigen"] = tk.BooleanVar(value=False)
-                        ttk.Checkbutton(balk, text="eigen belasting:", variable=self.v["kp_eigen"],
+                        ttk.Checkbutton(balk, text=vt("eigen belasting:", "own load:"), variable=self.v["kp_eigen"],
                                         command=lambda: self._dag_gewijzigd("kp")).pack(side="left", padx=(16, 2))
                         self.v["kp_last"] = tk.DoubleVar(value=1.0)
                         tk.Scale(balk, from_=0.1, to=2.5, resolution=0.02, orient="horizontal", length=260,
@@ -859,7 +896,7 @@ def _start_ui(na_start=None):
             if s == "":
                 if opt:
                     return None
-                raise ValueError(f"'{k}' is leeg")
+                raise ValueError(vt(f"'{k}' is leeg", f"'{k}' is empty"))
             return float(s)
 
         def _groepen(self):
@@ -904,74 +941,74 @@ def _start_ui(na_start=None):
             if not naam or self.v["bron"].get().startswith("Data"):
                 self._weer_gewijzigd()
                 return
-            self.lbl_status.config(text=f"Plaats zoeken: {naam} …")
+            self.lbl_status.config(text=vt(f"Plaats zoeken: {naam} …", f"Searching location: {naam} …"))
 
             def werk():
                 try:
                     self.q.put(("kandidaten", de.geocode_city_candidates(naam)))
                 except Exception as ex:
-                    self.q.put(("fout", f"Plaats zoeken mislukt: {ex}"))
+                    self.q.put(("fout", vt(f"Plaats zoeken mislukt: {ex}", f"Location search failed: {ex}")))
             threading.Thread(target=werk, daemon=True).start()
 
         def _kies_excel(self):
-            p = filedialog.askopenfilename(title="Data Engine-bestand", initialdir=str(HIER),
-                                           filetypes=[("Excel", "*.xlsx"), ("Alle", "*.*")])
+            p = filedialog.askopenfilename(title=vt("Data Engine-bestand", "Data Engine file"), initialdir=str(HIER),
+                                           filetypes=[("Excel", "*.xlsx"), (vt("Alle", "All"), "*.*")])
             if not p:
                 return
             try:
                 bl = WeerLader.bladen(p)
             except Exception as ex:
-                return self._fout(f"Bestand niet leesbaar: {ex}")
+                return self._fout(vt(f"Bestand niet leesbaar: {ex}", f"File not readable: {ex}"))
             self.w["blad"]["values"] = bl
             self.v["blad"].set(bl[0])
             self.v["excel"].set(p)
-            self.v["bron"].set("Data Engine-bestand")
+            self.v["bron"].set(vt("Data Engine-bestand", "Data Engine file"))
 
         # ---------------------------------------------------------- laden
         def _laad_weer(self):
             self._plan = None
             excel = self.v["bron"].get().startswith("Data")
-            route = self.v["route"].get()
+            route = ("stad", "platteland")[max(0, self.w["route"].current())]   # sleutel voor de suite
             try:
                 nv, nw = int(self._f("n_verl")), int(self._f("n_verw"))
                 if not (1 <= nv <= 60 and 1 <= nw <= 16):
-                    raise ValueError("verleden 1–60 dagen, verwachting 1–16 dagen")
+                    raise ValueError(vt("verleden 1–60 dagen, verwachting 1–16 dagen", "past 1–60 days, forecast 1–16 days"))
             except Exception as ex:
-                return self._fout(f"Invoer: {ex}")
+                return self._fout(vt(f"Invoer: {ex}", f"Input: {ex}"))
             self._laad_gen += 1
             gen = self._laad_gen
             if excel:
                 pad, blad = self.v["excel"].get().strip(), self.v["blad"].get()
                 if not pad:
-                    return self._fout("Kies een Data Engine-bestand.")
+                    return self._fout(vt("Kies een Data Engine-bestand.", "Choose a Data Engine file."))
 
                 def werk():
                     return self.lader.excel(pad, blad, route, nv, nw)
             else:
                 kand = self._kandidaat()
                 if kand is None:
-                    return self._fout("Kies eerst een plaats (Zoek).")
+                    return self._fout(vt("Kies eerst een plaats (Zoek).", "First choose a location (Search)."))
                 if self.v["periode"].get().startswith("hist"):
                     try:
                         van = pd.Timestamp(self.v["van"].get().strip()).strftime("%Y-%m-%d")
                         tot = pd.Timestamp(self.v["tot"].get().strip()).strftime("%Y-%m-%d")
                         if pd.Timestamp(tot) <= pd.Timestamp(van):
-                            raise ValueError("'tot' moet na 'van' liggen")
+                            raise ValueError(vt("'tot' moet na 'van' liggen", "'to' must be after 'from'"))
                     except Exception as ex:
-                        return self._fout(f"Periode: {ex}")
+                        return self._fout(vt(f"Periode: {ex}", f"Period: {ex}"))
 
                     def werk():
                         return self.lader.online_historisch(kand, route, van, tot)
                 else:
                     def werk():
                         return self.lader.online_verwachting(kand, route, nv, nw)
-            self.lbl_status.config(text="Weer laden …")
+            self.lbl_status.config(text=vt("Weer laden …", "Loading weather …"))
 
             def draad():
                 try:
                     self.q.put(("weer", gen, werk()))
                 except Exception as ex:
-                    self.q.put(("fout", f"Weer: {ex}"))
+                    self.q.put(("fout", vt(f"Weer: {ex}", f"Weather: {ex}")))
             threading.Thread(target=draad, daemon=True).start()
 
         def _herbereken(self):
@@ -980,21 +1017,21 @@ def _start_ui(na_start=None):
                 return
             groepen = self._groepen()
             if not groepen:
-                return self._fout("Kies minstens één groep.")
+                return self._fout(vt("Kies minstens één groep.", "Choose at least one group."))
             try:
                 pre = self._f("pre", True)
                 onz = self._f("onz")
                 if pre is not None and not 0 <= pre <= 5:
-                    raise ValueError("belasting vóór hittegolf: 0 t/m 5")
+                    raise ValueError(vt("belasting vóór hittegolf: 0 t/m 5", "heat load before heatwave: 0 to 5"))
             except Exception as ex:
-                return self._fout(f"Invoer: {ex}")
+                return self._fout(vt(f"Invoer: {ex}", f"Input: {ex}"))
             try:
                 self.rapport = bereken(self.weer, groepen, self.v["nacht"].get(), pre)
                 self.pre, self.onz = pre, onz
             except Exception as ex:
-                return self._fout(f"PYROX: {ex}\n{traceback.format_exc()}")
+                return self._fout(vt(f"PYROX: {ex}\n{traceback.format_exc()}", f"PYROX: {ex}\n{traceback.format_exc()}"))
             self._teken_alles()
-            self.lbl_status.config(text=f"{self.weer.label} — {len(self.weer.daily)} dagen, {len(groepen)} groepen")
+            self.lbl_status.config(text=vt(f"{self.weer.label} — {len(self.weer.daily)} dagen, {len(groepen)} groepen", f"{self.weer.label} — {len(self.weer.daily)} days, {len(groepen)} groups"))
 
         def _poll(self):
             try:
@@ -1003,8 +1040,10 @@ def _start_ui(na_start=None):
                     if m[0] == "kandidaten":
                         self.kandidaten = m[1]
                         self.cb_kand["values"] = [
-                            f"{k.get('name')}, {k.get('admin1', '')} ({k.get('country_code', '')})"
-                            f" – {k.get('population', 0) or 0:,} inw.".replace(",", ".")
+                            vt(f"{k.get('name')}, {k.get('admin1', '')} ({k.get('country_code', '')})"
+                            f" – {k.get('population', 0) or 0:,} inw.",
+                               f"{k.get('name')}, {k.get('admin1', '')} ({k.get('country_code', '')})"
+                            f" – {k.get('population', 0) or 0:,} inhabitants").replace(",", ".")
                             for k in self.kandidaten]
                         if self.kandidaten:
                             self.cb_kand.current(0)
@@ -1014,14 +1053,14 @@ def _start_ui(na_start=None):
                             self.weer = m[2]
                             self._herbereken()
                     elif m[0] == "rapport":
-                        self.lbl_status.config(text="Rapport klaar")
-                        messagebox.showinfo("PYROX-rapport", "\n".join(m[1]))
+                        self.lbl_status.config(text=vt("Rapport klaar", "Report ready"))
+                        messagebox.showinfo(vt("PYROX-rapport", "PYROX report"), "\n".join(m[1]))
                     elif m[0] == "fout":
                         self._fout(m[1])
             except queue.Empty:
                 pass
             except Exception as ex:
-                self._fout(f"Interne fout: {ex}\n{traceback.format_exc()}")
+                self._fout(vt(f"Interne fout: {ex}\n{traceback.format_exc()}", f"Internal error: {ex}\n{traceback.format_exc()}"))
             self.root.after(250, self._poll)
 
         # --------------------------------------------------------- tekenen
@@ -1031,7 +1070,7 @@ def _start_ui(na_start=None):
         def _x(self, ax):
             n = len(self.rapport["dates"])
             ax.xaxis.set_major_locator(mdates.DayLocator(interval=max(1, int(np.ceil(n / 12)))))
-            ax.xaxis.set_major_formatter(mdates.DateFormatter("%d-%m"))
+            ax.xaxis.set_major_formatter(mdates.DateFormatter(vt("%d-%m", "%d %b")))
 
         def _scheiding(self, ax, x, tekst=True):
             fs = self.weer.forecast_start
@@ -1039,10 +1078,10 @@ def _start_ui(na_start=None):
                 grens = x[fs] - pd.Timedelta(hours=12)
                 ax.axvline(grens, color="#333", lw=1.4, alpha=0.7)
                 if tekst:
-                    ax.text(grens, 0.03, " verwachting →", transform=ax.get_xaxis_transform(), va="bottom",
+                    ax.text(grens, 0.03, vt(" verwachting →", " forecast →"), transform=ax.get_xaxis_transform(), va="bottom",
                             ha="left", fontsize=9, color="#333",
                             bbox=dict(fc="white", ec="none", alpha=0.7, pad=1))
-                    ax.text(grens, 0.03, "← verleden ", transform=ax.get_xaxis_transform(), va="bottom",
+                    ax.text(grens, 0.03, vt("← verleden ", "← past "), transform=ax.get_xaxis_transform(), va="bottom",
                             ha="right", fontsize=9, color="#333",
                             bbox=dict(fc="white", ec="none", alpha=0.7, pad=1))
 
@@ -1058,8 +1097,8 @@ def _start_ui(na_start=None):
             if idx is None:
                 return "–"
             if idx == 0:
-                return "al bij de start"
-            return pd.Timestamp(self.rapport["dates"][idx - 1]).strftime("%d-%m-%Y")
+                return vt("al bij de start", "already at the start")
+            return taal_datum(self.rapport["dates"][idx - 1])
 
         def _teken_alles(self):
             self._teken_overzicht()
@@ -1084,10 +1123,12 @@ def _start_ui(na_start=None):
                             z == slechtst and z != "safe" and wanneer is not None and i < wanneer):
                         slechtst, wie, wanneer = z, g, i
             if wie is None:
-                tekst = "  Alle gekozen groepen blijven veilig  "
+                tekst = vt("  Alle gekozen groepen blijven veilig  ", "  All chosen groups stay safe  ")
             else:
-                tekst = (f"  Zwaarste zone: {ZONE_NL[slechtst].upper()} — {TARGET_GROUPS[wie].display_name}, "
-                         f"vanaf {pd.Timestamp(r['dates'][wanneer]).strftime('%d-%m-%Y')}  ")
+                tekst = (vt(f"  Zwaarste zone: {ZONE_NL[slechtst].upper()} — {TARGET_GROUPS[wie].display_name}, "
+                         f"vanaf {taal_datum(r['dates'][wanneer])}  ",
+                            f"  Most severe zone: {ZONE_NL[slechtst].upper()} — {TARGET_GROUPS[wie].display_name}, "
+                         f"from {taal_datum(r['dates'][wanneer])}  "))
             self.kernboodschap = (tekst.strip(), slechtst)
             self.lbl_kop.config(text=tekst, bg=ZONE_COLOURS[slechtst],
                                 fg="black" if slechtst == "danger" else "white")
@@ -1098,8 +1139,8 @@ def _start_ui(na_start=None):
             """i = index in rapport['dates'] -> ('verleden'|'verwachting', uitleg)."""
             fs = self.weer.forecast_start
             if fs is not None and i >= fs:
-                return "verwachting", "modelprojectie op de weersverwachting"
-            return "verleden", "berekend uit het weer van die dag (ERA5 of bestand)"
+                return vt("verwachting", "forecast"), vt("modelprojectie op de weersverwachting", "model projection on the weather forecast")
+            return vt("verleden", "past"), vt("berekend uit het weer van die dag (ERA5 of bestand)", "calculated from the weather of that day (ERA5 or file)")
 
         def _toon_waarschuwing(self, slechtst, wie, wanneer):
             r = self.rapport
@@ -1108,55 +1149,64 @@ def _start_ui(na_start=None):
                            key=lambda kv: kv[1]["peak_strain"] / kv[1]["critical_strain"])
                 g, res = piek
                 self.tegels.zet([
-                    dict(titel="Zwaarste zone", waarde="veilig", sub="alle gekozen groepen onder 50 % van hun "
-                                                                   "kritieke grens", kleur=ZONE_COLOURS["safe"]),
-                    dict(titel="Hoogste groep", waarde=f"{100 * res['peak_strain'] / res['critical_strain']:.0f} %",
+                    dict(titel=vt("Zwaarste zone", "Most severe zone"), waarde="veilig", sub=vt("alle gekozen groepen onder 50 % van hun "
+                                                                   "kritieke grens",
+                                                                        "all chosen groups below 50 % of their "
+                                                                   "critical limit"), kleur=ZONE_COLOURS["safe"]),
+                    dict(titel=vt("Hoogste groep", "Highest group"), waarde=f"{100 * res['peak_strain'] / res['critical_strain']:.0f} %",
                          sub=TARGET_GROUPS[g].display_name, kleur="#5d6d7e"),
-                ], "Geen enkele gekozen groep bereikt de zone 'let op' (gemiddeld 50 % van de eigen kritieke grens; "
-                   "ongeveer de helft van de leden in nood).")
+                ], vt("Geen enkele gekozen groep bereikt de zone 'let op' (gemiddeld 50 % van de eigen kritieke grens; "
+                   "ongeveer de helft van de leden in nood).",
+                      "No chosen group reaches the zone 'caution' (on average 50 % of its own critical limit; "
+                   "roughly half of the members in emergency)."))
                 return
             res = r["groups"][wie]
             grp = TARGET_GROUPS[wie]
             crit = res["critical_strain"]
             grens = {"caution": 50, "danger": 75, "emergency": 90}[slechtst]
             soort, soort_uitleg = self._soort_dag(wanneer)
-            datum = pd.Timestamp(r["dates"][wanneer]).strftime("%d-%m-%Y")
+            datum = taal_datum(r["dates"][wanneer])
             pct = 100 * res["peak_strain"] / crit
             traj = list(res["cumulative_strain"][1:])
             ipiek = int(np.argmax(traj))
             nood = res["emergency_day"]
             if nood is None:
                 fr = float(np.max(res["fraction_emergency"])) if "fraction_emergency" in res else 0.0
-                nood_w = "niet bereikt"
-                nood_s = ("door het groepsgemiddelde; wel " f"{100 * fr:.0f} % van de leden"
-                          if fr > 0 else "binnen deze periode")
+                nood_w = vt("niet bereikt", "not reached")
+                nood_s = (vt("door het groepsgemiddelde; wel " f"{100 * fr:.0f} % van de leden", "by the group mean; but " f"{100 * fr:.0f} % of the members")
+                          if fr > 0 else vt("binnen deze periode", "within this period"))
             else:
                 nood_w = self._dag(nood)
-                nood_s = self._soort_dag(nood - 1)[0] if nood > 0 else "bij de start"
+                nood_s = self._soort_dag(nood - 1)[0] if nood > 0 else vt("bij de start", "at the start")
             items = [
-                dict(titel="Bepalende groep", waarde=grp.display_name,
-                     sub=("uit het paper (gekalibreerd)" if grp.evidence_status == "paper"
-                          else "geëxtrapoleerd (minder zeker)"),
+                dict(titel=vt("Bepalende groep", "Determining group"), waarde=grp.display_name,
+                     sub=(vt("uit het paper (gekalibreerd)", "from the paper (calibrated)") if grp.evidence_status == "paper"
+                          else vt("geëxtrapoleerd (minder zeker)", "extrapolated (less certain)")),
                      kleur=ZONE_COLOURS[slechtst]),
-                dict(titel=f"Overschreden grens: {ZONE_NL[slechtst]}", waarde=f"≥ {grens} %",
-                     sub=f"van de eigen kritieke grens (Σ_crit = {nl(crit)})", kleur=ZONE_COLOURS[slechtst]),
-                dict(titel="Vanaf", waarde=datum, sub=f"{soort}: {soort_uitleg}",
-                     kleur="#b9770e" if soort == "verwachting" else "#117a65"),
-                dict(titel="Piek (gemiddelde van de groep)", waarde=f"{pct:.0f} %",
-                     sub=f"op {pd.Timestamp(r['dates'][ipiek]).strftime('%d-%m-%Y')} "
-                         f"({self._soort_dag(ipiek)[0]})"
-                         + (f"; max. {100 * float(np.max(res['fraction_emergency'])):.0f} % van de leden in nood"
+                dict(titel=vt(f"Overschreden grens: {ZONE_NL[slechtst]}", f"Limit exceeded: {ZONE_NL[slechtst]}"), waarde=f"≥ {grens} %",
+                     sub=vt(f"van de eigen kritieke grens (Σ_crit = {nl(crit)})", f"of its own critical limit (Σ_crit = {nl(crit)})"), kleur=ZONE_COLOURS[slechtst]),
+                dict(titel=vt("Vanaf", "From"), waarde=datum, sub=f"{soort}: {soort_uitleg}",
+                     kleur="#b9770e" if soort == vt("verwachting", "forecast") else "#117a65"),
+                dict(titel=vt("Piek (gemiddelde van de groep)", "Peak (mean of the group)"), waarde=f"{pct:.0f} %",
+                     sub=vt(f"op {taal_datum(r['dates'][ipiek])} "
+                         f"({self._soort_dag(ipiek)[0]})",
+                            f"on {taal_datum(r['dates'][ipiek])} "
+                         f"({self._soort_dag(ipiek)[0]})")
+                         + (vt(f"; max. {100 * float(np.max(res['fraction_emergency'])):.0f} % van de leden in nood", f"; max. {100 * float(np.max(res['fraction_emergency'])):.0f} % of the members in emergency")
                             if "fraction_emergency" in res else ""), kleur="#5d6d7e"),
             ]
             if slechtst == "emergency":
-                items.append(dict(titel="Opbouw daarvoor", waarde=f"let op {self._dag(res['caution_day'])}",
-                                  sub=f"gevaar {self._dag(res['danger_day'])}", kleur=ZONE_COLOURS["danger"]))
+                items.append(dict(titel=vt("Opbouw daarvoor", "Build-up before"), waarde=vt(f"let op {self._dag(res['caution_day'])}", f"caution {self._dag(res['caution_day'])}"),
+                                  sub=vt(f"gevaar {self._dag(res['danger_day'])}", f"danger {self._dag(res['danger_day'])}"), kleur=ZONE_COLOURS["danger"]))
             else:
-                items.append(dict(titel="Noodsituatie (90 %)", waarde=nood_w, sub=nood_s,
+                items.append(dict(titel=vt("Noodsituatie (90 %)", "Emergency (90 %)"), waarde=nood_w, sub=nood_s,
                                   kleur=ZONE_COLOURS["emergency"] if nood is not None else "#5d6d7e"))
-            uitleg = ("De kleur bovenaan volgt de groep die de zwaarste zone het eerst bereikt. Zones = gemiddelde belasting "
+            uitleg = (vt("De kleur bovenaan volgt de groep die de zwaarste zone het eerst bereikt. Zones = gemiddelde belasting "
                       "van de groep op 50 / 75 / 90 % van haar kritieke grens. Omdat leden óf herstellen óf ontsporen, "
-                      "betekent dat ongeveer: zo'n deel van de leden zit in de noodsituatie.")
+                      "betekent dat ongeveer: zo'n deel van de leden zit in de noodsituatie.",
+                         "The colour at the top follows the group that first reaches the most severe zone. Zones = mean strain "
+                      "of the group at 50 / 75 / 90 % of its critical limit. Because members either recover or run away, "
+                      "that roughly means: such a share of the members is in emergency."))
             self.tegels.zet(items, uitleg)
 
         def _toon_herkomst(self):
@@ -1164,16 +1214,16 @@ def _start_ui(na_start=None):
             fs = w.forecast_start
             n = len(self.rapport["dates"])
             if fs is not None and 0 < fs < n:
-                st, st_t = "gemengd", "berekening · verleden + verwachting"
+                st, st_t = "gemengd", vt("berekening · verleden + verwachting", "calculation · past + forecast")
             elif fs == 0:
-                st, st_t = "prognose", "berekening · verwachting"
+                st, st_t = "prognose", vt("berekening · verwachting", "calculation · forecast")
             else:
-                st, st_t = "historisch", "berekening · historische periode"
+                st, st_t = "historisch", vt("berekening · historische periode", "calculation · historical period")
             self.herkomst.zet(
-                f"{w.label}; {w.city}, woonomgeving {self.v['route'].get()}", st, status_tekst=st_t,
-                extra="model: PYROX (run_pyrox.assess_population), nachtelijk herstel "
-                      + ("aan" if self.v["nacht"].get() else "uit"),
-                niet="een waargenomen gezondheidseffect of een officiële hittewaarschuwing.")
+                vt(f"{w.label}; {w.city}, woonomgeving {self.v['route'].get()}", f"{w.label}; {w.city}, living environment {self.v['route'].get()}"), st, status_tekst=st_t,
+                extra=vt("model: PYROX (run_pyrox.assess_population), nachtelijk herstel ", "model: PYROX (run_pyrox.assess_population), night-time recovery ")
+                      + (vt("aan", "on") if self.v["nacht"].get() else vt("uit", "off")),
+                niet=vt("een waargenomen gezondheidseffect of een officiële hittewaarschuwing.", "an observed health effect or an official heat warning."))
 
         def _teken_overzicht(self):
             t = self.tab["ov"]
@@ -1182,32 +1232,32 @@ def _start_ui(na_start=None):
             fig = t["fig"]
             fig.clear()
             a1, a2, a3 = fig.add_subplot(3, 1, 1), fig.add_subplot(3, 1, 2), fig.add_subplot(3, 1, 3)
-            a1.plot(x, d["t_air_max"], "o-", color="#c0392b", lw=2, ms=4, label="Tmax (overdag)")
-            a1.plot(x, d["t_air_min"], "o-", color="#2471a3", lw=1.5, ms=3, label="Tmin (kalenderdag)")
+            a1.plot(x, d["t_air_max"], "o-", color="#c0392b", lw=2, ms=4, label=vt("Tmax (overdag)", "Tmax (daytime)"))
+            a1.plot(x, d["t_air_min"], "o-", color="#2471a3", lw=1.5, ms=3, label=vt("Tmin (kalenderdag)", "Tmin (calendar day)"))
             if r.get("t_night_min") is not None:
-                a1.plot(x, r["t_night_min"], "s--", color="#7d3c98", lw=1.5, ms=3, label="minimum nacht erna")
+                a1.plot(x, r["t_night_min"], "s--", color="#7d3c98", lw=1.5, ms=3, label=vt("minimum nacht erna", "minimum of the night after"))
             a1.axhline(NIGHT_COMFORT_TEMP, color="#7d3c98", lw=0.8, ls=":")
             a1.axhline(NIGHT_SEVERE_TEMP, color="#7d3c98", lw=0.8, ls=":")
             a1.set_ylabel("°C")
-            a1.set_title("Temperatuur (stad met UHI)" if self.v["route"].get() == "stad" else "Temperatuur (platteland)")
+            a1.set_title(vt("Temperatuur (stad met UHI)", "Temperature (urban with UHI)") if self.w["route"].current() <= 0 else vt("Temperatuur (platteland)", "Temperature (rural)"))
             a1.legend(loc="upper left", ncol=3)
-            a2.bar(x, r["heat_loads"], width=0.8, color="#bbbbbb", label="warmtebelasting")
-            a2.set_ylabel("warmtebelasting")
+            a2.bar(x, r["heat_loads"], width=0.8, color="#bbbbbb", label=vt("warmtebelasting", "heat load"))
+            a2.set_ylabel(vt("warmtebelasting", "heat load"))
             a2b = a2.twinx()
-            a2b.plot(x, r["sleep_quality"], "o-", color="#7d3c98", lw=1.5, ms=3, label="slaapkwaliteit")
+            a2b.plot(x, r["sleep_quality"], "o-", color="#7d3c98", lw=1.5, ms=3, label=vt("slaapkwaliteit", "sleep quality"))
             a2b.set_ylim(0, 1.05)
-            a2b.set_ylabel("slaapkwaliteit", color="#7d3c98")
+            a2b.set_ylabel(vt("slaapkwaliteit", "sleep quality"), color="#7d3c98")
             a2b.grid(False)
-            a2.set_title("Dagelijkse warmtebelasting en nachtelijk herstel"
-                         + ("" if r.get("nocturnal_recovery") else "  (nachtelijk herstel UIT: volledig herstel)"))
+            a2.set_title(vt("Dagelijkse warmtebelasting en nachtelijk herstel", "Daily heat load and night-time recovery")
+                         + ("" if r.get("nocturnal_recovery") else vt("  (nachtelijk herstel UIT: volledig herstel)", "  (night-time recovery OFF: full recovery)")))
             kleuren = matplotlib.colormaps["tab10"].colors
             for i, (g, res) in enumerate(r["groups"].items()):
                 pct = 100 * np.asarray(res["cumulative_strain"][1:]) / res["critical_strain"]
                 a3.plot(x, pct, "o-", lw=2, ms=3, color=kleuren[i % 10], label=TARGET_GROUPS[g].display_name)
             self._zonelijnen(a3)
             a3.set_ylim(0, 105)
-            a3.set_ylabel("Σ (% van kritieke grens)")
-            a3.set_title("Opgebouwde hittebelasting per groep")
+            a3.set_ylabel(vt("Σ (% van kritieke grens)", "Σ (% of critical limit)"))
+            a3.set_title(vt("Opgebouwde hittebelasting per groep", "Accumulated heat strain per group"))
             a3.legend(loc="upper left", fontsize=8, ncol=2)
             for a in (a1, a2, a3):
                 self._x(a)
@@ -1224,7 +1274,7 @@ def _start_ui(na_start=None):
                     (f"{100 * float(np.max(res['fraction_emergency'])):.0f} %" if "fraction_emergency" in res else "–"),
                     self._dag(res["caution_day"]), self._dag(res["danger_day"]), self._dag(res["emergency_day"])))
             t["lbl"].config(text=(
-                "Bron: run_pyrox.assess_population (PyroxPopulation: per groep 41 leden met verschillende hittebestendigheid, "
+                vt("Bron: run_pyrox.assess_population (PyroxPopulation: per groep 41 leden met verschillende hittebestendigheid, "
                 "CV 0,30; lijn = gemiddelde; 'max. deel in nood' = grootste aandeel leden ≥ 90 % van de kritieke grens). "
                 "Warmtebelasting per dag = (gevoelstemperatuur bij "
                 "Tmax − 22 °C) × 0,10 (thermopoulos_loader; modelkeuze, gekalibreerd op Parijs 2003). Slaapkwaliteit uit het "
@@ -1232,7 +1282,16 @@ def _start_ui(na_start=None):
                 "percentage van de eigen kritieke grens van de groep; zones 50/75/90 % op dat gemiddelde (ongeveer het aandeel leden in nood). Datum in de tabel = "
                 "eerste dag waarop de zone na het nachtelijk herstel van die dag bereikt is. Bij een gecombineerd venster kent de "
                 "laatste verleden-dag geen nachtminimum (die nacht valt in het verwachtingsblad); de suite neemt dan de "
-                "slaapkwaliteit van de nacht ervoor over."))
+                "slaapkwaliteit van de nacht ervoor over.",
+                   "Source: run_pyrox.assess_population (PyroxPopulation: per group 41 members with different heat tolerance, "
+                "CV 0.30; line = mean; 'max. share in emergency' = largest share of members ≥ 90 % of the critical limit). "
+                "Heat load per day = (apparent temperature at "
+                "Tmax − 22 °C) × 0.10 (thermopoulos_loader; model choice, calibrated on Paris 2003). Sleep quality from the "
+                "minimum of the night after each day: 1.0 up to 18 °C, 0.4 from 26 °C (dotted lines). Σ is shown here as "
+                "percentage of the group's own critical limit; zones 50/75/90 % on that mean (roughly the share of members in emergency). Date in the table = "
+                "first day on which the zone is reached after that day's night-time recovery. With a combined window the "
+                "last past day has no night minimum (that night falls in the forecast sheet); the suite then takes the "
+                "sleep quality of the night before.")))
 
         def _teken_heatmap(self):
             t = self.tab["hm"]
@@ -1254,7 +1313,7 @@ def _start_ui(na_start=None):
             ax.set_yticklabels([TARGET_GROUPS[g].display_name for g in namen], fontsize=10)
             stap = max(1, n // 14)
             ax.set_xticks(range(0, n, stap))
-            ax.set_xticklabels([pd.Timestamp(r["dates"][i]).strftime("%d-%m") for i in range(0, n, stap)])
+            ax.set_xticklabels([pd.Timestamp(r["dates"][i]).strftime(vt("%d-%m", "%d %b")) for i in range(0, n, stap)])
             ax.grid(False)
             for xx in np.arange(0.5, n - 0.5, 1):
                 ax.axvline(xx, color="white", lw=0.6, alpha=0.6)
@@ -1264,12 +1323,15 @@ def _start_ui(na_start=None):
             if fs is not None and 0 < fs < n:
                 ax.axvline(fs - 0.5, color="white", lw=3)
                 ax.axvline(fs - 0.5, color="#222", lw=1.3, ls="--")
-            ax.set_title("Wie loopt wanneer risico (zone per groep per dag)")
+            ax.set_title(vt("Wie loopt wanneer risico (zone per groep per dag)", "Who is at risk when (zone per group per day)"))
             ax.legend(handles=[Patch(color=ZONE_COLOURS[z], label=ZONE_NL[z]) for z in ZONES],
                       loc="upper center", bbox_to_anchor=(0.5, -0.07), ncol=4, frameon=False)
-            t["lbl"].config(text="Zoals pyrox_plots.plot_risk_heatmap: zone uit pyrox_plots._strain_zone per dag (Σ na "
+            t["lbl"].config(text=vt("Zoals pyrox_plots.plot_risk_heatmap: zone uit pyrox_plots._strain_zone per dag (Σ na "
                                  "die dag), groepen geordend van weerbaar naar kwetsbaar. Stippellijn = overgang van "
-                                 "verleden naar verwachting.")
+                                 "verleden naar verwachting.",
+                                    "As pyrox_plots.plot_risk_heatmap: zone from pyrox_plots._strain_zone per day (Σ after "
+                                 "that day), groups ordered from resilient to vulnerable. Dotted line = transition from "
+                                 "past to forecast."))
             t["cv"].draw_idle()
 
         def _teken_fb(self):
@@ -1288,32 +1350,36 @@ def _start_ui(na_start=None):
             ax = fig.add_subplot(111)
             crit = grp.critical_strain
             ax.plot(x, [d["cumulative_strain"] for d in dg], lw=3, color=ZONE_COLOURS["emergency"],
-                    label="opgebouwde belasting Σ (de uitkomst)")
+                    label=vt("opgebouwde belasting Σ (de uitkomst)", "accumulated strain Σ (the outcome)"))
             pot = [d["acclimatization_potential"] for d in dg]
             eff = [d["effective_acclimatization"] for d in dg]
-            ax.plot(x, pot, lw=1.5, ls="--", color=ZONE_COLOURS["safe"], label="acclimatisatie-potentieel (zonder onderdrukking)")
-            ax.plot(x, eff, lw=2.5, color=ZONE_COLOURS["safe"], label="effectieve acclimatisatie (met onderdrukking)")
-            ax.fill_between(x, eff, pot, color=ZONE_COLOURS["safe"], alpha=0.15, label="voetafdruk van de terugkoppelingslus")
+            ax.plot(x, pot, lw=1.5, ls="--", color=ZONE_COLOURS["safe"], label=vt("acclimatisatie-potentieel (zonder onderdrukking)", "acclimatisation potential (without suppression)"))
+            ax.plot(x, eff, lw=2.5, color=ZONE_COLOURS["safe"], label=vt("effectieve acclimatisatie (met onderdrukking)", "effective acclimatisation (with suppression)"))
+            ax.fill_between(x, eff, pot, color=ZONE_COLOURS["safe"], alpha=0.15, label=vt("voetafdruk van de terugkoppelingslus", "footprint of the feedback loop"))
             ax.plot(x, [d["suppression_factor"] for d in dg], lw=1.5, ls=":", color="#4063d8",
-                    label="onderdrukkingsfactor (1 − κΣ)")
+                    label=vt("onderdrukkingsfactor (1 − κΣ)", "suppression factor (1 − κΣ)"))
             ax.axhline(crit, ls=":", color="grey", lw=1.2)
-            ax.text(0.0, crit, " kritieke grens (bescherming volledig overmeesterd)", transform=ax.get_yaxis_transform(),
+            ax.text(0.0, crit, vt(" kritieke grens (bescherming volledig overmeesterd)", " critical limit (protection completely overwhelmed)"), transform=ax.get_yaxis_transform(),
                     va="bottom", fontsize=9, color="grey")
             for frac, z in ((0.5, "caution"), (0.75, "danger"), (0.9, "emergency")):
                 ax.axhline(frac * crit, color=ZONE_COLOURS[z], lw=1, ls="--", alpha=0.6)
                 ax.text(1.0, frac * crit, f" {ZONE_NL[z]}", transform=ax.get_yaxis_transform(), va="center",
                         fontsize=9, color=ZONE_COLOURS[z])
             ax.set_ylim(0, crit * 1.22)
-            ax.set_title(f"De ene terugkoppelingslus in actie — {grp.display_name} ({grp.evidence_status})")
-            ax.set_ylabel("waarde (modeleenheden)")
+            ax.set_title(vt(f"De ene terugkoppelingslus in actie — {grp.display_name} ({grp.evidence_status})", f"The single feedback loop in action — {grp.display_name} ({grp.evidence_status})"))
+            ax.set_ylabel(vt("waarde (modeleenheden)", "value (model units)"))
             ax.legend(loc="center left", fontsize=9)
             self._x(ax)
             self._scheiding(ax, x)
             t["lbl"].config(text=(
-                "Zoals pyrox_plots.plot_feedback_race (diagnostics van PyroxModel.simulate). Hitte werkt rechtstreeks op Σ en "
+                vt("Zoals pyrox_plots.plot_feedback_race (diagnostics van PyroxModel.simulate). Hitte werkt rechtstreeks op Σ en "
                 "vertraagd via acclimatisatie (10 dagen geheugen). Er is één gesloten lus: Σ → onderdrukking → (remt) "
                 "acclimatisatie → (zou remmen op) Σ; polariteit (+)(−)(−) = +, zichzelf versterkend. De gearceerde kloof tussen "
-                "potentieel en effectieve acclimatisatie is de voetafdruk van die lus. Kies de groep links onder 'Groep voor detail'."))
+                "potentieel en effectieve acclimatisatie is de voetafdruk van die lus. Kies de groep links onder 'Groep voor detail'.",
+                   "As pyrox_plots.plot_feedback_race (diagnostics of PyroxModel.simulate). Heat acts directly on Σ and "
+                "delayed via acclimatisation (10 days memory). There is one closed loop: Σ → suppression → (hampers) "
+                "acclimatisation → (would hamper) Σ; polarity (+)(−)(−) = +, self-reinforcing. The shaded gap between "
+                "potential and effective acclimatisation is the footprint of that loop. Choose the group at the bottom left under 'Group for detail'.")))
             t["cv"].draw_idle()
 
         def _teken_onz(self):
@@ -1323,7 +1389,7 @@ def _start_ui(na_start=None):
             ax = fig.add_subplot(111)
             fs = self.weer.forecast_start
             if fs is None:
-                ax.text(0.5, 0.5, "Deze periode bevat geen verwachting (alleen waargenomen dagen).",
+                ax.text(0.5, 0.5, vt("Deze periode bevat geen verwachting (alleen waargenomen dagen).", "This period contains no forecast (only observed days)."),
                         ha="center", va="center", transform=ax.transAxes, fontsize=13)
                 ax.set_axis_off()
                 t["lbl"].config(text="")
@@ -1339,16 +1405,20 @@ def _start_ui(na_start=None):
                 ax.plot(x, 100 * np.asarray(c[1:]) / crit, lw=2.2, color=k, label=TARGET_GROUPS[g].display_name)
             self._zonelijnen(ax)
             ax.set_ylim(0, 105)
-            ax.set_ylabel("Σ (% van kritieke grens)")
-            ax.set_title(f"Gevoeligheid voor de verwachting: band = ±{nl(self.onz, 1)} °C op de verwachtingsdagen")
+            ax.set_ylabel(vt("Σ (% van kritieke grens)", "Σ (% of critical limit)"))
+            ax.set_title(vt(f"Gevoeligheid voor de verwachting: band = ±{nl(self.onz, 1)} °C op de verwachtingsdagen", f"Sensitivity to the forecast: band = ±{nl(self.onz, 1)} °C on the forecast days"))
             ax.legend(loc="upper left", fontsize=9)
             self._x(ax)
             self._scheiding(ax, x)
             t["lbl"].config(text=(
-                "Zoals pyrox_plots.plot_forecast_uncertainty: drie runs per groep (centraal, −Δ, +Δ) met Δ = graden × "
+                vt("Zoals pyrox_plots.plot_forecast_uncertainty: drie runs per groep (centraal, −Δ, +Δ) met Δ = graden × "
                 "HEAT_LOAD_PER_DEGREE, alleen vanaf de eerste verwachtingsdag. Smalle band = robuuste waarschuwing; brede band "
                 "= uitkomst hangt af van hoe de verwachting uitpakt. Bij een los Forecast-blad geldt (zoals in het rapport) de "
-                "hele periode als verwachting."))
+                "hele periode als verwachting.",
+                   "As pyrox_plots.plot_forecast_uncertainty: three runs per group (central, −Δ, +Δ) with Δ = degrees × "
+                "HEAT_LOAD_PER_DEGREE, only from the first forecast day. Narrow band = robust warning; wide band "
+                "= outcome depends on how the forecast turns out. With a separate Forecast sheet (as in the report) the "
+                "whole period counts as forecast.")))
             t["cv"].draw_idle()
 
         def _teken_reg(self):
@@ -1367,21 +1437,21 @@ def _start_ui(na_start=None):
                 a1.axvspan(R - stap / 2, R + stap / 2, color=kleur[z], alpha=0.16, lw=0)
             # kantelpunt (simulatie)
             kp = np.array([np.nan if (k is None or k == 0.0) else k for k in rg["drempel"]])
-            a1.plot(L, kp, color="#b03a2e", lw=2.4, ls="--", label="kantelpunt: begin-Σ waarboven de groep kantelt")
+            a1.plot(L, kp, color="#b03a2e", lw=2.4, ls="--", label=vt("kantelpunt: begin-Σ waarboven de groep kantelt", "tipping point: initial Σ above which the group tips"))
             # eindtoestand bij normale start
             a1.plot(L, rg["eind"], color="#222", lw=2.6,
-                    label=f"eindtoestand na {REG_DAGEN} dagen (normale start)")
+                    label=vt(f"eindtoestand na {REG_DAGEN} dagen (normale start)", f"end state after {REG_DAGEN} days (normal start)"))
             # analytisch (suite, volle acclimatisatie), per stabiliteit
             av = np.array([np.nan if v is None else v for v in rg["ana_value"]])
             inst = np.array([s_ == "instabiel" for s_ in rg["ana_stab"]])
             a1.plot(L, np.where(inst, av, np.nan), color="#555", lw=1.2, ls=":",
-                    label="Σ* equilibrium_strain, instabiel (volle acclim.)")
+                    label=vt("Σ* equilibrium_strain, instabiel (volle acclim.)", "Σ* equilibrium_strain, unstable (full acclim.)"))
             a1.plot(L, np.where(~inst, av, np.nan), color="#555", lw=1.2, ls="-.",
-                    label="Σ* equilibrium_strain, overig (volle acclim.)")
+                    label=vt("Σ* equilibrium_strain, overig (volle acclim.)", "Σ* equilibrium_strain, other (full acclim.)"))
             a1.axhline(crit, ls=":", color="grey")
             hl_ = np.asarray(self.rapport["heat_loads"])
             a1.axvline(hl_.max(), color="#c0392b", lw=1.5)
-            a1.text(hl_.max(), 0.98, f" hoogste dag in deze periode ({nl(hl_.max())})",
+            a1.text(hl_.max(), 0.98, vt(f" hoogste dag in deze periode ({nl(hl_.max())})", f" highest day in this period ({nl(hl_.max())})"),
                     transform=a1.get_xaxis_transform(), va="top", fontsize=9, color="#c0392b", rotation=90, ha="right")
             zonelijst = rg["zone"]
             def grens(z):
@@ -1389,15 +1459,15 @@ def _start_ui(na_start=None):
                 return (L[i[0]], L[i[-1]]) if i else None
             gk, gr = grens("kantel"), grens("kritiek")
             regels = []
-            regels.append(f"kantelzone: {nl(gk[0])} – {nl(gk[1])}" if gk else "geen kantelzone tot 2,5")
-            regels.append(f"kantelt altijd vanaf {nl(gr[0])}" if gr else "kantelt niet vanuit elke start tot 2,5")
+            regels.append(vt(f"kantelzone: {nl(gk[0])} – {nl(gk[1])}", f"tipping zone: {nl(gk[0])} – {nl(gk[1])}") if gk else vt("geen kantelzone tot 2,5", "no tipping zone up to 2.5"))
+            regels.append(vt(f"kantelt altijd vanaf {nl(gr[0])}", f"always tips from {nl(gr[0])}") if gr else vt("kantelt niet vanuit elke start tot 2,5", "does not tip from every start up to 2.5"))
             a1.text(0.02, 0.62, "\n".join(regels), transform=a1.transAxes, fontsize=10, color="#7a5b00",
                     fontweight="bold", va="top", bbox=dict(fc="white", ec="#7a5b00", alpha=0.85))
             a1.set_xlim(L[0], L[-1])
             a1.set_ylim(-0.05, crit * 1.08)
-            a1.set_xlabel("aanhoudende warmtebelasting")
+            a1.set_xlabel(vt("aanhoudende warmtebelasting", "sustained heat load"))
             a1.set_ylabel("Σ")
-            a1.set_title(f"{grp.display_name} — regimes")
+            a1.set_title(vt(f"{grp.display_name} — regimes", f"{grp.display_name} — regimes"))
             a1.legend(loc="upper left", fontsize=8)
             # rechts: voorbeeldverlopen
             def kies(z, positie=0.5):
@@ -1406,17 +1476,17 @@ def _start_ui(na_start=None):
             voorbeelden = []
             rv = kies("veilig", 0.7)
             if rv is not None:
-                voorbeelden.append(([rv] * 48, ZONE_COLOURS["safe"], "-", f"constant {nl(rv)} → dooft uit"))
+                voorbeelden.append(([rv] * 48, ZONE_COLOURS["safe"], "-", vt(f"constant {nl(rv)} → dooft uit", f"constant {nl(rv)} → dies out")))
             rk = kies("kantel", 0.5)
             if rk is not None:
-                voorbeelden.append(([rk] * 48, "#b8860b", "-", f"constant {nl(rk)} → blijft laag"))
+                voorbeelden.append(([rk] * 48, "#b8860b", "-", vt(f"constant {nl(rk)} → blijft laag", f"constant {nl(rk)} → stays low")))
                 pv = piekvoorbeeld(grp, rk)
                 if pv is not None:
                     voorbeelden.append((pv[1], "#b03a2e", "--",
-                                        f"{nl(rk)} met 3 dagen {nl(pv[0])} → blijft kritiek"))
+                                        vt(f"{nl(rk)} met 3 dagen {nl(pv[0])} → blijft kritiek", f"{nl(rk)} with 3 days {nl(pv[0])} → stays critical")))
             rr = kies("kritiek", 0.2)
             if rr is not None:
-                voorbeelden.append(([rr] * 48, ZONE_COLOURS["emergency"], "-", f"constant {nl(rr)} → op hol"))
+                voorbeelden.append(([rr] * 48, ZONE_COLOURS["emergency"], "-", vt(f"constant {nl(rr)} → op hol", f"constant {nl(rr)} → runs away")))
             for reeks, kl, ls, lab in voorbeelden:
                 traj = PyroxModel(grp).simulate(reeks, pre_heatwave_heat_load=reeks[0])["cumulative_strain"]
                 a2.plot(range(len(traj)), traj, color=kl, lw=2.4, ls=ls, marker="o", ms=2.5, label=lab)
@@ -1427,15 +1497,22 @@ def _start_ui(na_start=None):
             a2.set_ylim(-0.05, crit * 1.08)
             a2.set_xlabel("dag")
             a2.set_ylabel("Σ(t)")
-            a2.set_title("Voorbeeldverlopen: zonder en met korte piek")
+            a2.set_title(vt("Voorbeeldverlopen: zonder en met korte piek", "Example courses: without and with a short peak"))
             a2.legend(loc="center right", fontsize=9)
             t["lbl"].config(text=(
-                "Alles met PyroxModel.simulate en pyrox_model.equilibrium_strain van de suite. Groen: Σ dooft uit, ook vanaf "
+                vt("Alles met PyroxModel.simulate en pyrox_model.equilibrium_strain van de suite. Groen: Σ dooft uit, ook vanaf "
                 "vlak onder de kritieke grens. Geel (kantelzone): bistabiel; onder het kantelpunt (rode stippellijn) dooft Σ "
                 "uit, erboven loopt Σ door naar de kritieke grens en blijft daar, ook als de belasting weer daalt (hysterese). "
-                "Rood: kantelt vanuit elke begintoestand (binnen " + str(REG_DAGEN) + " dagen). Het analytische Σ* van equilibrium_strain (grijs; in plot_three_regimes "
+                "Rood: kantelt vanuit elke begintoestand (binnen ",
+                   "Everything with PyroxModel.simulate and pyrox_model.equilibrium_strain of the suite. Green: Σ dies out, also from "
+                "just below the critical limit. Yellow (tipping zone): bistable; below the tipping point (red dotted line) Σ dies "
+                "out, above it Σ runs on to the critical limit and stays there, even if the load drops again (hysteresis). "
+                "Red: tips from every initial state (within ") + str(REG_DAGEN) + vt(" dagen). Het analytische Σ* van equilibrium_strain (grijs; in plot_three_regimes "
                 "als 'evenwicht' getekend) is in de kantelzone instabiel en dus een grens, geen rustpunt; het rekent bovendien met "
-                "volle acclimatisatie. Een omslag geldt voor AANHOUDENDE belasting."))
+                "volle acclimatisatie. Een omslag geldt voor AANHOUDENDE belasting.",
+                                                                                         " days). The analytical Σ* of equilibrium_strain (grey; in plot_three_regimes "
+                "drawn as 'equilibrium') is unstable in the tipping zone and thus a boundary, not a resting point; it also calculates with "
+                "full acclimatisation. A transition applies to SUSTAINED load.")))
             t["cv"].draw_idle()
 
         # ------------------------------------------------- briefing-weergaven
@@ -1476,9 +1553,9 @@ def _start_ui(na_start=None):
             if self._spelen is not None:
                 self.root.after_cancel(self._spelen)
                 self._spelen = None
-                self.knop_af.config(text="▶ afspelen")
+                self.knop_af.config(text=vt("▶ afspelen", "▶ play"))
                 return
-            self.knop_af.config(text="■ stop")
+            self.knop_af.config(text=vt("■ stop", "■ stop"))
             n = len(self.rapport["dates"])
             if self.v["dag_em"].get() >= n - 1:
                 self.v["dag_em"].set(0)
@@ -1488,7 +1565,7 @@ def _start_ui(na_start=None):
                 self._dag_gewijzigd("em")
                 if i >= n - 1:
                     self._spelen = None
-                    self.knop_af.config(text="▶ afspelen")
+                    self.knop_af.config(text=vt("▶ afspelen", "▶ play"))
                     return
                 self.v["dag_em"].set(i + 1)
                 self._spelen = self.root.after(700, stap)
@@ -1521,13 +1598,13 @@ def _start_ui(na_start=None):
                 sp.set_visible(False)
             if fs is not None and 0 < fs < n:
                 ax.axvline(fs, color="#222", lw=1.5, ls="--")
-                ax.text(fs, 1.01, " verwachting →", transform=ax.get_xaxis_transform(), fontsize=9, va="bottom")
+                ax.text(fs, 1.01, vt(" verwachting →", " forecast →"), transform=ax.get_xaxis_transform(), fontsize=9, va="bottom")
             hand = [Patch(color=ZONE_COLOURS[z], label=ZONE_WOORD[z]) for z in ZONE_VOLGORDE]
             if fs is not None:
-                hand.append(Patch(color="white", label=f"? = hangt af van de verwachting (±{nl(self.onz, 1)} °C)"))
+                hand.append(Patch(color="white", label=vt(f"? = hangt af van de verwachting (±{nl(self.onz, 1)} °C)", f"? = depends on the forecast (±{nl(self.onz, 1)} °C)")))
             ax.legend(handles=hand, loc="upper center", bbox_to_anchor=(0.5, -0.28), ncol=3 if klein else 5,
                       frameon=False, fontsize=7 if klein else 9)
-            ax.set_title("Wie loopt wanneer risico", loc="left")
+            ax.set_title(vt("Wie loopt wanneer risico", "Who is at risk when"), loc="left")
 
         def _fig_marge(self, ax, peil):
             r = self.rapport
@@ -1535,27 +1612,27 @@ def _start_ui(na_start=None):
             y = np.arange(len(namen))
             for i, g in enumerate(namen):
                 m = marge(r, g, peil, self.pre)
-                deel = (f" · {100 * m['fractie_nood_max']:.0f} % leden in nood"
+                deel = (vt(f" · {100 * m['fractie_nood_max']:.0f} % leden in nood", f" · {100 * m['fractie_nood_max']:.0f} % members in emergency")
                         if m["fractie_nood_max"] >= 0.005 else "")
                 if m["gevaar"] is None and m["nood"] is None:
-                    ax.text(0.3, i, f"geen gevaar in {MAX_DAGEN} d{deel}", va="center", fontsize=8.5, color="#555")
+                    ax.text(0.3, i, vt(f"geen gevaar in {MAX_DAGEN} d{deel}", f"no danger in {MAX_DAGEN} d{deel}"), va="center", fontsize=8.5, color="#555")
                     continue
                 for k, (naam, kleur, dy) in enumerate((("gevaar", ZONE_COLOURS["danger"], -0.18),
                                                        ("nood", ZONE_COLOURS["emergency"], 0.18))):
                     v = m[naam]
                     if v is None:
-                        ax.text(0.3, i + dy, f"niet binnen {MAX_DAGEN} dagen", va="center", fontsize=9, color="#555")
+                        ax.text(0.3, i + dy, vt(f"niet binnen {MAX_DAGEN} dagen", f"not within {MAX_DAGEN} days"), va="center", fontsize=9, color="#555")
                         continue
                     ax.barh(i + dy, max(v, 0.15), height=0.34, color=kleur)
-                    wat = "gevaar" if naam == "gevaar" else "nood"
-                    ax.text(max(v, 0.15) + 0.3, i + dy, f"{wat}: nu al" if v == 0 else f"{wat}: {v} d", va="center",
+                    wat = vt("gevaar", "danger") if naam == "gevaar" else vt("nood", "emergency")
+                    ax.text(max(v, 0.15) + 0.3, i + dy, vt(f"{wat}: nu al", f"{wat}: already now") if v == 0 else f"{wat}: {v} d", va="center",
                             fontsize=8.5)
             ax.set_yticks(y)
             ax.set_yticklabels([TARGET_GROUPS[g].display_name for g in namen], fontsize=9)
             ax.set_ylim(len(namen) - 0.45, -0.55)
             ax.set_xlim(0, MAX_DAGEN + 5)
-            ax.set_xlabel("dagen tot de zone bereikt is")
-            ax.set_title(f"Marge vanaf {dagtekst(r['dates'][peil])}", loc="left", fontsize=11)
+            ax.set_xlabel(vt("dagen tot de zone bereikt is", "days until the zone is reached"))
+            ax.set_title(vt(f"Marge vanaf {dagtekst(r['dates'][peil])}", f"Margin from {dagtekst(r['dates'][peil])}"), loc="left", fontsize=11)
             # (geen legenda: elke balk draagt zijn eigen label 'gevaar' / 'nood')
 
         def _fig_nawerking(self, ax):
@@ -1575,13 +1652,13 @@ def _start_ui(na_start=None):
                             mec="black")
             ax.axvspan(x[-1], x[-1] + pd.Timedelta(days=MAX_DAGEN), color="#2471a3", alpha=0.06)
             ax.set_xlim(x[0], x[-1] + pd.Timedelta(days=min(MAX_DAGEN, 21)))
-            ax.text(x[-1], 102, "  daarna koel (aanname)", fontsize=8, color="#2471a3", va="bottom")
+            ax.text(x[-1], 102, vt("  daarna koel (aanname)", "  then cool (assumption)"), fontsize=8, color="#2471a3", va="bottom")
             self._zonelijnen(ax)
             ax.set_ylim(0, 112)
-            ax.set_ylabel("% kritiek")
-            ax.set_title("Nawerking: herstel", loc="left", fontsize=11)
+            ax.set_ylabel(vt("% kritiek", "% critical"))
+            ax.set_title(vt("Nawerking: herstel", "After-effect: recovery"), loc="left", fontsize=11)
             ax.xaxis.set_major_locator(mdates.DayLocator(interval=14))
-            ax.xaxis.set_major_formatter(mdates.DateFormatter("%d-%m"))
+            ax.xaxis.set_major_formatter(mdates.DateFormatter(vt("%d-%m", "%d %b")))
             ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=2, fontsize=7, frameon=False)
 
         def _briefing_teksten(self):
@@ -1592,15 +1669,17 @@ def _start_ui(na_start=None):
             for g in r["groups"]:
                 m = marge(r, g, peil, self.pre)
                 nw = nawerking(r, g, self.pre)
-                f = lambda v: "nu al" if v == 0 else (f"> {MAX_DAGEN} dagen" if v is None else
-                                                      ("1 dag" if v == 1 else f"{v} dagen"))
+                f = lambda v: vt("nu al", "already now") if v == 0 else (vt(f"> {MAX_DAGEN} dagen", f"> {MAX_DAGEN} days") if v is None else
+                                                      (vt("1 dag", "1 day") if v == 1 else vt(f"{v} dagen", f"{v} days")))
                 if nw["dagen"] == 0:
-                    her = "al veilig"
+                    her = vt("al veilig", "already safe")
                 elif nw["dagen"] is None:
-                    her = "herstelt in het model niet vanzelf binnen 30 dagen"
+                    her = vt("herstelt in het model niet vanzelf binnen 30 dagen", "does not recover by itself within 30 days in the model")
                 else:
-                    her = (f"{nw['dagen']} {'dag' if nw['dagen'] == 1 else 'dagen'} (veilig vanaf "
-                           f"{dagtekst(pd.Timestamp(r['dates'][-1]) + pd.Timedelta(days=nw['dagen']))})")
+                    her = (vt(f"{nw['dagen']} {'dag' if nw['dagen'] == 1 else 'dagen'} (veilig vanaf "
+                           f"{dagtekst(pd.Timestamp(r['dates'][-1]) + pd.Timedelta(days=nw['dagen']))})",
+                              f"{nw['dagen']} {'day' if nw['dagen'] == 1 else 'days'} (safe from "
+                           f"{dagtekst(pd.Timestamp(r['dates'][-1]) + pd.Timedelta(days=nw['dagen']))})"))
                 rijen.append((TARGET_GROUPS[g].display_name, ZONE_WOORD[m["nu"]], f(m["gevaar"]), f(m["nood"]), her))
             return zinnen, rijen, peil
 
@@ -1615,9 +1694,12 @@ def _start_ui(na_start=None):
             self._fig_nawerking(fig.add_subplot(gs[1, 1]))
             zinnen, rijen, _ = self._briefing_teksten()
             t["lbl"].config(text="\n".join(zinnen) + "\n" + (
-                "Marge: de belasting van de peildag houdt aan (PyroxModel.simulate). Nawerking: na de laatste dag belasting 0 "
+                vt("Marge: de belasting van de peildag houdt aan (PyroxModel.simulate). Nawerking: na de laatste dag belasting 0 "
                 "en volledige nachtrust (aanname). (zeker) = ook bij −Δ °C; (waarschijnlijk) = bij de centrale verwachting; "
-                "mogelijk = alleen bij +Δ °C."))
+                "mogelijk = alleen bij +Δ °C.",
+                   "Margin: the load of the reference day persists (PyroxModel.simulate). After-effect: after the last day load 0 "
+                "and full night rest (assumption). (certain) = also at −Δ °C; (likely) = at the central forecast; "
+                "possible = only at +Δ °C.")))
             t["cv"].draw_idle()
 
         def _fig_emmers(self, fig, dag):
@@ -1657,14 +1739,17 @@ def _start_ui(na_start=None):
             ax.set_xlim(-0.9, n * (breed + gat))
             ax.set_ylim(-1.02, 1.30)
             nacht = d.get("t_night_min", np.nan)
-            ax.set_title(f"{dagtekst(r['dates'][dag])} {pd.Timestamp(r['dates'][dag]).year} — Tmax "
+            ax.set_title(vt(f"{dagtekst(r['dates'][dag])} {pd.Timestamp(r['dates'][dag]).year} — Tmax "
                          f"{nl(d['t_air_max'], 1)} °C, minimum nacht erna "
-                         f"{'–' if pd.isna(nacht) else nl(nacht, 1) + ' °C'}"
-                         + ("   (verwachting)" if self.weer.forecast_start is not None and dag >= self.weer.forecast_start
+                         f"{'–' if pd.isna(nacht) else nl(nacht, 1) + ' °C'}",
+                            f"{dagtekst(r['dates'][dag])} {pd.Timestamp(r['dates'][dag]).year} — Tmax "
+                         f"{nl(d['t_air_max'], 1)} °C, minimum of the night after "
+                         f"{'–' if pd.isna(nacht) else nl(nacht, 1) + ' °C'}")
+                         + (vt("   (verwachting)", "   (forecast)") if self.weer.forecast_start is not None and dag >= self.weer.forecast_start
                             else ""), loc="left")
-            ax.text(-0.85, -0.86, "rode pijl (boven): hitte van deze dag", ha="left", va="center",
+            ax.text(-0.85, -0.86, vt("rode pijl (boven): hitte van deze dag", "red arrow (top): heat of this day"), ha="left", va="center",
                     fontsize=8, color="#D85A30")
-            ax.text(-0.85, -0.96, "blauwe pijl (onder): herstel in de nacht, dunner = warmere nacht",
+            ax.text(-0.85, -0.96, vt("blauwe pijl (onder): herstel in de nacht, dunner = warmere nacht", "blue arrow (bottom): recovery at night, thinner = warmer night"),
                     ha="left", va="center", fontsize=8, color="#378ADD")
 
         def _teken_emmers(self):
@@ -1673,11 +1758,16 @@ def _start_ui(na_start=None):
             fig.clear()
             self._fig_emmers(fig, self.v["dag_em"].get())
             t["lbl"].config(text=(
-                "Elke groep is een emmer: een hete dag vult hem (dikte rode pijl = warmtebelasting van die dag), de nacht laat "
+                vt("Elke groep is een emmer: een hete dag vult hem (dikte rode pijl = warmtebelasting van die dag), de nacht laat "
                 "hem leeglopen (dikte blauwe pijl = slaapkwaliteit; een warme nacht knijpt de afvoer dicht). Het peil is de "
                 "opgebouwde belasting Σ als deel van de kritieke grens van de groep (PyroxModel.simulate). Zo wordt zichtbaar "
                 "waarom de vierde hete dag gevaarlijker is dan de eerste, ook als het niet heter wordt. Gebruik 'afspelen' voor "
-                "een presentatie."))
+                "een presentatie.",
+                   "Each group is a bucket: a hot day fills it (thickness of red arrow = heat load of that day), the night lets "
+                "it drain (thickness of blue arrow = sleep quality; a warm night pinches the drain). The level is the "
+                "accumulated strain Σ as a share of the group's critical limit (PyroxModel.simulate). This shows "
+                "why the fourth hot day is more dangerous than the first, even if it does not get hotter. Use 'play' for "
+                "a presentation.")))
             t["cv"].draw_idle()
 
         def _fig_landschap(self, fig, dag, g):
@@ -1707,19 +1797,19 @@ def _start_ui(na_start=None):
             top = [i for i in binnen if V[i] >= V[i - 1] and V[i] >= V[i + 1] and V[i] > V[0] + 0.02 * span]
             if top:
                 i = top[int(np.argmax(V[top]))]
-                ax.annotate("rand = kantelpunt", xy=(pct[i], V[i]), xytext=(pct[i], V[i] + 0.25 * span),
+                ax.annotate(vt("rand = kantelpunt", "edge = tipping point"), xy=(pct[i], V[i]), xytext=(pct[i], V[i] + 0.25 * span),
                             ha="center", fontsize=10, arrowprops=dict(arrowstyle="-", lw=1, color="#333"))
-            ax.text(2, vmin - 0.12 * span, "herstel", fontsize=10, color=ZONE_COLOURS["safe"], fontweight="bold")
-            ax.text(98, vmin - 0.12 * span, "vastgelopen", fontsize=10, color=ZONE_COLOURS["emergency"],
+            ax.text(2, vmin - 0.12 * span, vt("herstel", "recovery"), fontsize=10, color=ZONE_COLOURS["safe"], fontweight="bold")
+            ax.text(98, vmin - 0.12 * span, vt("vastgelopen", "stuck"), fontsize=10, color=ZONE_COLOURS["emergency"],
                     fontweight="bold", ha="right")
             ax.set_ylim(vmin - 0.2 * span, vmax + 0.4 * span)
             ax.set_xlim(-3, 100)
             ax.set_yticks([])
-            ax.set_xlabel("opgebouwde belasting (% van kritieke grens)")
-            ax.set_ylabel("hoogte (zonder eenheid)")
-            ax.set_title(f"{grp.display_name} — aanhoudende warmtebelasting {nl(R)}"
-                         + ("" if self.v["kp_eigen"].get() else f" (die van {dagtekst(r['dates'][dag])})")
-                         + f"\nbal = toestand van de groep op {dagtekst(r['dates'][dag])}", loc="left")
+            ax.set_xlabel(vt("opgebouwde belasting (% van kritieke grens)", "accumulated strain (% of critical limit)"))
+            ax.set_ylabel(vt("hoogte (zonder eenheid)", "height (no unit)"))
+            ax.set_title(vt(f"{grp.display_name} — aanhoudende warmtebelasting {nl(R)}", f"{grp.display_name} — sustained heat load {nl(R)}")
+                         + ("" if self.v["kp_eigen"].get() else vt(f" (die van {dagtekst(r['dates'][dag])})", f" (that of {dagtekst(r['dates'][dag])})"))
+                         + vt(f"\nbal = toestand van de groep op {dagtekst(r['dates'][dag])}", f"\nball = state of the group on {dagtekst(r['dates'][dag])}"), loc="left")
 
         def _teken_kp(self):
             t = self.tab["kp"]
@@ -1727,12 +1817,18 @@ def _start_ui(na_start=None):
             fig.clear()
             self._fig_landschap(fig, self.v["dag_kp"].get(), self._fb_groep())
             t["lbl"].config(text=(
-                "De bal is de toestand van de groep op die dag; hij rolt altijd omlaag. Links ligt de kuil van herstel. Is het "
+                vt("De bal is de toestand van de groep op die dag; hij rolt altijd omlaag. Links ligt de kuil van herstel. Is het "
                 "warm genoeg, dan ontstaat er een rand: zolang de bal ervoor blijft, rolt hij terug; is hij erover, dan rolt hij "
                 "naar rechts tegen de kritieke grens en komt hij door een koelere dag niet vanzelf terug (hysterese). Heel hete "
                 "dagen maken de helling naar rechts zo steil dat er geen rand meer is. Het landschap volgt uit de dagelijkse "
                 "verandering van Σ in PyroxModel.simulate bij een aanhoudende belasting van die dag; de groep kies je links onder "
-                "'Groep voor detail'. Bedoeld voor uitleg, niet voor beslissingen."))
+                "'Groep voor detail'. Bedoeld voor uitleg, niet voor beslissingen.",
+                   "The ball is the state of the group on that day; it always rolls downhill. On the left is the hollow of recovery. If it is "
+                "warm enough, an edge appears: as long as the ball stays in front of it, it rolls back; once it is over it, it rolls "
+                "to the right against the critical limit and does not come back by itself on a cooler day (hysteresis). Very hot "
+                "days make the slope to the right so steep that there is no edge any more. The landscape follows from the daily "
+                "change of Σ in PyroxModel.simulate at a sustained load of that day; you choose the group at the bottom left under "
+                "'Group for detail'. Intended for explanation, not for decisions.")))
             t["cv"].draw_idle()
 
         # ------------------------------------------------- briefing als Word
@@ -1759,48 +1855,52 @@ def _start_ui(na_start=None):
 
         def _briefing(self):
             if self.rapport is None:
-                return messagebox.showinfo("Briefing", "Er is nog geen resultaat.")
-            p = filedialog.asksaveasfilename(title="Briefing opslaan als", defaultextension=".docx",
+                return messagebox.showinfo(vt("Briefing", "Briefing"), vt("Er is nog geen resultaat.", "There is no result yet."))
+            p = filedialog.asksaveasfilename(title=vt("Briefing opslaan als", "Save briefing as"), defaultextension=".docx",
                                              filetypes=[("Word", "*.docx")], initialdir=str(HIER),
                                              initialfile=f"PYROX_Briefing_{self.weer.city}_{pd.Timestamp.now():%Y%m%d_%H%M}")
             if not p:
                 return
             try:
                 schrijf_briefing(p, self)
-                self.lbl_status.config(text=f"Briefing opgeslagen: {p}")
-                messagebox.showinfo("Briefing", f"Opgeslagen:\n{p}")
+                self.lbl_status.config(text=vt(f"Briefing opgeslagen: {p}", f"Briefing saved: {p}"))
+                messagebox.showinfo(vt("Briefing", "Briefing"), vt(f"Opgeslagen:\n{p}", f"Saved:\n{p}"))
             except Exception as ex:
-                self._fout(f"Briefing mislukt: {ex}\n{traceback.format_exc()}")
+                self._fout(vt(f"Briefing mislukt: {ex}\n{traceback.format_exc()}", f"Briefing failed: {ex}\n{traceback.format_exc()}"))
 
         def _briefing_markdown(self, map_):
             paden = self._maak_beelden(map_)
             zinnen, rijen, peil = self._briefing_teksten()
             r = self.rapport
-            md = ["## Briefing voor veiligheidsfunctionarissen", "",
-                  f"Kernboodschap: {self.kernboodschap[0]}", "",
-                  f"![Wie loopt wanneer risico]({Path(paden['kalender']).name})", ""]
+            md = [vt("## Briefing voor veiligheidsfunctionarissen", "## Briefing for safety officers"), "",
+                  vt(f"Kernboodschap: {self.kernboodschap[0]}", f"Key message: {self.kernboodschap[0]}"), "",
+                  vt(f"![Wie loopt wanneer risico]({Path(paden['kalender']).name})", f"![Who is at risk when]({Path(paden['kalender']).name})"), ""]
             md += [f"- {z}" for z in zinnen]
-            md += ["", f"Marge vanaf {dagtekst(r['dates'][peil])} (als het zo heet blijft) en nawerking (als het daarna "
-                       "koel wordt):", "",
-                   "| Groep | Nu | Tot gevaar | Tot noodsituatie | Herstel na koel weer |", "|---|---|---|---|---|"]
+            md += ["", vt(f"Marge vanaf {dagtekst(r['dates'][peil])} (als het zo heet blijft) en nawerking (als het daarna "
+                       "koel wordt):",
+                          f"Margin from {dagtekst(r['dates'][peil])} (if it stays this hot) and after-effect (if it then "
+                       "becomes cool):"), "",
+                   vt("| Groep | Nu | Tot gevaar | Tot noodsituatie | Herstel na koel weer |", "| Group | Now | To danger | To emergency | Recovery after cool weather |"), "|---|---|---|---|---|"]
             md += [f"| {a} | {b} | {c} | {d} | {e} |" for a, b, c, d, e in rijen]
-            md += ["", f"![Marge en nawerking]({Path(paden['marge_nawerking']).name})", "",
-                   f"![Emmers op de peildag]({Path(paden['emmers']).name})", "",
-                   "### Uitleg: het kantelpunt", "",
-                   f"![Kantellandschap]({Path(paden['kantelpunt']).name})", "",
-                   "Voorbij de rand rolt de bal naar de kritieke grens en komt door een koelere dag niet vanzelf terug. "
-                   "Dit is een modeluitkomst (PYROX, research software), geen vastgestelde drempel.", ""]
+            md += ["", vt(f"![Marge en nawerking]({Path(paden['marge_nawerking']).name})", f"![Margin and after-effect]({Path(paden['marge_nawerking']).name})"), "",
+                   vt(f"![Emmers op de peildag]({Path(paden['emmers']).name})", f"![Buckets on the reference day]({Path(paden['emmers']).name})"), "",
+                   vt("### Uitleg: het kantelpunt", "### Explanation: the tipping point"), "",
+                   vt(f"![Kantellandschap]({Path(paden['kantelpunt']).name})", f"![Tipping landscape]({Path(paden['kantelpunt']).name})"), "",
+                   vt("Voorbij de rand rolt de bal naar de kritieke grens en komt door een koelere dag niet vanzelf terug. "
+                   "Dit is een modeluitkomst (PYROX, research software), geen vastgestelde drempel.",
+                      "Beyond the edge the ball rolls to the critical limit and does not come back by itself on a cooler day. "
+                   "This is a model outcome (PYROX, research software), not an established threshold."), ""]
             return "\n".join(md)
 
         def _fout(self, tekst):
-            self.tegels.leeg("Geen uitkomst: " + tekst.splitlines()[0][:200])
+            self.tegels.leeg(vt("Geen uitkomst: ", "No result: ") + tekst.splitlines()[0][:200])
             self.lbl_status.config(text=tekst.splitlines()[0][:160])
-            self.lbl_kop.config(text="  Fout  ", bg="#999999", fg="white")
+            self.lbl_kop.config(text=vt("  Fout  ", "  Error  "), bg="#999999", fg="white")
 
         # ---------------------------------------------------- export, rapport
         def _export(self):
             if self.rapport is None:
-                return messagebox.showinfo("Excel-export", "Er is nog geen resultaat.")
+                return messagebox.showinfo(vt("Excel-export", "Excel export"), vt("Er is nog geen resultaat.", "There is no result yet."))
             p = filedialog.asksaveasfilename(defaultextension=".xlsx", filetypes=[("Excel", "*.xlsx")],
                                              initialdir=str(HIER))
             if not p:
@@ -1819,40 +1919,40 @@ def _start_ui(na_start=None):
                     dag[f"zone_{g}"] = [ZONE_NL[_strain_zone(v, res["critical_strain"])]
                                         for v in res["cumulative_strain"][1:]]
                 meta = pd.DataFrame([("weer", self.weer.label), ("plaats", self.weer.city),
-                                     ("woonomgeving", self.v["route"].get()),
+                                     ("woonomgeving", ("stad", "platteland")[max(0, self.w["route"].current())]),
                                      ("nachtelijk_herstel", r["nocturnal_recovery"]),
-                                     ("belasting_voor_hittegolf", self.pre if self.pre is not None else "eerste dag")],
-                                    columns=["grootheid", "waarde"])
+                                     ("belasting_voor_hittegolf", self.pre if self.pre is not None else vt("eerste dag", "first day"))],
+                                    columns=[vt("grootheid", "quantity"), vt("waarde", "value")])
                 with pd.ExcelWriter(p) as xw:
-                    meta.to_excel(xw, sheet_name="Instellingen", index=False)
-                    pd.DataFrame(per).to_excel(xw, sheet_name="Per groep", index=False)
-                    dag.to_excel(xw, sheet_name="Per dag", index=False)
+                    meta.to_excel(xw, sheet_name=vt("Instellingen", "Settings"), index=False)
+                    pd.DataFrame(per).to_excel(xw, sheet_name=vt("Per groep", "Per group"), index=False)
+                    dag.to_excel(xw, sheet_name=vt("Per dag", "Per day"), index=False)
             except Exception as ex:
-                self._fout(f"Export mislukt: {ex}")
+                self._fout(vt(f"Export mislukt: {ex}", f"Export failed: {ex}"))
 
         def _rapport(self):
             if self.rapport is None:
-                return messagebox.showinfo("Rapport", "Er is nog geen resultaat.")
-            p = filedialog.asksaveasfilename(title="Rapport opslaan als", defaultextension=".docx",
+                return messagebox.showinfo(vt("Rapport", "Report"), vt("Er is nog geen resultaat.", "There is no result yet."))
+            p = filedialog.asksaveasfilename(title=vt("Rapport opslaan als", "Save report as"), defaultextension=".docx",
                                              filetypes=[("Word", "*.docx")], initialdir=str(HIER),
                                              initialfile=f"PYROX_Rapport_{self.weer.city}_{pd.Timestamp.now():%Y%m%d_%H%M}")
             if not p:
                 return
             stam = str(Path(p).with_suffix(""))
             naam = f"{self.weer.city} ({self.weer.bladnaam_rapport})"
-            self.lbl_status.config(text="Rapport maken (generate_pyrox_report + Word) …")
+            self.lbl_status.config(text=vt("Rapport maken (generate_pyrox_report + Word) …", "Making report (generate_pyrox_report + Word) …"))
             try:
                 aanhangsel = self._briefing_markdown(str(Path(stam).parent))
             except Exception as ex:
                 aanhangsel = ""
-                self._fout(f"Briefing-aanhangsel mislukt: {ex}")
+                self._fout(vt(f"Briefing-aanhangsel mislukt: {ex}", f"Briefing appendix failed: {ex}"))
             f = self.rpool.submit(_rapport_proces, naam, self.rapport, stam, True, aanhangsel)
 
             def klaar(fut):
                 try:
                     self.q.put(("rapport", fut.result()))
                 except Exception as ex:
-                    self.q.put(("fout", f"Rapport mislukt: {ex}"))
+                    self.q.put(("fout", vt(f"Rapport mislukt: {ex}", f"Report failed: {ex}")))
             f.add_done_callback(klaar)
 
         def _sluit(self):

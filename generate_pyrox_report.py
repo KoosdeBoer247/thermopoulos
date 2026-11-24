@@ -29,6 +29,9 @@ adapts to whatever groups/run are actually being reported, rather than a
 fixed hard-coded list of names.
 """
 
+from taal import vt, getal
+
+
 from datetime import datetime, timezone
 import os
 import numpy as np
@@ -36,10 +39,10 @@ import numpy as np
 
 def _fmt(x, decimals=2, suffix=""):
     if x is None:
-        return "n.b."
+        return vt("n.b.", "n/a")
     try:
         if np.isnan(x):
-            return "n.b."
+            return vt("n.b.", "n/a")
     except (TypeError, ValueError):
         pass
     try:
@@ -146,43 +149,53 @@ def generate_pyrox_report(event_name: str,
     lines = []
     A = lines.append
 
-    A(f"# PYROX-rapport — {event_name}")
+    A(vt(f"# PYROX-rapport — {event_name}", f"# PYROX report — {event_name}"))
     A("")
-    A(f"*Automatisch gegenereerd op {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} "
-      f"door generate_pyrox_report.py (HESTIA-PYROX-Klimatos suite).*")
+    A(vt(f"*Automatisch gegenereerd op {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} "
+      f"door generate_pyrox_report.py (HESTIA-PYROX-Klimatos suite).*",
+         f"*Automatically generated on {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} "
+      f"by generate_pyrox_report.py (HESTIA-PYROX-Klimatos suite).*"))
     A("")
-    A("**Dit rapport bevat uitsluitend feitelijke, door het model berekende "
+    A(vt("**Dit rapport bevat uitsluitend feitelijke, door het model berekende "
       "waarden en hun herkomst. Er zijn geen aanbevelingen of adviezen "
-      "toegevoegd.**")
+      "toegevoegd.**",
+         "**This report contains only factual values calculated by the model "
+      "and their provenance. No recommendations or advice "
+      "have been added.**"))
     A("")
     A("---")
     A("")
 
     # ------------------------------------------------------------------ #
-    A("## 1. Gesimuleerd scenario")
+    A(vt("## 1. Gesimuleerd scenario", "## 1. Simulated scenario"))
     A("")
     A("| | |")
     A("|---|---|")
-    A(f"| Plaats | {city} |")
-    A(f"| Databron (sheet) | {sheet} |")
-    A(f"| Aantal dagen | {len(heat_loads)} |")
-    A(f"| Aantal populatiegroepen | {n_groups_total} |")
-    A(f"| Hitteblootstelling per dag | {', '.join(f'{x:.2f}' for x in heat_loads)} |")
+    A(vt(f"| Plaats | {city} |", f"| Location | {city} |"))
+    A(vt(f"| Databron (sheet) | {sheet} |", f"| Data source (sheet) | {sheet} |"))
+    A(vt(f"| Aantal dagen | {len(heat_loads)} |", f"| Number of days | {len(heat_loads)} |"))
+    A(vt(f"| Aantal populatiegroepen | {n_groups_total} |", f"| Number of population groups | {n_groups_total} |"))
+    A(vt(f"| Hitteblootstelling per dag | {', '.join(f'{x:.2f}' for x in heat_loads)} |", f"| Heat exposure per day | {', '.join(f'{x:.2f}' for x in heat_loads)} |"))
     _nr = pyrox_report.get("nocturnal_recovery", False)
-    A(f"| Nachtelijk herstel | "
-      f"{'telt mee: herstel volgens het minimum van de nacht na elke dag (zie sectie 2b)' if _nr else 'NIET meegeteld (volledig herstel elke nacht; alleen voor vergelijking met de paper)'} |")
+    A(vt(f"| Nachtelijk herstel | "
+      f"{'telt mee: herstel volgens het minimum van de nacht na elke dag (zie sectie 2b)' if _nr else 'NIET meegeteld (volledig herstel elke nacht; alleen voor vergelijking met de paper)'} |",
+         f"| Night-time recovery | "
+      f"{'counted: recovery according to the minimum of the night after each day (see section 2b)' if _nr else 'NOT counted (full recovery every night; only for comparison with the paper)'} |"))
     if documented_reference:
-        A(f"| Gedocumenteerd referentiecijfer | {documented_reference} |")
+        A(vt(f"| Gedocumenteerd referentiecijfer | {documented_reference} |", f"| Documented reference figure | {documented_reference} |"))
     A("")
-    A("Model: PYROX, een control-theoretisch (geen fysiologisch) model van "
+    A(vt("Model: PYROX, een control-theoretisch (geen fysiologisch) model van "
       "meerdaagse hitteopbouw per populatiegroep -- zie TECHNICAL_REFERENCE.md "
-      "sectie 3 voor de volledige methodologie.")
+      "sectie 3 voor de volledige methodologie.",
+         "Model: PYROX, a control-theoretic (not physiological) model of "
+      "multi-day heat build-up per population group -- see TECHNICAL_REFERENCE.md "
+      "section 3 for the full methodology."))
     A("")
 
     # ------------------------------------------------------------------ #
-    A("## 2. Samenvatting per groep")
+    A(vt("## 2. Samenvatting per groep", "## 2. Summary per group"))
     A("")
-    A("| Groep | Piekbelasting | Kritieke grens | Waarschuwing | Gevaar | Noodgeval |")
+    A(vt("| Groep | Piekbelasting | Kritieke grens | Waarschuwing | Gevaar | Noodgeval |", "| Group | Peak strain | Critical limit | Caution | Danger | Emergency |"))
     A("|---|---|---|---|---|---|")
     for name, res in groups.items():
         A(f"| {res['group'].display_name} | {_fmt(res['peak_strain'], 3)} | "
@@ -190,31 +203,39 @@ def generate_pyrox_report(event_name: str,
           f"{res['danger_day'] if res['danger_day'] is not None else '-'} | "
           f"{res['emergency_day'] if res['emergency_day'] is not None else '-'} |")
     A("")
-    A("Waarschuwing/gevaar/noodgeval: de dag waarop de cumulatieve belasting van "
+    A(vt("Waarschuwing/gevaar/noodgeval: de dag waarop de cumulatieve belasting van "
       "die groep respectievelijk 50%, 75% en 90% van haar eigen kritieke grens "
       "overschrijdt (zie sectie 3 voor wat 'kritieke grens' hier concreet betekent). "
-      "'-' betekent: deze grens werd in de gesimuleerde periode niet bereikt.")
+      "'-' betekent: deze grens werd in de gesimuleerde periode niet bereikt.",
+         "Caution/danger/emergency: the day on which the cumulative strain of "
+      "that group exceeds 50%, 75% and 90% of its own critical limit respectively "
+      "(see section 3 for what 'critical limit' concretely means here). "
+      "'-' means: this limit was not reached in the simulated period."))
     A("")
 
     # ------------------------------------------------------------------ #
-    A("## 2b. Nachten")
+    A(vt("## 2b. Nachten", "## 2b. Nights"))
     A("")
-    A("Het herstel na elke dag hangt af van het minimum van de nacht erna "
+    A(vt("Het herstel na elke dag hangt af van het minimum van de nacht erna "
       "(18:00–08:00 lokale tijd): slaapkwaliteit 1,0 bij 18 °C of koeler, lineair "
       "dalend tot 0,4 bij 26 °C of warmer (thermopoulos_loader.night_sleep_quality). "
-      "Warme nachten remmen dus het herstel; dit telt in alle resultaten en grafieken mee.")
+      "Warme nachten remmen dus het herstel; dit telt in alle resultaten en grafieken mee.",
+         "The recovery after each day depends on the minimum of the night after "
+      "(18:00–08:00 local time): sleep quality 1.0 at 18 °C or cooler, decreasing "
+      "linearly to 0.4 at 26 °C or warmer (thermopoulos_loader.night_sleep_quality). "
+      "Warm nights thus hamper recovery; this counts in all results and charts."))
     A("")
     _tn = pyrox_report.get("t_night_min") or [None] * len(heat_loads)
     _q = pyrox_report.get("sleep_quality") or [1.0] * len(heat_loads)
     _days = dates if dates else [str(i + 1) for i in range(len(heat_loads))]
-    A("| Dag | Nachtminimum erna (°C) | Slaapkwaliteit |")
+    A(vt("| Dag | Nachtminimum erna (°C) | Slaapkwaliteit |", "| Day | Night minimum after (°C) | Sleep quality |"))
     A("|---|---|---|")
     for d, tn, q in zip(_days, _tn, _q):
-        A(f"| {d} | {_fmt(tn, 1) if tn is not None and tn == tn else 'n.b. (laatste dag: eigen dagminimum)'} | {_fmt(q, 2)} |")
+        A(f"| {d} | {_fmt(tn, 1) if tn is not None and tn == tn else vt('n.b. (laatste dag: eigen dagminimum)', 'n/a (last day: own day minimum)')} | {_fmt(q, 2)} |")
     A("")
 
     # ------------------------------------------------------------------ #
-    A("## 3. Divergentie tussen groepen")
+    A(vt("## 3. Divergentie tussen groepen", "## 3. Divergence between groups"))
     A("")
     _sq = pyrox_report.get("sleep_quality")
     fig = plot_strain_trajectories(heat_loads, selected,
@@ -223,27 +244,33 @@ def generate_pyrox_report(event_name: str,
     path = os.path.join(plot_dir, "pyrox_1_trajectories.png")
     fig.savefig(path, dpi=140, bbox_inches="tight")
     plt.close(fig)
-    A(f"![Belastingtrajecten per groep]({os.path.basename(path)})")
+    A(vt(f"![Belastingtrajecten per groep]({os.path.basename(path)})", f"![Strain trajectories per group]({os.path.basename(path)})"))
     A("")
-    A("*Elke lijn is de opgebouwde belasting van één groep over de gesimuleerde "
+    A(vt("*Elke lijn is de opgebouwde belasting van één groep over de gesimuleerde "
       "periode, tegen dezelfde blootstelling (het grijze vlak op de achtergrond). "
       "Groepen met een zwakkere aanpassingscapaciteit lopen sneller op en komen "
       "dichter bij (of over) hun eigen kritieke grens -- terwijl een veerkrachtige "
       "groep bij precies dezelfde blootstelling stabiel blijft. Dat uiteenlopen "
-      "zelf, niet een vast getal, is waar dit model om draait.*")
+      "zelf, niet een vast getal, is waar dit model om draait.*",
+         "*Each line is the accumulated strain of one group over the simulated "
+      "period, against the same exposure (the grey area in the background). "
+      "Groups with a weaker adaptive capacity rise faster and come "
+      "closer to (or over) their own critical limit -- while a resilient "
+      "group stays stable at exactly the same exposure. That divergence "
+      "itself, not a fixed number, is what this model is about.*"))
     A("")
 
     # ------------------------------------------------------------------ #
-    A(f"## 4. Kwetsbaarste traject in detail — {groups[most_vulnerable]['group'].display_name}")
+    A(vt(f"## 4. Kwetsbaarste traject in detail — {groups[most_vulnerable]['group'].display_name}", f"## 4. Most vulnerable trajectory in detail — {groups[most_vulnerable]['group'].display_name}"))
     A("")
     fig = plot_feedback_race(heat_loads, most_vulnerable, f"PYROX — {event_name}",
                              dates=dates, forecast_start=forecast_start, sleep_quality=_sq)
     path = os.path.join(plot_dir, "pyrox_2_feedback_race.png")
     fig.savefig(path, dpi=140, bbox_inches="tight")
     plt.close(fig)
-    A(f"![De ene terugkoppelingslus voor de meest kwetsbare groep]({os.path.basename(path)})")
+    A(vt(f"![De ene terugkoppelingslus voor de meest kwetsbare groep]({os.path.basename(path)})", f"![The single feedback loop for the most vulnerable group]({os.path.basename(path)})"))
     A("")
-    A("*Voor de groep die in deze run het dichtst bij haar eigen kritieke grens "
+    A(vt("*Voor de groep die in deze run het dichtst bij haar eigen kritieke grens "
       "kwam. Hitteblootstelling werkt op twee manieren in: rechtstreeks op de "
       "opgebouwde belasting, en vertraagd via de acclimatisatie -- een dempend "
       "pad, geen lus op zichzelf. Er zit precies één gesloten lus in dit model: "
@@ -251,78 +278,108 @@ def generate_pyrox_report(event_name: str,
       "opjaagt -- een zichzelf-versterkende spiraal, geen wedloop tussen twee "
       "gelijkwaardige processen. De gearceerde kloof tussen het gestippelde "
       "acclimatisatiepotentieel en de doorgetrokken effectieve acclimatisatie is "
-      "die lus in actie: waar die kloof toeneemt, wint de belasting terrein.*")
+      "die lus in actie: waar die kloof toeneemt, wint de belasting terrein.*",
+         "*For the group that came closest to its own critical limit in this run. "
+      "Heat exposure acts in two ways: directly on the "
+      "accumulated strain, and delayed via acclimatisation -- a damping "
+      "path, not a loop of its own. There is exactly one closed loop in this model: "
+      "accumulated strain suppresses acclimatisation, which drives the strain further "
+      "up -- a self-reinforcing spiral, not a race between two "
+      "equal processes. The shaded gap between the dotted "
+      "acclimatisation potential and the solid effective acclimatisation is "
+      "that loop in action: where the gap widens, strain gains ground.*"))
     A("")
 
     # ------------------------------------------------------------------ #
-    A("## 5. Risico-overzicht per dag")
+    A(vt("## 5. Risico-overzicht per dag", "## 5. Risk overview per day"))
     A("")
     fig = plot_risk_heatmap(heat_loads, selected, f"PYROX — {event_name}",
                             dates=dates, forecast_start=forecast_start, sleep_quality=_sq)
     path = os.path.join(plot_dir, "pyrox_3_heatmap.png")
     fig.savefig(path, dpi=140, bbox_inches="tight")
     plt.close(fig)
-    A(f"![Risicozones per groep per dag]({os.path.basename(path)})")
+    A(vt(f"![Risicozones per groep per dag]({os.path.basename(path)})", f"![Risk zones per group per day]({os.path.basename(path)})"))
     A("")
-    A("*Elke rij is een groep, elke kolom een dag; de kleur toont in welke zone "
+    A(vt("*Elke rij is een groep, elke kolom een dag; de kleur toont in welke zone "
       "die groep die dag zit (veilig / waarschuwing / gevaar / noodgeval -- "
       "dezelfde grenzen als in sectie 2's tabel). Groepen zijn geordend van "
       "veerkrachtig naar kwetsbaar, zodat in één oogopslag zichtbaar is wie "
       "wanneer risico loopt, zonder de losse lijnen van sectie 3 te hoeven "
-      "ontwarren.*")
+      "ontwarren.*",
+         "*Each row is a group, each column a day; the colour shows which zone "
+      "that group is in that day (safe / caution / danger / emergency -- "
+      "the same limits as in the table of section 2). Groups are ordered from "
+      "resilient to vulnerable, so that at a glance it is visible who "
+      "is at risk when, without having to untangle the separate lines of section 3.*"))
     A("")
 
     # ------------------------------------------------------------------ #
     if forecast_start is not None:
-        A("## 6. Onzekerheid in de voorspelling")
+        A(vt("## 6. Onzekerheid in de voorspelling", "## 6. Uncertainty in the forecast"))
         A("")
         fig = plot_forecast_uncertainty(heat_loads, selected, f"PYROX — {event_name}",
                                         dates=dates, forecast_start=forecast_start, sleep_quality=_sq)
         path = os.path.join(plot_dir, "pyrox_4_uncertainty.png")
         fig.savefig(path, dpi=140, bbox_inches="tight")
         plt.close(fig)
-        A(f"![Belastingtrajecten met onzekerheidsband]({os.path.basename(path)})")
+        A(vt(f"![Belastingtrajecten met onzekerheidsband]({os.path.basename(path)})", f"![Strain trajectories with uncertainty band]({os.path.basename(path)})"))
         A("")
-        A("*Een weersvoorspelling een paar dagen vooruit draagt een reële "
+        A(vt("*Een weersvoorspelling een paar dagen vooruit draagt een reële "
           "temperatuuronzekerheid (hier ±2 graden). Dit vertaalt zich naar een "
           "band rond elk traject: waar de band smal is, staat de uitkomst "
           "redelijk vast; waar de band breed is, hangt het resultaat sterk af "
           "van hoe het weer zich daadwerkelijk ontwikkelt -- precies het "
           "onderscheid dat relevant is voor een besluit vooraf. Deze band geldt "
           "alleen voor het voorspelde deel; eventuele reeds waargenomen dagen "
-          "hebben geen band.*")
+          "hebben geen band.*",
+             "*A weather forecast a few days ahead carries a real "
+          "temperature uncertainty (here ±2 degrees). This translates into a "
+          "band around each trajectory: where the band is narrow, the outcome is "
+          "fairly certain; where the band is wide, the result depends strongly "
+          "on how the weather actually develops -- exactly the "
+          "distinction that matters for a decision in advance. This band applies "
+          "only to the forecast part; any days already observed "
+          "have no band.*"))
         A("")
 
     # ------------------------------------------------------------------ #
-    A("## 7. De drie gedragsregimes")
+    A(vt("## 7. De drie gedragsregimes", "## 7. The three behavioural regimes"))
     A("")
     regime_groups = selected[:3] if len(selected) >= 3 else selected
     fig = plot_three_regimes(regime_groups)
     path = os.path.join(plot_dir, "pyrox_5_regimes.png")
     fig.savefig(path, dpi=140, bbox_inches="tight")
     plt.close(fig)
-    A(f"![De drie regimes: dode zone, stabiele opbouw, op hol]({os.path.basename(path)})")
+    A(vt(f"![De drie regimes: dode zone, stabiele opbouw, op hol]({os.path.basename(path)})", f"![The three regimes: dead zone, stable build-up, runaway]({os.path.basename(path)})"))
     A("")
-    A("*Dit toont, los van de specifieke dagen uit dit rapport, hoe elke groep "
+    A(vt("*Dit toont, los van de specifieke dagen uit dit rapport, hoe elke groep "
       "zich in theorie gedraagt bij een constante hitteblootstelling: bij een "
       "lage belasting stabiliseert de belasting vanzelf (de 'dode zone'); bij "
       "een hogere belasting blijft de belasting oplopen maar bereikt een stabiel "
       "evenwicht; voorbij een bepaalde drempel loopt de belasting ongecontroleerd "
       "op ('op hol'). Een kwetsbaardere groep heeft die omslagdrempel al bij een "
       "lagere belasting liggen dan een veerkrachtige groep -- dat verschil in "
-      "drempel, niet in absolute waarde, is wat kwetsbaarheid in dit model betekent.*")
+      "drempel, niet in absolute waarde, is wat kwetsbaarheid in dit model betekent.*",
+         "*This shows, apart from the specific days of this report, how each group "
+      "behaves in theory at a constant heat exposure: at a "
+      "low load the strain stabilises by itself (the 'dead zone'); at "
+      "a higher load the strain keeps rising but reaches a stable "
+      "equilibrium; beyond a certain threshold the strain rises uncontrolled "
+      "('runaway'). A more vulnerable group has that tipping threshold at a "
+      "lower load than a resilient group -- that difference in "
+      "threshold, not in absolute value, is what vulnerability means in this model.*"))
     A("")
 
     # ------------------------------------------------------------------ #
-    A("## 8. Modelvalidatie (Parijs, augustus 2003)")
+    A(vt("## 8. Modelvalidatie (Parijs, augustus 2003)", "## 8. Model validation (Paris, August 2003)"))
     A("")
     fig = plot_paris_validation()
     path = os.path.join(plot_dir, "pyrox_6_paris_validation.png")
     fig.savefig(path, dpi=140, bbox_inches="tight")
     plt.close(fig)
-    A(f"![PYROX tegen de waargenomen Franse oversterfte, augustus 2003]({os.path.basename(path)})")
+    A(vt(f"![PYROX tegen de waargenomen Franse oversterfte, augustus 2003]({os.path.basename(path)})", f"![PYROX against the observed French excess mortality, August 2003]({os.path.basename(path)})"))
     A("")
-    A("*Dit is geen resultaat van de hierboven gesimuleerde periode, maar een "
+    A(vt("*Dit is geen resultaat van de hierboven gesimuleerde periode, maar een "
       "vast referentiepunt: hoe PYROX's belastingopbouw voor oudere groepen "
       "zich verhoudt tot de daadwerkelijk waargenomen, dagelijkse oversterfte "
       "tijdens de Franse hittegolf van augustus 2003 (Fouillet et al. 2006). "
@@ -333,27 +390,47 @@ def generate_pyrox_report(event_name: str,
       "van de oorspronkelijke paper. Met nachtelijk herstel bereikt de groep 65-85 jaar "
       "de kritieke grens op dag 9 in plaats van 10; de groep 85+ blijft op dag 5. De vorm "
       "van de opbouw verandert nauwelijks (correlatie met de oversterfte 0,83 in beide "
-      "gevallen).*")
+      "gevallen).*",
+         "*This is not a result of the period simulated above, but a "
+      "fixed reference point: how PYROX's strain build-up for older groups "
+      "compares with the actually observed daily excess mortality "
+      "during the French heatwave of August 2003 (Fouillet et al. 2006). "
+      "If the shape and timing of the build-up follow the observed curve, the "
+      "model reproduces that concrete, historical event. Solid lines: with "
+      "night-time recovery according to the measured night minima of Paris-Montsouris (night after "
+      "each day), as in all results of the suite; dotted: without, the assumption "
+      "of the original paper. With night-time recovery the 65-85 group reaches "
+      "the critical limit on day 9 instead of 10; the 85+ group stays at day 5. The shape "
+      "of the build-up hardly changes (correlation with excess mortality 0.83 in both "
+      "cases).*"))
     A("")
 
     # ------------------------------------------------------------------ #
-    A("## 9. Herkomst en status van dit model")
+    A(vt("## 9. Herkomst en status van dit model", "## 9. Provenance and status of this model"))
     A("")
     A("| | |")
     A("|---|---|")
-    A("| Model | PYROX (control-theoretisch, geen fysiologische simulatie) |")
-    A("| Bron | de Boer, K. (2026), Research Square, "
-      "https://doi.org/10.21203/rs.3.rs-8626369/v1 |")
-    A(f"| Aantal populatiegroepen in deze suite | {n_groups_total} |")
+    A(vt("| Model | PYROX (control-theoretisch, geen fysiologische simulatie) |", "| Model | PYROX (control-theoretic, not a physiological simulation) |"))
+    A(vt("| Bron | de Boer, K. (2026), Research Square, "
+      "https://doi.org/10.21203/rs.3.rs-8626369/v1 |",
+         "| Source | de Boer, K. (2026), Research Square, "
+      "https://doi.org/10.21203/rs.3.rs-8626369/v1 |"))
+    A(vt(f"| Aantal populatiegroepen in deze suite | {n_groups_total} |", f"| Number of population groups in this suite | {n_groups_total} |"))
     A("")
-    A("**Beperkingen, expliciet:** de meeste van de 19 groepen zijn in de "
+    A(vt("**Beperkingen, expliciet:** de meeste van de 19 groepen zijn in de "
       "broncode zelf gelabeld als illustratieve, niet-gevalideerde "
       "parameterschattingen -- geen gemeten constanten. Alleen de "
       "onderliggende twee-lussen-structuur is empirisch getoetst (tegen het "
       "leeftijdsgegradeerde patroon van de Franse hittegolf 2003, sectie 8). "
-      "Geen onafhankelijke, externe peer review van dit specifieke traject.")
+      "Geen onafhankelijke, externe peer review van dit specifieke traject.",
+         "**Limitations, explicitly:** most of the 19 groups are labelled in the "
+      "source code itself as illustrative, non-validated "
+      "parameter estimates -- not measured constants. Only the "
+      "underlying two-loop structure has been tested empirically (against the "
+      "age-graded pattern of the French heatwave 2003, section 8). "
+      "No independent, external peer review of this specific trajectory."))
     A("")
-    A("*Einde rapport.*")
+    A(vt("*Einde rapport.*", "*End of report.*"))
 
     text = "\n".join(lines)
     with open(output_path, "w", encoding="utf-8") as f:

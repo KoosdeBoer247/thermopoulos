@@ -8,6 +8,45 @@ Entries up to 2026-10-24 were written during development; names of people
 in personal communications have been replaced by their institution, and
 results of individual field-test participants by group-level statements.
 
+## [2026-11-24] English version of the interfaces
+
+- **Author's decision:** the start screen opens in Dutch; a British flag opens
+  the English version of the start screen and of the five interfaces, including
+  the charts, Word reports and briefing made from them. Glossary approved by
+  the author first (British English, decimal point, date input YYYY-MM-DD in
+  both languages, PYROX zones safe/caution/danger/emergency, "cardiac
+  reserve", "sweeper bus"; names, models, symbols and "seed" not translated).
+- **New:** `taal.py` (language layer) and `tests/test_taal.py`. All interface
+  texts are written as `vt(nl, en)`; numbers and dates follow the language.
+- **No calculation changed:** drop-down keys for the suite are taken from the
+  list position or a key table, not the text; the test confirms identical work-mode and
+  PYROX results in both languages. The console menu and console reports stay
+  Dutch. Details: TECHNICAL_REFERENCE.md §2.5.
+
+## [2026-11-24] HESTIA work mode: outdoor workers over a working day
+
+- **Author's decision — changed:** the worker group in HESTIA is built now,
+  not after PYROX option B has been shown to work well (decision of
+  2026-11-23). The independent PYROX test stays open.
+- **Author's decisions (source study 2026-11-24, all points approved):** ISO
+  8996 classes plus occupations from the 2024 Adult Compendium as presets; a
+  work–rest schedule with breaks entered by the user; no voluntary pacing;
+  occupational limits (ACGIH, NIOSH, ISO 7243 via the Health Council 2011)
+  instead of an EHS probability; a separate screen; age 18–67 from CBS; body
+  build and fitness as the walkers; vapour-barrier PPE left out; PHS (ISO
+  7933) as a check; Specht et al. 2025 as the first test.
+- **New:** `hestia_werk.py` (own time loop calling the suite's building
+  blocks; `hestia_model.py` unchanged, runners and walkers bit-identical),
+  `hestia_werk_ui.py`, `hestia_werk_rapport.py`, `tests/test_hestia_werk.py`.
+  Start screen: fifth card "HESTIA · WERK"; the cards now lower their font
+  size, and finally drop the description, when the window is small.
+- **Model choice for review:** the after-glow on slowing is off for workers
+  (it would add heat at every break).
+- **Found:** with a heavy Compendium value (digging 7.3 MET) for a full day
+  the group runs far above 42 °C, because the model lets nobody stop; the
+  screen and report say so, and warn when most workers are above 50 % of their
+  VO2max. Details: TECHNICAL_REFERENCE.md §4.6.4.
+
 ## [2026-11-23] PYROX: groups heterogeneous (option B); athletes and outdoor workers removed
 
 - **Author's decision — removed:** the PYROX groups `endurance_athletes`,

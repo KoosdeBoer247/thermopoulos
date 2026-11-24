@@ -44,6 +44,9 @@ Starten:  python klimatos_ui.py
 """
 from __future__ import annotations
 
+import taal
+from taal import vt, getal, engels
+
 import io
 import os
 import queue
@@ -325,7 +328,7 @@ def analyse(inv_d: dict, annual: pd.DataFrame, slices: dict, lraw: dict, uitmap:
     with contextlib.redirect_stdout(uit):
         ks.main()
     if "pakket" not in vang:
-        raise RuntimeError("Klimatos main() eindigde zonder resultaat (zie het logboek).")
+        raise RuntimeError(vt("Klimatos main() eindigde zonder resultaat (zie het logboek).", "Klimatos main() ended without a result (see the log)."))
     g = dict(vang["pakket"])
     g["plot_paths"] = [os.path.abspath(p) for p in g.get("plot_paths", [])]
     return dict(gegevens=g, stats_by_var=vang.get("stats_by_var"), excel=vang.get("excel"),
@@ -353,10 +356,12 @@ def maak_rapport(pakket: dict, stam: str, uitmap: str) -> list:
             uit.append(stam + ext)
     if not os.path.exists(binnen + ".docx"):
         regel = next((r for r in buf.getvalue().splitlines() if "Word-export" in r), "")
-        uit.append("Word-rapport niet gemaakt: " + (regel.strip() if regel else
-                   "voor Word zijn Node.js en eenmalig 'npm install' in de suitemap nodig; "
-                   "het Markdown-rapport staat er wel."))
-    uit.append(f"(De figuren bij het Markdown-rapport staan in {uitmap}.)")
+        uit.append(vt("Word-rapport niet gemaakt: ", "Word report not made: ") + (regel.strip() if regel else
+                   vt("voor Word zijn Node.js en eenmalig 'npm install' in de suitemap nodig; "
+                   "het Markdown-rapport staat er wel.",
+                      "for Word, Node.js and a one-off 'npm install' in the suite folder are needed; "
+                   "the Markdown report is there.")))
+    uit.append(vt(f"(De figuren bij het Markdown-rapport staan in {uitmap}.)", f"(The figures for the Markdown report are in {uitmap}.)"))
     return uit
 
 
@@ -370,7 +375,7 @@ def waarschuwing(lat, lon) -> str:
 # =============================================================================
 # 5. GEBRUIKERSINTERFACE
 # =============================================================================
-VARIANT_NAAM = {"suite": "suite (ERA5 zonder kustcorrectie)", "kust": "beoordeling: ERA5 + kustcorrectie"}
+VARIANT_NAAM = {"suite": vt("suite (ERA5 zonder kustcorrectie)", "suite (ERA5 without coastal correction)"), "kust": vt("beoordeling: ERA5 + kustcorrectie", "assessment: ERA5 + coastal correction")}
 
 
 def _hms(s: Optional[float]) -> str:
@@ -401,17 +406,17 @@ def _start_ui(na_start=None):
     import ui_gemeen as ug
     matplotlib.rcParams.update({"font.size": 11, "axes.titlesize": 12, "axes.titleweight": "bold",
                                 "axes.grid": True, "grid.alpha": 0.3, "legend.fontsize": 9})
-    VAR_NL = {"T_air_max": "Tlucht max (°C)", "WBT_max": "natteboltemperatuur max (°C)",
+    VAR_NL = {"T_air_max": vt("Tlucht max (°C)", "Tair max (°C)"), "WBT_max": vt("natteboltemperatuur max (°C)", "wet-bulb temperature max (°C)"),
               "WBGT_max": "WBGT max (°C)", "UTCI_max": "UTCI max (°C)"}
     KLEUR = {"suite": "#2471a3", "kust": "#c0392b"}
 
     def nl(x, d=1):
-        return "–" if x is None or (isinstance(x, float) and not np.isfinite(x)) else f"{x:.{d}f}".replace(".", ",")
+        return "–" if x is None or (isinstance(x, float) and not np.isfinite(x)) else getal(x, d)
 
     class App:
         def __init__(self, root):
             self.root = root
-            root.title("Klimatos.ClimateShift · klimaatverschuiving per plaats  (research software)")
+            root.title(vt("Klimatos.ClimateShift · klimaatverschuiving per plaats  (research software)", "Klimatos.ClimateShift · climate shift per location  (research software)"))
             for naam in ("TkDefaultFont", "TkTextFont", "TkFixedFont", "TkMenuFont", "TkHeadingFont"):
                 try:
                     tkfont.nametofont(naam).configure(size=LETTER)
@@ -464,94 +469,102 @@ def _start_ui(na_start=None):
             self.v, self.w = {}, {}
 
             ug.invoer_legenda(self.form, LETTER)
-            r = self._sectie("Locatie en gegevensbron", "verplicht",
-                             "Gegevens: ERA5-heranalyse (Open-Meteo-archief), één gridcel bij de gekozen plaats.")
-            rij = self._rij(r, "Plaats")
+            r = self._sectie(vt("Locatie en gegevensbron", "Location and data source"), "verplicht",
+                             vt("Gegevens: ERA5-heranalyse (Open-Meteo-archief), één gridcel bij de gekozen plaats.", "Data: ERA5 reanalysis (Open-Meteo archive), one grid cell at the chosen location."))
+            rij = self._rij(r, vt("Plaats", "Location"))
             self.v["plaats"] = tk.StringVar(value="Amsterdam")
             pe = ttk.Entry(rij, textvariable=self.v["plaats"], width=14)
             pe.pack(side="left")
             pe.bind("<Return>", lambda e: self._zoek())
-            ttk.Button(rij, text="Zoek", width=6, command=self._zoek).pack(side="left", padx=3)
+            ttk.Button(rij, text=vt("Zoek", "Search"), width=6, command=self._zoek).pack(side="left", padx=3)
             self.cb_kand = ttk.Combobox(r, state="readonly", width=42)
             self.cb_kand.pack(fill="x", pady=2)
             self.cb_kand.bind("<<ComboboxSelected>>", lambda e: self._plaats_gekozen())
             self.v["uhi"] = tk.BooleanVar(value=bool(ks.APPLY_UHI))
-            self.w["uhi"] = ttk.Checkbutton(r, text="Stedelijk hitte-eiland (UHI) toepassen", variable=self.v["uhi"],
+            self.w["uhi"] = ttk.Checkbutton(r, text=vt("Stedelijk hitte-eiland (UHI) toepassen", "Apply urban heat island (UHI)"), variable=self.v["uhi"],
                                             command=self._gewijzigd)
             self.w["uhi"].pack(anchor="w")
             self.lbl_kust = ttk.Label(r, text="", wraplength=430, foreground="#7a5b00",
                                       font=("TkDefaultFont", LETTER - 2))
             self.lbl_kust.pack(anchor="w", pady=(2, 0))
 
-            r = self._sectie("Analyseperiode", "verplicht")
+            r = self._sectie(vt("Analyseperiode", "Analysis period"), "verplicht")
             self.v["snel"] = tk.StringVar(value="vol")
             eind = laatste_jaar()
-            ttk.Radiobutton(r, text=f"Volledig ({min(ks.START_YEAR, ks.REFERENCE_PERIOD[0])}–{eind})",
+            ttk.Radiobutton(r, text=vt(f"Volledig ({min(ks.START_YEAR, ks.REFERENCE_PERIOD[0])}–{eind})", f"Full ({min(ks.START_YEAR, ks.REFERENCE_PERIOD[0])}–{eind})"),
                             variable=self.v["snel"], value="vol", command=self._gewijzigd).pack(anchor="w")
-            ttk.Label(r, text="Alle jaren met de referentieperiode van de suite. Duurt lang.", foreground="#555",
+            ttk.Label(r, text=vt("Alle jaren met de referentieperiode van de suite. Duurt lang.", "All years with the suite reference period. Takes long."), foreground="#555",
                       font=("TkDefaultFont", LETTER - 2)).pack(anchor="w", padx=(22, 0))
-            ttk.Radiobutton(r, text=f"Snelle verkenning (laatste 30 jaar)", variable=self.v["snel"],
+            ttk.Radiobutton(r, text=vt(f"Snelle verkenning (laatste 30 jaar)", f"Quick exploration (last 30 years)"), variable=self.v["snel"],
                             value="snel", command=self._gewijzigd).pack(anchor="w")
-            ttk.Label(r, text="Referentie = de eerste 10 opgehaalde jaren; niet vergelijkbaar met een volledige "
-                              "run.", foreground="#555", font=("TkDefaultFont", LETTER - 2), wraplength=400,
+            ttk.Label(r, text=vt("Referentie = de eerste 10 opgehaalde jaren; niet vergelijkbaar met een volledige "
+                              "run.",
+                                 "Reference = the first 10 fetched years; not comparable with a full "
+                              "run."), foreground="#555", font=("TkDefaultFont", LETTER - 2), wraplength=400,
                       justify="left").pack(anchor="w", padx=(22, 0))
 
-            r = self._sectie("Evenement (vaste jaarlijkse datum)", "optioneel")
+            r = self._sectie(vt("Evenement (vaste jaarlijkse datum)", "Event (fixed annual date)"), "optioneel")
             self.v["ev"] = tk.BooleanVar(value=True)
-            ttk.Checkbutton(r, text="Evenement analyseren", variable=self.v["ev"],
+            ttk.Checkbutton(r, text=vt("Evenement analyseren", "Analyse event"), variable=self.v["ev"],
                             command=self._gewijzigd).pack(anchor="w")
-            self._tekst(r, "naam", "Naam", ks.EVENT_NAME, breed=20)
-            self._tekst(r, "datum", "Datum (DD-MM)", f"{ks.EVENT_DAY:02d}-{ks.EVENT_MONTH:02d}")
-            self._tekst(r, "start", "Starttijd (HH:MM)", f"{ks.EVENT_START_HOUR:02d}:{ks.EVENT_START_MINUTE:02d}")
-            self._tekst(r, "afstand", "Afstand (km)", f"{ks.EVENT_DIST_KM:g}".replace(".", ","))
-            self._tekst(r, "tempo", "Tempo mediaan (min/km)", "5:30")
+            self._tekst(r, "naam", vt("Naam", "Name"), ks.EVENT_NAME, breed=20)
+            self._tekst(r, "datum", vt("Datum (DD-MM)", "Date (DD-MM)"), f"{ks.EVENT_DAY:02d}-{ks.EVENT_MONTH:02d}")
+            self._tekst(r, "start", vt("Starttijd (HH:MM)", "Start time (HH:MM)"), f"{ks.EVENT_START_HOUR:02d}:{ks.EVENT_START_MINUTE:02d}")
+            self._tekst(r, "afstand", vt("Afstand (km)", "Distance (km)"), (f"{ks.EVENT_DIST_KM:g}" if engels() else f"{ks.EVENT_DIST_KM:g}".replace(".", ",")))
+            self._tekst(r, "tempo", vt("Tempo mediaan (min/km)", "Median pace (min/km)"), "5:30")
             self.lbl_afgeleid = ttk.Label(r, text="", foreground="#555", font=("TkDefaultFont", LETTER - 2))
             self.lbl_afgeleid.pack(anchor="w")
 
-            r = self._sectie("Uit te voeren analyses", "actie")
+            r = self._sectie(vt("Uit te voeren analyses", "Analyses to run"), "actie")
 
             def toelichting(tekst):
                 ttk.Label(r, text=tekst, foreground="#555", font=("TkDefaultFont", LETTER - 2), wraplength=420,
                           justify="left").pack(anchor="w", padx=(4, 0))
-            ttk.Label(r, text="1. Suite-run", font=("TkDefaultFont", LETTER, "bold")).pack(anchor="w")
+            ttk.Label(r, text=vt("1. Suite-run", "1. Suite run"), font=("TkDefaultFont", LETTER, "bold")).pack(anchor="w")
             rij = ttk.Frame(r)
             rij.pack(fill="x", pady=(2, 0))
-            self.knop_start = ttk.Button(rij, text="▶ Start run", command=lambda: self._start("suite"))
+            self.knop_start = ttk.Button(rij, text=vt("▶ Start run", "▶ Start run"), command=lambda: self._start("suite"))
             self.knop_start.pack(side="left")
-            self.knop_stop = ttk.Button(rij, text="■ Stop", command=self._stop, state="disabled")
+            self.knop_stop = ttk.Button(rij, text=vt("■ Stop", "■ Stop"), command=self._stop, state="disabled")
             self.knop_stop.pack(side="left", padx=4)
-            toelichting("Klimatos zoals in de suite: ERA5 zonder kustcorrectie. Dit is de officiële uitkomst.")
-            ttk.Label(r, text="2. Aanvullend (na een suite-run)", font=("TkDefaultFont", LETTER, "bold")).pack(
+            toelichting(vt("Klimatos zoals in de suite: ERA5 zonder kustcorrectie. Dit is de officiële uitkomst.", "Klimatos as in the suite: ERA5 without coastal correction. This is the official outcome."))
+            ttk.Label(r, text=vt("2. Aanvullend (na een suite-run)", "2. Additional (after a suite run)"), font=("TkDefaultFont", LETTER, "bold")).pack(
                 anchor="w", pady=(6, 0))
-            self.knop_ehs = ttk.Button(r, text="EHS-evolutie berekenen (lang)", command=self._ehs)
+            self.knop_ehs = ttk.Button(r, text=vt("EHS-evolutie berekenen (lang)", "Calculate EHS evolution (long)"), command=self._ehs)
             self.knop_ehs.pack(anchor="w", pady=(2, 0))
-            toelichting("HESTIA-ensemble voor de evenementdag in de doeljaren. Voegt toe aan de suite-run.")
-            self.knop_kust = ttk.Button(r, text="Kustcorrectie-run starten / hervatten (beoordeling)",
+            toelichting(vt("HESTIA-ensemble voor de evenementdag in de doeljaren. Voegt toe aan de suite-run.", "HESTIA ensemble for the event day in the target years. Adds to the suite run."))
+            self.knop_kust = ttk.Button(r, text=vt("Kustcorrectie-run starten / hervatten (beoordeling)", "Start / resume coastal-correction run (assessment)"),
                                         command=lambda: self._start("kust"))
             self.knop_kust.pack(anchor="w", pady=(4, 0))
-            toelichting("Aparte run met ERA5-kustcorrectie, alleen om de correctie te beoordelen. Wordt nooit met "
-                        "de suite-uitkomst gemengd; kies hem rechts bij 'Toon'.")
-            ttk.Label(r, text="3. Opslaan", font=("TkDefaultFont", LETTER, "bold")).pack(anchor="w", pady=(6, 0))
+            toelichting(vt("Aparte run met ERA5-kustcorrectie, alleen om de correctie te beoordelen. Wordt nooit met "
+                        "de suite-uitkomst gemengd; kies hem rechts bij 'Toon'.",
+                           "Separate run with ERA5 coastal correction, only to assess the correction. Never mixed with "
+                        "the suite outcome; choose it on the right under 'Show'."))
+            ttk.Label(r, text=vt("3. Opslaan", "3. Save"), font=("TkDefaultFont", LETTER, "bold")).pack(anchor="w", pady=(6, 0))
             rij = ttk.Frame(r)
             rij.pack(fill="x", pady=(2, 0))
-            ttk.Button(rij, text="Excel opslaan…", command=self._excel).pack(side="left")
-            ttk.Button(rij, text="Rapport (Word)", command=self._rapport).pack(side="left", padx=4)
+            ttk.Button(rij, text=vt("Excel opslaan…", "Save Excel…"), command=self._excel).pack(side="left")
+            ttk.Button(rij, text=vt("Rapport (Word)", "Report (Word)"), command=self._rapport).pack(side="left", padx=4)
             self.pb = ttk.Progressbar(r, length=420, mode="determinate")
             self.pb.pack(fill="x", pady=(8, 2))
             self.lbl_fase = ttk.Label(r, text="", wraplength=430, font=("TkDefaultFont", LETTER - 1))
             self.lbl_fase.pack(anchor="w")
 
-            r = self._sectie("Vaste suite-instellingen", "info")
-            vast = [f"referentieperiode {ks.REFERENCE_PERIOD[0]}–{ks.REFERENCE_PERIOD[1]}",
-                    f"vensters {ks.WINDOW_LENGTH} jaar, stap {ks.WINDOW_STEP}, vanaf {ks.START_YEAR}",
-                    f"evenementtrend {ks.EVENT_TREND_PERIOD[0]}–{ks.EVENT_TREND_PERIOD[1]}, ±{ks.EVENT_DAY_WINDOW} dagen",
-                    f"doeljaren {', '.join(map(str, ks.EHS_TARGET_YEARS))}",
-                    f"EHS: aanpassing start {ks.EHS_ADAPT_START_HOUR:02d}:{ks.EHS_ADAPT_START_MINUTE:02d}, "
+            r = self._sectie(vt("Vaste suite-instellingen", "Fixed suite settings"), "info")
+            vast = [vt(f"referentieperiode {ks.REFERENCE_PERIOD[0]}–{ks.REFERENCE_PERIOD[1]}", f"reference period {ks.REFERENCE_PERIOD[0]}–{ks.REFERENCE_PERIOD[1]}"),
+                    vt(f"vensters {ks.WINDOW_LENGTH} jaar, stap {ks.WINDOW_STEP}, vanaf {ks.START_YEAR}", f"windows {ks.WINDOW_LENGTH} years, step {ks.WINDOW_STEP}, from {ks.START_YEAR}"),
+                    vt(f"evenementtrend {ks.EVENT_TREND_PERIOD[0]}–{ks.EVENT_TREND_PERIOD[1]}, ±{ks.EVENT_DAY_WINDOW} dagen", f"event trend {ks.EVENT_TREND_PERIOD[0]}–{ks.EVENT_TREND_PERIOD[1]}, ±{ks.EVENT_DAY_WINDOW} days"),
+                    vt(f"doeljaren {', '.join(map(str, ks.EHS_TARGET_YEARS))}", f"target years {', '.join(map(str, ks.EHS_TARGET_YEARS))}"),
+                    vt(f"EHS: aanpassing start {ks.EHS_ADAPT_START_HOUR:02d}:{ks.EHS_ADAPT_START_MINUTE:02d}, "
                     f"n = {ks.EHS_ENSEMBLE_N}, eindpunt {ks.COLLAPSE_ENDPOINT}",
-                    f"HEAT-Lim: {ks.LIVEABILITY_EXP_TIME} h, {ks.LIVEABILITY_SUN}, "
+                       f"EHS: adaptation start {ks.EHS_ADAPT_START_HOUR:02d}:{ks.EHS_ADAPT_START_MINUTE:02d}, "
+                    f"n = {ks.EHS_ENSEMBLE_N}, endpoint {ks.COLLAPSE_ENDPOINT}"),
+                    vt(f"HEAT-Lim: {ks.LIVEABILITY_EXP_TIME} h, {ks.LIVEABILITY_SUN}, "
                     f"{'beschikbaar' if ks.HEATLIM_AVAILABLE else 'NIET beschikbaar'}",
-                    f"HESTIA {'beschikbaar' if ks.HESTIA_AVAILABLE else 'NIET beschikbaar'}",
-                    f"ERA5: {ks.ARCHIVE_MODEL}, cel {ks.ARCHIVE_CELL_SELECTION}",
+                       f"HEAT-Lim: {ks.LIVEABILITY_EXP_TIME} h, {ks.LIVEABILITY_SUN}, "
+                    f"{'available' if ks.HEATLIM_AVAILABLE else 'NOT available'}"),
+                    vt(f"HESTIA {'beschikbaar' if ks.HESTIA_AVAILABLE else 'NIET beschikbaar'}", f"HESTIA {'available' if ks.HESTIA_AVAILABLE else 'NOT available'}"),
+                    vt(f"ERA5: {ks.ARCHIVE_MODEL}, cel {ks.ARCHIVE_CELL_SELECTION}", f"ERA5: {ks.ARCHIVE_MODEL}, cell {ks.ARCHIVE_CELL_SELECTION}"),
                     f"cache: {cache_map()}"]
             ttk.Label(r, text="\n".join(vast), foreground="#555", font=("TkDefaultFont", LETTER - 2),
                       justify="left", wraplength=430).pack(anchor="w")
@@ -561,14 +574,14 @@ def _start_ui(na_start=None):
             rechts.pack(side="left", fill="both", expand=True)
             boven = ttk.Frame(rechts)
             boven.pack(fill="x")
-            self.lbl_kop = tk.Label(boven, text="  Klimatos — kies een plaats en start een run  ",
+            self.lbl_kop = tk.Label(boven, text=vt("  Klimatos — kies een plaats en start een run  ", "  Klimatos — choose a location and start a run  "),
                                     font=("TkDefaultFont", LETTER + 1, "bold"), bg="#dddddd", padx=10, pady=4,
                                     anchor="w", justify="left", wraplength=820)
             self.lbl_kop.pack(side="left")
             klok = tk.Frame(boven)
             klok.pack(side="right", padx=6)
-            tk.Label(klok, text="verstreken", font=("TkDefaultFont", LETTER - 2)).grid(row=0, column=0)
-            tk.Label(klok, text="nog", font=("TkDefaultFont", LETTER - 2)).grid(row=0, column=1)
+            tk.Label(klok, text=vt("verstreken", "elapsed"), font=("TkDefaultFont", LETTER - 2)).grid(row=0, column=0)
+            tk.Label(klok, text=vt("nog", "remaining"), font=("TkDefaultFont", LETTER - 2)).grid(row=0, column=1)
             self.lbl_verstreken = tk.Label(klok, text="--:--:--", font=("TkFixedFont", LETTER + 8, "bold"),
                                            fg="#333", padx=8)
             self.lbl_verstreken.grid(row=1, column=0)
@@ -577,7 +590,7 @@ def _start_ui(na_start=None):
             self.lbl_nog.grid(row=1, column=1)
             rij = ttk.Frame(rechts)
             rij.pack(fill="x", pady=(4, 0))
-            ttk.Label(rij, text="Toon:").pack(side="left")
+            ttk.Label(rij, text=vt("Toon:", "Show:")).pack(side="left")
             self.v["toon"] = tk.StringVar(value="suite")
             for k in ("suite", "kust"):
                 ttk.Radiobutton(rij, text=VARIANT_NAAM[k], variable=self.v["toon"], value=k,
@@ -592,28 +605,42 @@ def _start_ui(na_start=None):
             self.nb = nb
             self.tab = {}
             UITLEG = {
-                "jm": "Startpunt. Het warmste uur van elk jaar (Tlucht, WBGT, UTCI) met de trend. Laat zien of de "
+                "jm": vt("Startpunt. Het warmste uur van elk jaar (Tlucht, WBGT, UTCI) met de trend. Laat zien of de "
                       "hitte-extremen op deze plek toenemen.",
-                "ve": "Gemiddelden over schuivende vensters van meerdere jaren, vergeleken met de referentieperiode. "
+                         "Starting point. The warmest hour of each year (Tair, WBGT, UTCI) with the trend. Shows whether "
+                      "heat extremes are increasing at this place."),
+                "ve": vt("Gemiddelden over schuivende vensters van meerdere jaren, vergeleken met de referentieperiode. "
                       "Minder gevoelig voor één uitschieter dan de jaarmaxima.",
-                "st": "Warming stripes: elk jaar één streep, blauw = koeler en rood = warmer dan de referentie. Geschikt "
+                         "Means over sliding windows of several years, compared with the reference period. "
+                      "Less sensitive to a single outlier than the annual maxima."),
+                "st": vt("Warming stripes: elk jaar één streep, blauw = koeler en rood = warmer dan de referentie. Geschikt "
                       "voor presentaties.",
-                "tv": "Voor onderzoek. Gaat de opwarming sneller? Trend over opeenvolgende perioden vergeleken.",
-                "ev": "Het weer tijdens het evenement (vaste datum en starttijd) door de jaren heen, met de trend en, na "
+                         "Warming stripes: one stripe per year, blue = cooler and red = warmer than the reference. Suitable "
+                      "for presentations."),
+                "tv": vt("Voor onderzoek. Gaat de opwarming sneller? Trend over opeenvolgende perioden vergeleken.", "For research. Is warming accelerating? Trend over successive periods compared."),
+                "ev": vt("Het weer tijdens het evenement (vaste datum en starttijd) door de jaren heen, met de trend en, na "
                       "de EHS-berekening, het verwachte aantal EHS-gevallen per 1000 deelnemers in de doeljaren.",
-                "op": "Hittegerelateerde ziekenhuisopnames in de bevolking als index per jaar (mei–september), "
+                         "The weather during the event (fixed date and start time) over the years, with the trend and, after "
+                      "the EHS calculation, the expected number of EHS cases per 1000 participants in the target years."),
+                "op": vt("Hittegerelateerde ziekenhuisopnames in de bevolking als index per jaar (mei–september), "
                       "en de verhouding tot de referentieperiode. Een index die de trend laat zien, geen aantal opnames.",
-                "lb": "Leefbaarheid (HEAT-Lim): uren per jaar waarin normale activiteit of zelfs rust buiten niet meer "
+                         "Heat-related hospital admissions in the population as an index per year (May–September), "
+                      "and the ratio to the reference period. An index that shows the trend, not a number of admissions."),
+                "lb": vt("Leefbaarheid (HEAT-Lim): uren per jaar waarin normale activiteit of zelfs rust buiten niet meer "
                       "veilig vol te houden is, voor 18–40 en 65+.",
-                "ku": "Beoordeling van de ERA5-kustcorrectie: suite-run en gecorrigeerde run naast elkaar, met uurdetail "
+                         "Liveability (HEAT-Lim): hours per year in which normal activity or even rest outdoors can no longer "
+                      "be sustained safely, for 18–40 and 65+."),
+                "ku": vt("Beoordeling van de ERA5-kustcorrectie: suite-run en gecorrigeerde run naast elkaar, met uurdetail "
                       "per jaar. Niet de officiële uitkomst.",
-                "fi": "De figuren die de suite zelf maakt, zoals ze ook in het rapport komen.",
-                "lg": "Logboek van de run: voor controle en foutzoeken.",
+                         "Assessment of the ERA5 coastal correction: suite run and corrected run side by side, with hourly detail "
+                      "per year. Not the official outcome."),
+                "fi": vt("De figuren die de suite zelf maakt, zoals ze ook in het rapport komen.", "The figures the suite makes itself, as they also appear in the report."),
+                "lg": vt("Logboek van de run: voor controle en foutzoeken.", "Log of the run: for checking and troubleshooting."),
             }
-            for k, titel in (("jm", "Jaarmaxima"), ("ve", "Vensters"), ("st", "Warming stripes"),
-                             ("tv", "Trendversnelling"), ("ev", "Evenement"), ("op", "Opnames"),
-                             ("lb", "Leefbaarheid"), ("ku", "Kustcorrectie"), ("fi", "Suite-figuren"),
-                             ("lg", "Logboek")):
+            for k, titel in (("jm", vt("Jaarmaxima", "Annual maxima")), ("ve", vt("Vensters", "Windows")), ("st", "Warming stripes"),
+                             ("tv", vt("Trendversnelling", "Trend acceleration")), ("ev", vt("Evenement", "Event")), ("op", vt("Opnames", "Admissions")),
+                             ("lb", vt("Leefbaarheid", "Liveability")), ("ku", vt("Kustcorrectie", "Coastal correction")), ("fi", vt("Suite-figuren", "Suite figures")),
+                             ("lg", vt("Logboek", "Log"))):
                 f = ttk.Frame(nb)
                 nb.add(f, text=titel)
                 ug.tab_uitleg(f, UITLEG[k], LETTER)
@@ -627,7 +654,7 @@ def _start_ui(na_start=None):
                     t["tx"] = tx
                     self.tab[k] = t
                     continue
-                ink = ug.Inklap(f, "Toelichting bij deze grafiek (bron en rekenwijze)", LETTER)
+                ink = ug.Inklap(f, vt("Toelichting bij deze grafiek (bron en rekenwijze)", "Explanation of this chart (source and method)"), LETTER)
                 ink.pack(side="bottom", fill="x", pady=(0, 2))
                 lbl = ttk.Label(ink.binnen, text="", font=("TkDefaultFont", LETTER - 1), wraplength=1250,
                                 justify="left")
@@ -645,7 +672,7 @@ def _start_ui(na_start=None):
                 if k == "ku":
                     balk = ttk.Frame(f)
                     balk.pack(side="bottom", fill="x", padx=8)
-                    ttk.Label(balk, text="Jaar voor het uurdetail:").pack(side="left")
+                    ttk.Label(balk, text=vt("Jaar voor het uurdetail:", "Year for hourly detail:")).pack(side="left")
                     self.v["ku_jaar"] = tk.StringVar(value="")
                     self.cb_kujaar = ttk.Combobox(balk, textvariable=self.v["ku_jaar"], state="readonly", width=8)
                     self.cb_kujaar.pack(side="left", padx=4)
@@ -684,7 +711,7 @@ def _start_ui(na_start=None):
         def _invoer(self, variant) -> KlimInvoer:
             c = self._kandidaat()
             if c is None:
-                raise ValueError("kies eerst een plaats (Zoek)")
+                raise ValueError(vt("kies eerst een plaats (Zoek)", "first choose a location (Search)"))
             dd, mm = (int(x) for x in self.v["datum"].get().replace("/", "-").split("-")[:2])
             pd.Timestamp(year=2000, month=mm, day=dd)
             hh, mi = (int(x) for x in self.v["start"].get().replace(".", ":").split(":")[:2])
@@ -694,7 +721,7 @@ def _start_ui(na_start=None):
             if km_ <= 0:
                 raise ValueError("afstand")
             inv = KlimInvoer(city=dict(c), uhi=bool(self.v["uhi"].get() and (c.get("population") or 0) > 0),
-                             evenement=bool(self.v["ev"].get()), naam=self.v["naam"].get().strip() or "Evenement",
+                             evenement=bool(self.v["ev"].get()), naam=self.v["naam"].get().strip() or vt("Evenement", "Event"),
                              dag=dd, maand=mm, uur=hh, minuut=mi, afstand_km=km_, tempo=self.v["tempo"].get().strip(),
                              snel=self.v["snel"].get() == "snel", kust=(variant == "kust"))
             if inv.tempo_min <= 0:
@@ -705,10 +732,12 @@ def _start_ui(na_start=None):
             try:
                 inv = KlimInvoer(city={}, afstand_km=float(self.v["afstand"].get().replace(",", ".")),
                                  tempo=self.v["tempo"].get())
-                self.lbl_afgeleid.config(text=f"→ duur {inv.duur_min} min, MET "
-                                              f"{nl(ks._acsm_met_from_pace(inv.tempo_min))} (ACSM, zoals Klimatos)")
+                self.lbl_afgeleid.config(text=vt(f"→ duur {inv.duur_min} min, MET "
+                                              f"{nl(ks._acsm_met_from_pace(inv.tempo_min))} (ACSM, zoals Klimatos)",
+                                                 f"→ duration {inv.duur_min} min, MET "
+                                              f"{nl(ks._acsm_met_from_pace(inv.tempo_min))} (ACSM, as Klimatos)"))
             except Exception:
-                self.lbl_afgeleid.config(text="→ (tempo of afstand onleesbaar)")
+                self.lbl_afgeleid.config(text=vt("→ (tempo of afstand onleesbaar)", "→ (pace or distance unreadable)"))
 
         def _gewijzigd(self):
             if self.run is not None:
@@ -717,8 +746,10 @@ def _start_ui(na_start=None):
                 if self.d[v]["inv"] is not None and self.d[v]["rows"]:
                     try:
                         if asdict(self._invoer(v)) != asdict(self.d[v]["inv"]):
-                            self.lbl_fase.config(text="Instellingen gewijzigd: start de run opnieuw "
-                                                      "(opgehaalde jaren komen uit de cache).")
+                            self.lbl_fase.config(text=vt("Instellingen gewijzigd: start de run opnieuw "
+                                                      "(opgehaalde jaren komen uit de cache).",
+                                                         "Settings changed: start the run again "
+                                                      "(fetched years come from the cache)."))
                     except Exception:
                         pass
 
@@ -726,13 +757,13 @@ def _start_ui(na_start=None):
             naam = self.v["plaats"].get().strip()
             if not naam:
                 return
-            self.lbl_fase.config(text=f"Plaats zoeken: {naam} …")
+            self.lbl_fase.config(text=vt(f"Plaats zoeken: {naam} …", f"Searching location: {naam} …"))
 
             def werk():
                 try:
                     self.q.put(("kandidaten", geocode_city_candidates(naam)))
                 except Exception as ex:
-                    self.q.put(("fout", f"Plaats zoeken mislukt: {ex}"))
+                    self.q.put(("fout", vt(f"Plaats zoeken mislukt: {ex}", f"Location search failed: {ex}")))
             threading.Thread(target=werk, daemon=True).start()
 
         def _plaats_gekozen(self):
@@ -746,9 +777,9 @@ def _start_ui(na_start=None):
             except Exception:
                 ld = None
             if ld is None:
-                t = "Landdeel van de ERA5-cel onbekend (global-land-mask ontbreekt)."
+                t = vt("Landdeel van de ERA5-cel onbekend (global-land-mask ontbreekt).", "Land share of the ERA5 cell unknown (global-land-mask missing).")
             else:
-                t = (f"ERA5-cel {ld:.0%} land: " + ("KUST — absolute waarden kunnen te gunstig zijn (Known issue 14)."
+                t = (vt(f"ERA5-cel {ld:.0%} land: ", f"ERA5 cell {ld:.0%} land: ") + (vt("KUST — absolute waarden kunnen te gunstig zijn (Known issue 14).", "COASTAL — absolute values may be too favourable (Known issue 14).")
                                                     if ld < 0.9 else "binnenland."))
             self.lbl_kust.config(text=t)
             self.lbl_fase.config(text="")
@@ -760,21 +791,28 @@ def _start_ui(na_start=None):
             try:
                 inv = self._invoer(variant)
             except Exception as ex:
-                return self._fout(f"Invoer: {ex}")
+                return self._fout(vt(f"Invoer: {ex}", f"Input: {ex}"))
             if variant == "kust" and ek._globe() is None:
-                return self._fout("Kustcorrectie niet mogelijk: global-land-mask ontbreekt (pip install global-land-mask).")
+                return self._fout(vt("Kustcorrectie niet mogelijk: global-land-mask ontbreekt (pip install global-land-mask).", "Coastal correction not possible: global-land-mask missing (pip install global-land-mask)."))
             if variant == "kust":
                 ld = ek.landdeel(inv.city["latitude"], inv.city["longitude"], 0.10)
                 n_open = sum(not in_cache(inv.city["latitude"], inv.city["longitude"], j, "kust") for j in jaren(inv))
                 if not messagebox.askyesno(
-                        "Kustcorrectie-run (beoordeling)",
-                        f"{n_open} van {len(jaren(inv))} jaren hebben nog geen correctie.\n\n"
+                        vt("Kustcorrectie-run (beoordeling)", "Coastal-correction run (assessment)"),
+                        vt(f"{n_open} van {len(jaren(inv))} jaren hebben nog geen correctie.\n\n"
                         "Kosten (schatting uit de Klimatos-documentatie): eenmalig ±2.000 Open-Meteo-eenheden "
                         "per plaats, daarna ±130–400 per jaar. De gratis daglimiet is 10.000: de run loopt "
                         "daardoor mogelijk over meerdere dagen. Bij de daglimiet stopt hij netjes; start hem "
                         "later opnieuw, hij gaat verder waar hij was.\n\n"
                         f"ERA5-cel: {'onbekend' if ld is None else f'{ld:.0%} land'}. "
-                        "De correctie is alleen op Nederlandse stations gefit.\n\nStarten?"):
+                        "De correctie is alleen op Nederlandse stations gefit.\n\nStarten?",
+                           f"{n_open} of {len(jaren(inv))} years have no correction yet.\n\n"
+                        "Cost (estimate from the Klimatos documentation): one-off about 2,000 Open-Meteo units "
+                        "per location, then about 130–400 per year. The free daily limit is 10,000: the run may therefore "
+                        "take several days. At the daily limit it stops cleanly; start it "
+                        "again later, it continues where it was.\n\n"
+                        f"ERA5 cell: {'unknown' if ld is None else f'{ld:.0%} land'}. "
+                        "The correction has only been fitted on Dutch stations.\n\nStart?")):
                     return
             d = self.d[variant]
             if d["inv"] is None or asdict(d["inv"]) != asdict(inv):
@@ -788,8 +826,10 @@ def _start_ui(na_start=None):
                             ehs_eta=None, inv=inv)
             self.pb.configure(maximum=len(alle), value=self.run["klaar"])
             self._knoppen(True)
-            self._log(f"=== Run {VARIANT_NAAM[variant]}: {inv.city['name']}, {alle[0]}–{alle[-1]} "
-                      f"({len(todo)} jaren te doen) ===")
+            self._log(vt(f"=== Run {VARIANT_NAAM[variant]}: {inv.city['name']}, {alle[0]}–{alle[-1]} "
+                      f"({len(todo)} jaren te doen) ===",
+                         f"=== Run {VARIANT_NAAM[variant]}: {inv.city['name']}, {alle[0]}–{alle[-1]} "
+                      f"({len(todo)} years to do) ==="))
             if not inv.kust:
                 self._log(waarschuwing(inv.city["latitude"], inv.city["longitude"]))
             threading.Thread(target=self._haal, args=(variant, inv, todo), daemon=True).start()
@@ -813,8 +853,8 @@ def _start_ui(na_start=None):
                     if not uit_cache:
                         time.sleep(ks.REQUEST_PAUSE_S)
                 except KustFout as ex:
-                    self.q.put(("log", f"[kustcorrectie] {j}: {ex}"))
-                    self.q.put(("fout", f"Kustcorrectie gestopt bij {j}: {ex}  — start later opnieuw om te hervatten."))
+                    self.q.put(("log", vt(f"[kustcorrectie] {j}: {ex}", f"[coastal correction] {j}: {ex}")))
+                    self.q.put(("fout", vt(f"Kustcorrectie gestopt bij {j}: {ex}  — start later opnieuw om te hervatten.", f"Coastal correction stopped at {j}: {ex}  — start again later to resume.")))
                     break
                 except Exception as ex:
                     self.q.put(("jaarfout", variant, j, str(ex)))
@@ -843,13 +883,13 @@ def _start_ui(na_start=None):
             uitmap = str(HIER / "klimatos_ui_uitvoer" / f"{inv.city['name']}_{variant}"
                                                      f"{'_snel' if inv.snel else ''}{'_ehs' if ehs else ''}"
                                                      f"_{datetime.now():%Y%m%d_%H%M%S}")
-            self.run.update(fase="EHS-evolutie" if ehs else "analyse", t_analyse=time.time(), lq=lq)
-            self.lbl_fase.config(text=("EHS-evolutie en analyse via Klimatos main() …" if ehs
-                                       else "Analyse via Klimatos main() (vensters, toetsen, figuren, Excel) …"))
+            self.run.update(fase=vt("EHS-evolutie", "EHS evolution") if ehs else "analyse", t_analyse=time.time(), lq=lq)
+            self.lbl_fase.config(text=(vt("EHS-evolutie en analyse via Klimatos main() …", "EHS evolution and analysis via Klimatos main() …") if ehs
+                                       else vt("Analyse via Klimatos main() (vensters, toetsen, figuren, Excel) …", "Analysis via Klimatos main() (windows, tests, figures, Excel) …")))
             f = self.apool.submit(analyse, asdict(inv), annual, dict(d["slices"]), dict(d["lraw"]), uitmap, lq)
             f.add_done_callback(lambda fu: self.q.put(("analyse", variant, fu.result())
                                                       if fu.exception() is None else
-                                                      ("fout", f"Analyse mislukt: {fu.exception()}")))
+                                                      ("fout", vt(f"Analyse mislukt: {fu.exception()}", f"Analysis failed: {fu.exception()}"))))
 
         def _ehs(self):
             if self.run is not None:
@@ -857,27 +897,27 @@ def _start_ui(na_start=None):
             v = self.v["toon"].get()
             d = self.d[v]
             if not d["rows"] or d["inv"] is None:
-                return messagebox.showinfo("EHS-evolutie", "Draai eerst een run (deze variant).")
+                return messagebox.showinfo(vt("EHS-evolutie", "EHS evolution"), vt("Draai eerst een run (deze variant).", "First run a run (this variant)."))
             if not d["inv"].evenement:
-                return messagebox.showinfo("EHS-evolutie", "Zet eerst het evenement aan en draai de run opnieuw.")
+                return messagebox.showinfo(vt("EHS-evolutie", "EHS evolution"), vt("Zet eerst het evenement aan en draai de run opnieuw.", "First switch on the event and run again."))
             if len(d["rows"]) < len(jaren(d["inv"])):
-                if not messagebox.askyesno("EHS-evolutie", "Niet alle jaren zijn binnen. Toch berekenen?"):
+                if not messagebox.askyesno(vt("EHS-evolutie", "EHS evolution"), vt("Niet alle jaren zijn binnen. Toch berekenen?", "Not all years are in. Calculate anyway?")):
                     return
             self.stop.clear()
             self.run = dict(variant=v, t0=time.time(), jaren=jaren(d["inv"]), todo=[], klaar=len(d["rows"]),
-                            fase="EHS-evolutie", t_net=[], t_cache=[], eta_analyse=None, ehs_eta=None, inv=d["inv"])
+                            fase=vt("EHS-evolutie", "EHS evolution"), t_net=[], t_cache=[], eta_analyse=None, ehs_eta=None, inv=d["inv"])
             self._knoppen(True)
-            self._log(f"=== EHS-evolutie {VARIANT_NAAM[v]} ===")
+            self._log(vt(f"=== EHS-evolutie {VARIANT_NAAM[v]} ===", f"=== EHS evolution {VARIANT_NAAM[v]} ==="))
             self._start_analyse(v, ehs=True)
 
         def _stop(self):
             if self.run is None:
                 return
             self.stop.set()
-            if self.run.get("fase") in ("analyse", "EHS-evolutie"):
-                self.lbl_fase.config(text="Een lopende analyse kan niet tussentijds stoppen; hij maakt zijn werk af.")
+            if self.run.get("fase") in ("analyse", vt("EHS-evolutie", "EHS evolution")):
+                self.lbl_fase.config(text=vt("Een lopende analyse kan niet tussentijds stoppen; hij maakt zijn werk af.", "A running analysis cannot stop midway; it finishes its work."))
             else:
-                self.lbl_fase.config(text="Stoppen na het lopende jaar …")
+                self.lbl_fase.config(text=vt("Stoppen na het lopende jaar …", "Stopping after the current year …"))
 
         def _klaar(self):
             if self.run is not None:
@@ -908,7 +948,7 @@ def _start_ui(na_start=None):
                 return s + (r["eta_analyse"] or 0)
             if r["fase"] == "analyse":
                 return max(0.0, r["eta_analyse"] - (time.time() - r["t_analyse"]))
-            if r["fase"] == "EHS-evolutie":
+            if r["fase"] == vt("EHS-evolutie", "EHS evolution"):
                 if r.get("ehs_eta") is not None:
                     eta, t_meting = r["ehs_eta"]
                     return max(0.0, eta - (time.time() - t_meting)) + 0.5 * self.analyse_duur
@@ -930,7 +970,7 @@ def _start_ui(na_start=None):
             except queue.Empty:
                 pass
             except Exception as ex:
-                self._fout(f"Interne fout: {ex}\n{traceback.format_exc()}")
+                self._fout(vt(f"Interne fout: {ex}\n{traceback.format_exc()}", f"Internal error: {ex}\n{traceback.format_exc()}"))
             if self.run is not None and self.run.get("lq") is not None:
                 try:
                     for _ in range(200):
@@ -951,17 +991,19 @@ def _start_ui(na_start=None):
             m = re.search(r"\[EHS\] (\d+)/(\d+) year-tasks .*eta ([\d.]+) min", regel)
             if m:
                 r["ehs_eta"] = (float(m.group(3)) * 60, time.time())
-                self.lbl_fase.config(text=f"EHS-evolutie: {m.group(1)}/{m.group(2)} jaartaken")
+                self.lbl_fase.config(text=vt(f"EHS-evolutie: {m.group(1)}/{m.group(2)} jaartaken", f"EHS evolution: {m.group(1)}/{m.group(2)} year tasks"))
             if regel.startswith("Liveability hours: temperature-shift projection"):
-                self.lbl_fase.config(text="Analyse: HEAT-Lim-projectie …")
+                self.lbl_fase.config(text=vt("Analyse: HEAT-Lim-projectie …", "Analysis: HEAT-Lim projection …"))
 
         def _bericht(self, m):
             soort = m[0]
             if soort == "kandidaten":
                 self.kandidaten = m[1]
                 self.cb_kand["values"] = [
-                    f"{k.get('name')}, {k.get('admin1', '')} ({k.get('country_code', k.get('country', ''))})"
-                    f" – {k.get('population', 0) or 0:,} inw.".replace(",", ".") for k in self.kandidaten]
+                    vt(f"{k.get('name')}, {k.get('admin1', '')} ({k.get('country_code', k.get('country', ''))})"
+                    f" – {k.get('population', 0) or 0:,} inw.",
+                       f"{k.get('name')}, {k.get('admin1', '')} ({k.get('country_code', k.get('country', ''))})"
+                    f" – {k.get('population', 0) or 0:,} inhabitants").replace(",", ".") for k in self.kandidaten]
                 if self.kandidaten:
                     self.cb_kand.current(0)
                     self._plaats_gekozen()
@@ -980,8 +1022,10 @@ def _start_ui(na_start=None):
                     d["lraw"][j] = l
                 if self.run:
                     self.pb.configure(value=len(d["rows"]))
-                    self.lbl_fase.config(text=f"{VARIANT_NAAM[v]}: {len(d['rows'])}/{len(self.run['jaren'])} jaren "
-                                              f"binnen (laatste: {j})")
+                    self.lbl_fase.config(text=vt(f"{VARIANT_NAAM[v]}: {len(d['rows'])}/{len(self.run['jaren'])} jaren "
+                                              f"binnen (laatste: {j})",
+                                                 f"{VARIANT_NAAM[v]}: {len(d['rows'])}/{len(self.run['jaren'])} years "
+                                              f"in (last: {j})"))
                 n = len(d["rows"])
                 if v == self.v["toon"].get() and (n % 3 == 0 or n == len(self.run["jaren"] if self.run else [])):
                     self._teken_jm()
@@ -990,42 +1034,46 @@ def _start_ui(na_start=None):
                         self._teken_ku()
             elif soort == "jaarfout":
                 self.d[m[1]]["fout"].append(m[2])
-                self._log(f"[{m[1]}] jaar {m[2]} mislukt: {m[3]}")
+                self._log(vt(f"[{m[1]}] jaar {m[2]} mislukt: {m[3]}", f"[{m[1]}] year {m[2]} failed: {m[3]}"))
             elif soort == "opgehaald":
                 v, gestopt = m[1], m[2]
                 d = self.d[v]
                 self._teken_jm()
                 self._teken_ku()
                 if gestopt or not d["rows"]:
-                    self.lbl_fase.config(text=f"Gestopt: {len(d['rows'])}/{len(self.run['jaren'])} jaren binnen. "
-                                              "Start opnieuw om verder te gaan.")
+                    self.lbl_fase.config(text=vt(f"Gestopt: {len(d['rows'])}/{len(self.run['jaren'])} jaren binnen. "
+                                              "Start opnieuw om verder te gaan.",
+                                                 f"Stopped: {len(d['rows'])}/{len(self.run['jaren'])} years in. "
+                                              "Start again to continue."))
                     return self._klaar()
                 ontbreekt = [j for j in self.run["jaren"] if j not in d["rows"]]
                 if ontbreekt and v == "kust":
-                    self.lbl_fase.config(text=f"Kustcorrectie: {len(d['rows'])}/{len(self.run['jaren'])} jaren. "
-                                              "Analyse volgt als alle jaren binnen zijn.")
+                    self.lbl_fase.config(text=vt(f"Kustcorrectie: {len(d['rows'])}/{len(self.run['jaren'])} jaren. "
+                                              "Analyse volgt als alle jaren binnen zijn.",
+                                                 f"Coastal correction: {len(d['rows'])}/{len(self.run['jaren'])} years. "
+                                              "Analysis follows when all years are in."))
                     return self._klaar()
                 if ontbreekt:
-                    self._log(f"Ontbrekende jaren: {ontbreekt} — Klimatos rekent met de jaren die er zijn.")
+                    self._log(vt(f"Ontbrekende jaren: {ontbreekt} — Klimatos rekent met de jaren die er zijn.", f"Missing years: {ontbreekt} — Klimatos calculates with the years available."))
                 self._start_analyse(v)
             elif soort == "analyse":
                 v, res = m[1], m[2]
                 self.d[v]["res"] = res
                 if not res.get("ehs"):
                     self.analyse_duur = res.get("duur_s", self.analyse_duur)
-                self._log(f"Klaar: {len(res['gegevens']['plot_paths'])} figuren, Excel {res.get('excel')}")
-                self.lbl_fase.config(text=f"Klaar ({VARIANT_NAAM[v]}). Uitvoer: {res['uitmap']}")
+                self._log(vt(f"Klaar: {len(res['gegevens']['plot_paths'])} figuren, Excel {res.get('excel')}", f"Done: {len(res['gegevens']['plot_paths'])} figures, Excel {res.get('excel')}"))
+                self.lbl_fase.config(text=vt(f"Klaar ({VARIANT_NAAM[v]}). Uitvoer: {res['uitmap']}", f"Done ({VARIANT_NAAM[v]}). Output: {res['uitmap']}"))
                 self.v["toon"].set(v)
                 self._klaar()
                 self._teken_alles()
             elif soort == "rapport":
-                self.lbl_fase.config(text="Rapport klaar")
-                messagebox.showinfo("Klimatos-rapport", "\n".join(m[1]))
+                self.lbl_fase.config(text=vt("Rapport klaar", "Report ready"))
+                messagebox.showinfo(vt("Klimatos-rapport", "Klimatos report"), "\n".join(m[1]))
             elif soort == "log":
                 self._log(m[1])
             elif soort == "fout":
                 self._fout(m[1])
-                if self.run is not None and self.run.get("fase") in ("analyse", "EHS-evolutie"):
+                if self.run is not None and self.run.get("fase") in ("analyse", vt("EHS-evolutie", "EHS evolution")):
                     self._klaar()
 
         def _log(self, tekst):
@@ -1037,7 +1085,7 @@ def _start_ui(na_start=None):
 
         def _fout(self, tekst):
             self.lbl_fase.config(text=tekst.splitlines()[0][:220])
-            self._log("FOUT: " + tekst)
+            self._log(vt("FOUT: ", "ERROR: ") + tekst)
 
         # ------------------------------------------------------------ tekenen
         def _huidig(self):
@@ -1073,27 +1121,32 @@ def _start_ui(na_start=None):
                 try:
                     f()
                 except Exception as ex:
-                    self._log(f"tekenfout {f.__name__}: {ex}\n{traceback.format_exc()}")
+                    self._log(vt(f"tekenfout {f.__name__}: {ex}\n{traceback.format_exc()}", f"drawing error {f.__name__}: {ex}\n{traceback.format_exc()}"))
 
         def _kop(self):
             v, d = self._huidig()
             res = d["res"]
             self._toon_herkomst(v, d)
             if res is None:
-                self.lbl_kop.config(text=f"  {VARIANT_NAAM[v]}: nog geen analyse  ", bg="#dddddd", fg="black")
-                self.tegels.leeg("Nog geen analyse voor deze variant. Start een run; de uitkomsten verschijnen hier "
-                                 "zodra de analyse klaar is.")
+                self.lbl_kop.config(text=vt(f"  {VARIANT_NAAM[v]}: nog geen analyse  ", f"  {VARIANT_NAAM[v]}: no analysis yet  "), bg="#dddddd", fg="black")
+                self.tegels.leeg(vt("Nog geen analyse voor deze variant. Start een run; de uitkomsten verschijnen hier "
+                                 "zodra de analyse klaar is.",
+                                    "No analysis yet for this variant. Start a run; the results appear here "
+                                 "as soon as the analysis is ready."))
                 return
             g = res["gegevens"]
             sdf = res["stats_by_var"]["T_air_max"]
             laatste = sdf[~sdf["is_reference"]].iloc[-1]
             mk = ks.mann_kendall(g["annual"]["T_air_max"].dropna().values)
             ref = g["ref_window"]
-            tekst = (f"  {g['meta']['city']} — Tlucht-max venster {int(laatste['start'])}–{int(laatste['end'])}: "
+            tekst = (vt(f"  {g['meta']['city']} — Tlucht-max venster {int(laatste['start'])}–{int(laatste['end'])}: "
                      f"{'+' if laatste['mean_vs_ref'] >= 0 else ''}{nl(laatste['mean_vs_ref'])} °C t.o.v. "
-                     f"{ref[0]}–{ref[1]}; trend {nl(10 * mk['slope'], 2)} °C/decennium"
-                     + ("   [SNELLE VERKENNING]" if res.get("snel") else "")
-                     + ("   [BEOORDELING KUSTCORRECTIE]" if v == "kust" else "") + "  ")
+                     f"{ref[0]}–{ref[1]}; trend {nl(10 * mk['slope'], 2)} °C/decennium",
+                        f"  {g['meta']['city']} — Tair max window {int(laatste['start'])}–{int(laatste['end'])}: "
+                     f"{'+' if laatste['mean_vs_ref'] >= 0 else ''}{nl(laatste['mean_vs_ref'])} °C vs "
+                     f"{ref[0]}–{ref[1]}; trend {nl(10 * mk['slope'], 2)} °C/decade")
+                     + (vt("   [SNELLE VERKENNING]", "   [QUICK EXPLORATION]") if res.get("snel") else "")
+                     + (vt("   [BEOORDELING KUSTCORRECTIE]", "   [COASTAL-CORRECTION ASSESSMENT]") if v == "kust" else "") + "  ")
             kleur = "#c0392b" if laatste["mean_vs_ref"] >= 1.0 else ("#e67e22" if laatste["mean_vs_ref"] > 0.3 else "#2471a3")
             self.lbl_kop.config(text=tekst, bg=kleur, fg="white")
             self._toon_tegels(v, res, laatste, mk, ref, kleur)
@@ -1103,12 +1156,12 @@ def _start_ui(na_start=None):
             a = g["annual"]["T_air_max"].dropna()
             p = mk.get("p", np.nan)
             items = [
-                dict(titel="Laatste venster t.o.v. referentie",
+                dict(titel=vt("Laatste venster t.o.v. referentie", "Last window vs reference"),
                      waarde=f"{'+' if laatste['mean_vs_ref'] >= 0 else ''}{nl(laatste['mean_vs_ref'])} °C",
-                     sub=f"Tlucht-max {int(laatste['start'])}–{int(laatste['end'])} vs {ref[0]}–{ref[1]}", kleur=kleur),
-                dict(titel="Trend jaarmaximum Tlucht", waarde=f"{nl(10 * mk['slope'], 2)} °C/10 j",
+                     sub=vt(f"Tlucht-max {int(laatste['start'])}–{int(laatste['end'])} vs {ref[0]}–{ref[1]}", f"Tair max {int(laatste['start'])}–{int(laatste['end'])} vs {ref[0]}–{ref[1]}"), kleur=kleur),
+                dict(titel=vt("Trend jaarmaximum Tlucht", "Trend annual maximum Tair"), waarde=f"{nl(10 * mk['slope'], 2)} °C/10 j",
                      sub=(f"Mann-Kendall p = {nl(p, 3)}" if np.isfinite(p) else "Mann-Kendall") +
-                         f"; {len(a)} jaren", kleur="#5d6d7e"),
+                         vt(f"; {len(a)} jaren", f"; {len(a)} years"), kleur="#5d6d7e"),
             ]
             ev = g.get("event_df")
             if ev is not None and len(ev) and "slope_degC_per_yr" in ev:
@@ -1117,8 +1170,8 @@ def _start_ui(na_start=None):
                 naam = str(rij["variable"]).replace("_event", "")
                 sub = f"{g['event_name']}, {ks.EVENT_TREND_PERIOD[0]}–{ks.EVENT_TREND_PERIOD[1]}"
                 if "slope_lo" in rij and np.isfinite(rij["slope_lo"]):
-                    sub += f"; 95%: {nl(10 * rij['slope_lo'], 2)} tot {nl(10 * rij['slope_hi'], 2)}"
-                items.append(dict(titel=f"Trend {naam} evenement", waarde=f"{nl(10 * rij['slope_degC_per_yr'], 2)} °C/10 j",
+                    sub += vt(f"; 95%: {nl(10 * rij['slope_lo'], 2)} tot {nl(10 * rij['slope_hi'], 2)}", f"; 95%: {nl(10 * rij['slope_lo'], 2)} to {nl(10 * rij['slope_hi'], 2)}")
+                items.append(dict(titel=vt(f"Trend {naam} evenement", f"Trend {naam} event"), waarde=f"{nl(10 * rij['slope_degC_per_yr'], 2)} °C/10 j",
                                   sub=sub, kleur="#e67e22"))
                 pj = sorted(int(re.search(r"\d{4}", c).group(0)) for c in rij.index
                             if re.fullmatch(r"projected_\d{4}_vs_baseline", str(c)) and np.isfinite(rij[c]))
@@ -1126,23 +1179,25 @@ def _start_ui(na_start=None):
                     laatst = pj[-1]
                     d_ = float(rij[f"projected_{laatst}_vs_baseline"])
                     items.append(dict(
-                        titel=f"Vooruitzicht {naam} evenement {laatst}",
+                        titel=vt(f"Vooruitzicht {naam} evenement {laatst}", f"Outlook {naam} event {laatst}"),
                         waarde=f"{'+' if d_ >= 0 else ''}{nl(d_)} °C",
-                        sub="t.o.v. basis; " + ", ".join(
+                        sub=vt("t.o.v. basis; ", "vs baseline; ") + ", ".join(
                             f"{j}: {'+' if rij[f'projected_{j}_vs_baseline'] >= 0 else ''}"
                             f"{nl(float(rij[f'projected_{j}_vs_baseline']))}" for j in pj[:-1])
-                            + ("; " if len(pj) > 1 else "") + "lineaire doortrekking, geen klimaatscenario",
+                            + ("; " if len(pj) > 1 else "") + vt("lineaire doortrekking, geen klimaatscenario", "linear extrapolation, not a climate scenario"),
                         kleur="#c0392b"))
-            items.append(dict(titel="Referentieperiode", waarde=f"{ref[0]}–{ref[1]}",
-                              sub=("snelle verkenning: eerste 10 opgehaalde jaren" if res.get("snel")
-                                   else "referentie van de suite"),
+            items.append(dict(titel=vt("Referentieperiode", "Reference period"), waarde=f"{ref[0]}–{ref[1]}",
+                              sub=(vt("snelle verkenning: eerste 10 opgehaalde jaren", "quick exploration: first 10 fetched years") if res.get("snel")
+                                   else vt("referentie van de suite", "suite reference")),
                               kleur="#b9770e" if res.get("snel") else "#117a65"))
-            items.append(dict(titel="Kustcorrectie", waarde="toegepast" if v == "kust" else "niet toegepast",
-                              sub="beoordelingsrun, niet officieel" if v == "kust" else "zoals de suite (Known issue 14)",
+            items.append(dict(titel=vt("Kustcorrectie", "Coastal correction"), waarde="toegepast" if v == "kust" else vt("niet toegepast", "not applied"),
+                              sub=vt("beoordelingsrun, niet officieel", "assessment run, not official") if v == "kust" else vt("zoals de suite (Known issue 14)", "as the suite (Known issue 14)"),
                               kleur="#7d3c98" if v == "kust" else "#5d6d7e"))
-            uitleg = ("Historische analyse van ERA5-heranalysedata voor één gridcel, geen stationsmeting. Bij kustplaatsen "
-                      "kan ERA5 afwijken van lokale waarnemingen."
-                      + (" Snelle verkenning: andere referentieperiode, dus niet vergelijkbaar met een volledige run."
+            uitleg = (vt("Historische analyse van ERA5-heranalysedata voor één gridcel, geen stationsmeting. Bij kustplaatsen "
+                      "kan ERA5 afwijken van lokale waarnemingen.",
+                         "Historical analysis of ERA5 reanalysis data for one grid cell, not a station measurement. At coastal locations "
+                      "ERA5 may differ from local observations.")
+                      + (vt(" Snelle verkenning: andere referentieperiode, dus niet vergelijkbaar met een volledige run.", " Quick exploration: different reference period, so not comparable with a full run.")
                          if res.get("snel") else ""))
             self.tegels.zet(items, uitleg)
 
@@ -1154,21 +1209,21 @@ def _start_ui(na_start=None):
                 stad = d["inv"].city.get("name", "")
             elif self.cb_kand.get():
                 stad = self.cb_kand.get().split(",")[0]
-            uhi = "UHI aan" if self.v["uhi"].get() else "UHI uit"
+            uhi = vt("UHI aan", "UHI on") if self.v["uhi"].get() else vt("UHI uit", "UHI off")
             self.herkomst.zet(
-                f"ERA5-archief (Open-Meteo, {ks.ARCHIVE_MODEL}) via Klimatos_ClimateShift; {stad}", 
+                vt(f"ERA5-archief (Open-Meteo, {ks.ARCHIVE_MODEL}) via Klimatos_ClimateShift; {stad}", f"ERA5 archive (Open-Meteo, {ks.ARCHIVE_MODEL}) via Klimatos_ClimateShift; {stad}"), 
                 "beoordeling" if v == "kust" else "historisch",
-                status_tekst="beoordeling · ERA5 + kustcorrectie" if v == "kust" else "historische analyse",
+                status_tekst=vt("beoordeling · ERA5 + kustcorrectie", "assessment · ERA5 + coastal correction") if v == "kust" else vt("historische analyse", "historical analysis"),
                 extra=uhi,
-                niet="een stationsmeting of een klimaatprojectie"
-                     + ("; kustcorrectie in beoordeling." if v == "kust" else "."))
+                niet=vt("een stationsmeting of een klimaatprojectie", "a station measurement or a climate projection")
+                     + (vt("; kustcorrectie in beoordeling.", "; coastal correction under assessment.") if v == "kust" else "."))
 
         def _teken_jm(self):
             t = self.tab["jm"]
             v, d = self._huidig()
             a = self._annual(d)
             if a is None or a.empty:
-                return self._leeg_fig("jm", "Nog geen jaren binnen.")
+                return self._leeg_fig("jm", vt("Nog geen jaren binnen.", "No years in yet."))
             fig = t["fig"]
             fig.clear()
             ref = self._ref(d)
@@ -1178,9 +1233,9 @@ def _start_ui(na_start=None):
                 ok = a.loc[s.index, "valid"].astype(bool) if "valid" in a else pd.Series(True, index=s.index)
                 ax.plot(s.index, s.values, "-", color=KLEUR[v], lw=1, alpha=0.5)
                 ax.plot(s.index[ok], s.values[ok], "o", color=KLEUR[v], ms=4,
-                        label="gecorrigeerd (beoordeling)" if v == "kust" else None)
+                        label=vt("gecorrigeerd (beoordeling)", "corrected (assessment)") if v == "kust" else None)
                 if (~ok).any():
-                    ax.plot(s.index[~ok], s.values[~ok], "x", color="#999", ms=6, label="onvolledig jaar")
+                    ax.plot(s.index[~ok], s.values[~ok], "x", color="#999", ms=6, label=vt("onvolledig jaar", "incomplete year"))
                 if v == "kust" and self.d["suite"]["rows"]:
                     b = self._annual(self.d["suite"])
                     if b is not None and var in b:
@@ -1195,22 +1250,26 @@ def _start_ui(na_start=None):
                     if np.isfinite(mk["slope"]):
                         x = np.arange(len(s))
                         ax.plot(s.index, mk["intercept"] + mk["slope"] * x, "--", color="#222", lw=1.4,
-                                label=f"Theil-Sen {nl(10 * mk['slope'], 2)} °C/10 j, p={nl(mk['p'], 3)}")
+                                label=vt(f"Theil-Sen {nl(10 * mk['slope'], 2)} °C/10 j, p={nl(mk['p'], 3)}", f"Theil-Sen {nl(10 * mk['slope'], 2)} °C/10 y, p={nl(mk['p'], 3)}"))
                 ax.set_title(VAR_NL.get(var, var))
                 if ax.get_legend_handles_labels()[0]:
                     ax.legend(loc="upper left", fontsize=8)
             n = len(a)
             t["lbl"].config(text=(
-                f"{VARIANT_NAAM[v]} — {n} jaren. Jaarmaxima uit Klimatos (build_annual_maxima); grijs vlak = "
+                vt(f"{VARIANT_NAAM[v]} — {n} jaren. Jaarmaxima uit Klimatos (build_annual_maxima); grijs vlak = "
                 f"referentieperiode {ref[0]}–{ref[1]}; stippellijnen = drempels uit Klimatos (THRESHOLDS); trendlijn = "
                 "Klimatos mann_kendall (Theil-Sen over de opeenvolgende jaren). × = jaar met te weinig uren. "
-                "De grafiek groeit mee terwijl de jaren binnenkomen."))
+                "De grafiek groeit mee terwijl de jaren binnenkomen.",
+                   f"{VARIANT_NAAM[v]} — {n} years. Annual maxima from Klimatos (build_annual_maxima); grey area = "
+                f"reference period {ref[0]}–{ref[1]}; dotted lines = thresholds from Klimatos (THRESHOLDS); trend line = "
+                "Klimatos mann_kendall (Theil-Sen over the successive years). × = year with too few hours. "
+                "The chart grows as the years come in.")))
             t["cv"].draw_idle()
 
         def _res_of_leeg(self, k):
             v, d = self._huidig()
             if d["res"] is None:
-                self._leeg_fig(k, f"{VARIANT_NAAM[v]}: nog geen analyse.\nStart een run; dit verschijnt na de analyse.")
+                self._leeg_fig(k, vt(f"{VARIANT_NAAM[v]}: nog geen analyse.\nStart een run; dit verschijnt na de analyse.", f"{VARIANT_NAAM[v]}: no analysis yet.\nStart a run; this appears after the analysis."))
                 self.tab[k]["lbl"].config(text="")
                 return None
             return d["res"]
@@ -1233,18 +1292,22 @@ def _start_ui(na_start=None):
                 col = f"RP_gev_{th:g}"
                 for x, (m, rp) in enumerate(zip(sdf["mean_vs_ref"], sdf.get(col, [np.nan] * len(sdf)))):
                     if np.isfinite(rp):
-                        txt = f"1 op {rp:.0f} j" if rp < 1e4 else "zeer zeldzaam"
+                        txt = vt(f"1 op {rp:.0f} j", f"1 in {rp:.0f} y") if rp < 1e4 else vt("zeer zeldzaam", "very rare")
                         ax.text(x, m, txt, ha="center", va="bottom" if m >= 0 else "top", fontsize=7)
                 ax.set_xticks(range(len(sdf)))
                 ax.set_xticklabels(lab, rotation=35, fontsize=8)
                 ax.axhline(0, color="#333", lw=0.8)
-                ax.set_ylabel("°C t.o.v. referentie")
-                ax.set_title(f"{VAR_NL[var]}: venster − referentie (label: {nl(th, 0)} °C)", fontsize=11)
+                ax.set_ylabel(vt("°C t.o.v. referentie", "°C vs reference"))
+                ax.set_title(vt(f"{VAR_NL[var]}: venster − referentie (label: {nl(th, 0)} °C)", f"{VAR_NL[var]}: window − reference (label: {nl(th, 0)} °C)"), fontsize=11)
             t["lbl"].config(text=(
-                "Bron: Klimatos analyze_variable_windows (stats_by_var). Balk = gemiddeld jaarmaximum per 30-jaarsvenster "
+                vt("Bron: Klimatos analyze_variable_windows (stats_by_var). Balk = gemiddeld jaarmaximum per 30-jaarsvenster "
                 "min dat van de referentieperiode (grijs). Label = terugkeerperiode van de middelste drempel volgens de "
                 "GEV-fit van dat venster. Alle figuren van Klimatos zelf (normaal vs GEV, Q-Q, terugkeerniveaus) staan "
-                "onder 'Suite-figuren'."))
+                "onder 'Suite-figuren'.",
+                   "Source: Klimatos analyze_variable_windows (stats_by_var). Bar = mean annual maximum per 30-year window "
+                "minus that of the reference period (grey). Label = return period of the middle threshold according to the "
+                "GEV fit of that window. All figures of Klimatos itself (normal vs GEV, Q-Q, return levels) are "
+                "under 'Suite figures'.")))
             t["cv"].draw_idle()
 
         def _teken_st(self):
@@ -1271,12 +1334,15 @@ def _start_ui(na_start=None):
                 ax.set_xlim(s.index.min() - 0.5, s.index.max() + 0.5)
                 ax.set_yticks([])
                 ax.grid(False)
-                ax.set_title(("Jaarmaximum Tlucht" if var == "T_air_max" else "Evenementuren Tlucht (gemiddelde)")
-                             + f" — afwijking t.o.v. {ref[0]}–{ref[1]} (±{nl(lim)} °C)", loc="left")
+                ax.set_title((vt("Jaarmaximum Tlucht", "Annual maximum Tair") if var == "T_air_max" else vt("Evenementuren Tlucht (gemiddelde)", "Event hours Tair (mean)"))
+                             + vt(f" — afwijking t.o.v. {ref[0]}–{ref[1]} (±{nl(lim)} °C)", f" — deviation vs {ref[0]}–{ref[1]} (±{nl(lim)} °C)"), loc="left")
             t["lbl"].config(text=(
-                "Warming stripes zoals Klimatos plot_warming_stripes: één balk per jaar, kleur = afwijking van het "
+                vt("Warming stripes zoals Klimatos plot_warming_stripes: één balk per jaar, kleur = afwijking van het "
                 "gemiddelde van de referentieperiode. De versie van Klimatos zelf, met gearceerde projectiejaren, staat "
-                "onder 'Suite-figuren'."))
+                "onder 'Suite-figuren'.",
+                   "Warming stripes as Klimatos plot_warming_stripes: one bar per year, colour = deviation from the "
+                "mean of the reference period. The Klimatos version itself, with hatched projection years, is "
+                "under 'Suite figures'.")))
             t["cv"].draw_idle()
 
         def _teken_tv(self):
@@ -1286,7 +1352,7 @@ def _start_ui(na_start=None):
             t = self.tab["tv"]
             acc = res["gegevens"].get("accel_df")
             if acc is None or len(acc) == 0:
-                self._leeg_fig("tv", "Geen trendversnellingstoets (te weinig jaren?).")
+                self._leeg_fig("tv", vt("Geen trendversnellingstoets (te weinig jaren?).", "No trend-acceleration test (too few years?)."))
                 return
             fig = t["fig"]
             fig.clear()
@@ -1295,8 +1361,8 @@ def _start_ui(na_start=None):
                 s = acc[acc["variable"] == var].sort_values("breakpoint")
                 ax = fig.add_subplot(len(vars_), 2, 2 * i + 1)
                 ax.fill_between(s["breakpoint"], 10 * s["diff_ci_lo"], 10 * s["diff_ci_hi"], color="#2471a3", alpha=0.2,
-                                label="95 %-interval (bootstrap)")
-                ax.plot(s["breakpoint"], 10 * s["slope_diff"], "o-", color="#2471a3", label="verschil na − voor")
+                                label=vt("95 %-interval (bootstrap)", "95 % interval (bootstrap)"))
+                ax.plot(s["breakpoint"], 10 * s["slope_diff"], "o-", color="#2471a3", label=vt("verschil na − voor", "difference after − before"))
                 sig = s[s["significant"].astype(bool)]
                 ax.plot(sig["breakpoint"], 10 * sig["slope_diff"], "o", color="#c0392b", ms=8, label="significant")
                 ax.axhline(0, color="#333", lw=0.8)
@@ -1304,22 +1370,26 @@ def _start_ui(na_start=None):
                 if len(best):
                     ax.axvline(best["breakpoint"].iloc[0], color="#7a5b00", ls="--")
                 ax.set_xlabel("knikjaar")
-                ax.set_ylabel("°C per decennium")
-                ax.set_title(f"{var}: verandering van de trend")
+                ax.set_ylabel(vt("°C per decennium", "°C per decade"))
+                ax.set_title(vt(f"{var}: verandering van de trend", f"{var}: change of the trend"))
                 ax.legend(fontsize=8)
                 ax2 = fig.add_subplot(len(vars_), 2, 2 * i + 2)
-                ax2.plot(s["breakpoint"], 10 * s["slope_before"], "s-", color="#2471a3", label="trend vóór knik")
-                ax2.plot(s["breakpoint"], 10 * s["slope_after"], "o-", color="#c0392b", label="trend na knik")
+                ax2.plot(s["breakpoint"], 10 * s["slope_before"], "s-", color="#2471a3", label=vt("trend vóór knik", "trend before break"))
+                ax2.plot(s["breakpoint"], 10 * s["slope_after"], "o-", color="#c0392b", label=vt("trend na knik", "trend after break"))
                 ax2.set_xlabel("knikjaar")
-                ax2.set_ylabel("°C per decennium")
-                ax2.set_title("Theil-Sen-trend aan beide kanten")
+                ax2.set_ylabel(vt("°C per decennium", "°C per decade"))
+                ax2.set_title(vt("Theil-Sen-trend aan beide kanten", "Theil-Sen trend on both sides"))
                 ax2.legend(fontsize=8)
             mode = acc["mode"].iloc[0]
             t["lbl"].config(text=(
-                f"Bron: Klimatos check_trend_acceleration (modus: {mode}). Per kandidaat-knikjaar een Theil-Sen-trend "
+                vt(f"Bron: Klimatos check_trend_acceleration (modus: {mode}). Per kandidaat-knikjaar een Theil-Sen-trend "
                 "ervoor en erna, met een bootstrap-interval voor het verschil. In scanmodus is de 'beste' knik "
                 "verkennend (meervoudig toetsen): de significantie is dan optimistisch. Het aerosolmechanisme achter een "
-                "knik rond 1980 geldt voor Europa/Noord-Amerika."))
+                "knik rond 1980 geldt voor Europa/Noord-Amerika.",
+                   f"Source: Klimatos check_trend_acceleration (mode: {mode}). Per candidate break year a Theil-Sen trend "
+                "before and after, with a bootstrap interval for the difference. In scan mode the 'best' break is "
+                "exploratory (multiple testing): the significance is then optimistic. The aerosol mechanism behind a "
+                "break around 1980 applies to Europe/North America.")))
             t["cv"].draw_idle()
 
         def _tabel(self, tv, df, kolommen, koppen, breedte=None):
@@ -1350,7 +1420,7 @@ def _start_ui(na_start=None):
             a = g["annual"]
             ev = g.get("event_df")
             if ev is None or "T_air_event" not in a:
-                self._leeg_fig("ev", "Geen evenementanalyse (evenement uit, of geen data in de trendperiode).")
+                self._leeg_fig("ev", vt("Geen evenementanalyse (evenement uit, of geen data in de trendperiode).", "No event analysis (event off, or no data in the trend period)."))
                 self._tabel(t["tv"], None, [], [])
                 return
             ehs = g.get("ehs_df")
@@ -1384,7 +1454,7 @@ def _start_ui(na_start=None):
                                 ax.annotate(f"{j}\n{nl(v)} °C", (j, v), textcoords="offset points", xytext=(0, 8),
                                             ha="center", fontsize=8, color=kl[var])
             ax.axvspan(tp[0], tp[1], color="#888", alpha=0.08)
-            ax.set_title(f"{g['event_name']}: gemiddelde over de evenementuren (±{ks.EVENT_DAY_WINDOW} d)")
+            ax.set_title(vt(f"{g['event_name']}: gemiddelde over de evenementuren (±{ks.EVENT_DAY_WINDOW} d)", f"{g['event_name']}: mean over the event hours (±{ks.EVENT_DAY_WINDOW} d)"))
             ax.set_ylabel("°C")
             ax.legend(fontsize=8)
             if ehs is not None:
@@ -1397,8 +1467,8 @@ def _start_ui(na_start=None):
             ev_t = ev.copy()
             jaren_p = sorted({re.search(r"\d{4}", c).group(0) for c in ev.columns
                               if re.fullmatch(r"projected_\d{4}", str(c))})
-            kop = {"label": "grootheid", "baseline_mean": "basis (°C)", "trend_mean": "trendgem. (°C)",
-                   "slope_degC_per_yr": "trend (°C/jaar)", "slope_lo": "trend laag", "slope_hi": "trend hoog",
+            kop = {"label": "grootheid", "baseline_mean": vt("basis (°C)", "baseline (°C)"), "trend_mean": vt("trendgem. (°C)", "trend mean (°C)"),
+                   "slope_degC_per_yr": vt("trend (°C/jaar)", "trend (°C/year)"), "slope_lo": vt("trend laag", "trend low"), "slope_hi": vt("trend hoog", "trend high"),
                    "mk_p": "Mann-Kendall p"}
             for jr in jaren_p:
                 v, dv = ev_t[f"projected_{jr}"], ev_t.get(f"projected_{jr}_vs_baseline")
@@ -1409,14 +1479,21 @@ def _start_ui(na_start=None):
             self._tabel(t["tv"], ev_t, kolt, [kop[c] for c in kolt],
                         {**{"label": 250}, **{c: 112 for c in kolt if c != "label"}})
             t["lbl"].config(text=(
-                "Bron: Klimatos analyze_event_window en build_event_summary (normale fits op gemiddelden over de "
+                vt("Bron: Klimatos analyze_event_window en build_event_summary (normale fits op gemiddelden over de "
                 f"evenementuren, trend verankerd op {tp[0]}–{tp[1]}). Streepjeslijn = Theil-Sen-trend in de trendperiode; "
                 f"stippellijn met ruitjes = vooruitzicht voor de doeljaren ({', '.join(map(str, ks.EVENT_TARGET_YEARS))}): "
-                "Klimatos' lineaire doortrekking van die trend (projected_JJJJ), geen klimaatscenario. "
-                + ("Rechts: EHS-evolutie uit Klimatos run_ehs_evolution/build_ehs_summary: EHS per 1000 (Falmouth), "
+                "Klimatos' lineaire doortrekking van die trend (projected_JJJJ), geen klimaatscenario. ",
+                   "Source: Klimatos analyze_event_window and build_event_summary (normal fits on means over the "
+                f"event hours, trend anchored on {tp[0]}–{tp[1]}). Dashed line = Theil-Sen trend in the trend period; "
+                f"dotted line with diamonds = outlook for the target years ({', '.join(map(str, ks.EVENT_TARGET_YEARS))}): "
+                "Klimatos' linear extrapolation of that trend (projected_YYYY), not a climate scenario. ")
+                + (vt("Rechts: EHS-evolutie uit Klimatos run_ehs_evolution/build_ehs_summary: EHS per 1000 (Falmouth), "
                    "×-label = verhouding tot de referentie (de robuuste maat), groen = aanpassingsscenario met een "
-                   "vroegere start. Foutstreep = trendband (Sen's slope laag/hoog)."
-                   if ehs is not None else "EHS-evolutie: knop 'EHS-evolutie berekenen' (lang).")))
+                   "vroegere start. Foutstreep = trendband (Sen's slope laag/hoog).",
+                      "Right: EHS evolution from Klimatos run_ehs_evolution/build_ehs_summary: EHS per 1000 (Falmouth), "
+                   "× label = ratio to the reference (the robust measure), green = adaptation scenario with an "
+                   "earlier start. Error bar = trend band (Sen's slope low/high).")
+                   if ehs is not None else vt("EHS-evolutie: knop 'EHS-evolutie berekenen' (lang).", "EHS evolution: button 'Calculate EHS evolution' (long)."))))
             t["cv"].draw_idle()
 
         def _ehs_plot(self, ax, ehs):
@@ -1424,7 +1501,7 @@ def _start_ui(na_start=None):
             jr = e["target_year"].astype(int).tolist()
             x = np.arange(len(jr) + 1)
             ref = float(e["reference_ehs_per_1000"].iloc[0])
-            ax.bar(0, ref, 0.6, color="#888", label="referentie (trendperiode)")
+            ax.bar(0, ref, 0.6, color="#888", label=vt("referentie (trendperiode)", "reference (trend period)"))
             y = e["ehs_per_1000"].to_numpy(float)
             lo = e["ehs_per_1000_lo"].to_numpy(float)
             hi = e["ehs_per_1000_hi"].to_numpy(float)
@@ -1433,13 +1510,13 @@ def _start_ui(na_start=None):
                    label=f"start {ks.EVENT_START_HOUR:02d}:{ks.EVENT_START_MINUTE:02d}")
             vroeg = e["ehs_per_1000_early_start"].to_numpy(float)
             ax.bar(x[1:] + 0.17, vroeg, 0.34, color="#1a8a4a",
-                   label=f"vroegere start {ks.EHS_ADAPT_START_HOUR:02d}:{ks.EHS_ADAPT_START_MINUTE:02d}")
+                   label=vt(f"vroegere start {ks.EHS_ADAPT_START_HOUR:02d}:{ks.EHS_ADAPT_START_MINUTE:02d}", f"earlier start {ks.EHS_ADAPT_START_HOUR:02d}:{ks.EHS_ADAPT_START_MINUTE:02d}"))
             for xi, yi, r in zip(x[1:], y, e["ratio_vs_reference"]):
                 ax.text(xi - 0.17, yi, f"×{nl(float(r), 2)}", ha="center", va="bottom", fontsize=9)
             ax.set_xticks(x)
             ax.set_xticklabels(["ref."] + [str(j) for j in jr])
-            ax.set_ylabel("EHS per 1000 deelnemers")
-            ax.set_title("EHS-evolutie (Falmouth-gekalibreerd)")
+            ax.set_ylabel(vt("EHS per 1000 deelnemers", "EHS per 1000 participants"))
+            ax.set_title(vt("EHS-evolutie (Falmouth-gekalibreerd)", "EHS evolution (Falmouth-calibrated)"))
             ax.legend(fontsize=8)
 
         def _teken_op(self):
@@ -1450,13 +1527,13 @@ def _start_ui(na_start=None):
             g = res["gegevens"]
             a, adf = g["annual"], g.get("admissions_df")
             if adf is None or "heat_admit_index" not in a:
-                return self._leeg_fig("op", "Geen opname-analyse (ENABLE_ADMISSIONS_ERF uit).")
+                return self._leeg_fig("op", vt("Geen opname-analyse (ENABLE_ADMISSIONS_ERF uit).", "No admissions analysis (ENABLE_ADMISSIONS_ERF off)."))
             fig = t["fig"]
             fig.clear()
             ax = fig.add_subplot(1, 2, 1)
             ax.bar(a.index, a["heat_admit_index"], color="#c0392b", width=0.8)
-            ax.set_title("Hittegerelateerde opname-index per jaar (ERF, mei–sep)")
-            ax.set_ylabel("Σ (exp(β·overschrijding) − 1)")
+            ax.set_title(vt("Hittegerelateerde opname-index per jaar (ERF, mei–sep)", "Heat-related admission index per year (ERF, May–Sep)"))
+            ax.set_ylabel(vt("Σ (exp(β·overschrijding) − 1)", "Σ (exp(β·exceedance) − 1)"))
             ax2 = fig.add_subplot(1, 2, 2)
             lab = [f"{int(s)}–{int(e)}" for s, e in zip(adf["start"], adf["end"])]
             x = np.arange(len(adf))
@@ -1465,12 +1542,15 @@ def _start_ui(na_start=None):
             ax2.axhline(1, color="#333", lw=0.8)
             ax2.set_xticks(x)
             ax2.set_xticklabels(lab, rotation=30, fontsize=8)
-            ax2.set_title("Verhouding tot de referentieperiode")
+            ax2.set_title(vt("Verhouding tot de referentieperiode", "Ratio to the reference period"))
             ax2.legend(fontsize=8)
             t["lbl"].config(text=(
-                "Bron: Klimatos heat_admission_indices en analyze_admissions_windows. Blootstelling-responsfunctie van van "
+                vt("Bron: Klimatos heat_admission_indices en analyze_admissions_windows. Blootstelling-responsfunctie van van "
                 f"Loenhout et al. 2018 (MMT {nl(ks.ERF_MMT_C, 0)} °C, log-lineaire benadering), op de landelijke "
-                "dagmaximumtemperatuur. Een index, geen aantal opnames."))
+                "dagmaximumtemperatuur. Een index, geen aantal opnames.",
+                   "Source: Klimatos heat_admission_indices and analyze_admissions_windows. Exposure–response function of van "
+                f"Loenhout et al. 2018 (MMT {nl(ks.ERF_MMT_C, 0)} °C, log-linear approximation), on the national "
+                "daily maximum temperature. An index, not a number of admissions.")))
             t["cv"].draw_idle()
 
         def _teken_lb(self):
@@ -1483,14 +1563,14 @@ def _start_ui(na_start=None):
             a = g["annual"]
             if "minMmax_young" not in a:
                 self._tabel(t["tv"], None, [], [])
-                return self._leeg_fig("lb", "Geen HEAT-Lim-analyse (HEATLim.py niet beschikbaar).")
+                return self._leeg_fig("lb", vt("Geen HEAT-Lim-analyse (HEATLim.py niet beschikbaar).", "No HEAT-Lim analysis (HEATLim.py not available)."))
             fig = t["fig"]
             fig.clear()
             ax = fig.add_subplot(1, 2, 1)
             for p, kl in (("young", "#2471a3"), ("old", "#c0392b")):
                 ax.plot(a.index, a[f"hrsBelow_{p}"], "o-", ms=3, color=kl,
                         label=ks.LIVEABILITY_PROFILE_LABEL.get(p, p))
-            ax.set_title(f"Uren per jaar onder {nl(ks.LIVEABILITY_ACTIVITY_MET, 1)} MET (beperkt leefbaar)")
+            ax.set_title(vt(f"Uren per jaar onder {nl(ks.LIVEABILITY_ACTIVITY_MET, 1)} MET (beperkt leefbaar)", f"Hours per year below {nl(ks.LIVEABILITY_ACTIVITY_MET, 1)} MET (limited liveability)"))
             ax.set_ylabel("uren")
             ax.legend(fontsize=8)
             ax2 = fig.add_subplot(1, 2, 2)
@@ -1498,7 +1578,7 @@ def _start_ui(na_start=None):
                 ax2.plot(a.index, a[f"minMmax_{p}"], "o-", ms=3, color=kl,
                          label=ks.LIVEABILITY_PROFILE_LABEL.get(p, p))
             ax2.axhline(ks.LIVEABILITY_ACTIVITY_MET, color="#7a5b00", ls="--", lw=1)
-            ax2.set_title("Laagste toelaatbare inspanning (min Mmax)")
+            ax2.set_title(vt("Laagste toelaatbare inspanning (min Mmax)", "Lowest permissible exertion (min Mmax)"))
             ax2.set_ylabel("MET")
             ax2.legend(fontsize=8)
             pr = g.get("liveability_proj_df")
@@ -1510,10 +1590,14 @@ def _start_ui(na_start=None):
             else:
                 self._tabel(t["tv"], None, [], [])
             t["lbl"].config(text=(
-                "Bron: Klimatos liveability_year_metrics (HEAT-Lim, Vanos et al. 2023; "
+                vt("Bron: Klimatos liveability_year_metrics (HEAT-Lim, Vanos et al. 2023; "
                 f"{ks.LIVEABILITY_EXP_TIME} h blootstelling, {ks.LIVEABILITY_SUN}) en run_liveability_projection "
                 "(tabel: projectie in uren per jaar). Let op Known issue 14: aan de kust kunnen deze absolute uren te "
-                "gunstig zijn; zie het tabblad Kustcorrectie."))
+                "gunstig zijn; zie het tabblad Kustcorrectie.",
+                   "Source: Klimatos liveability_year_metrics (HEAT-Lim, Vanos et al. 2023; "
+                f"{ks.LIVEABILITY_EXP_TIME} h exposure, {ks.LIVEABILITY_SUN}) and run_liveability_projection "
+                "(table: projection in hours per year). Note Known issue 14: on the coast these absolute hours may be too "
+                "favourable; see the Coastal correction tab.")))
             t["cv"].draw_idle()
 
         # ---------------------------------------------------- kustcorrectie
@@ -1532,11 +1616,14 @@ def _start_ui(na_start=None):
                 buiten = not (ek.FIT_AREA["lat"][0] <= c["latitude"] <= ek.FIT_AREA["lat"][1]
                               and ek.FIT_AREA["lon"][0] <= c["longitude"] <= ek.FIT_AREA["lon"][1])
                 eerste = next(iter(dku["info"].values()), {})
-                info_txt = (f"{c['name']}: ERA5-cel {'?' if ld is None else f'{ld:.0%}'} land "
+                info_txt = (vt(f"{c['name']}: ERA5-cel {'?' if ld is None else f'{ld:.0%}'} land "
                             f"({'kust' if ld is not None and ld < 0.9 else 'binnenland'}); "
-                            f"{eerste.get('n_landcellen', '?')} landcellen binnen 30 km"
-                            + ("; smal eiland" if eerste.get("eiland") else "")
-                            + ("; BUITEN het fitgebied (extrapolatie)" if buiten else "") + ". ")
+                            f"{eerste.get('n_landcellen', '?')} landcellen binnen 30 km",
+                               f"{c['name']}: ERA5 cell {'?' if ld is None else f'{ld:.0%}'} land "
+                            f"({'coastal' if ld is not None and ld < 0.9 else 'inland'}); "
+                            f"{eerste.get('n_landcellen', '?')} land cells within 30 km")
+                            + (vt("; smal eiland", "; narrow island") if eerste.get("eiland") else "")
+                            + (vt("; BUITEN het fitgebied (extrapolatie)", "; OUTSIDE the fit area (extrapolation)") if buiten else "") + ". ")
             gemeen = sorted(set(dsu["rows"]) & set(dku["rows"]))
             jaren_ = sorted(self.cb_kujaar["values"] or [])
             if dku["rows"]:
@@ -1547,8 +1634,10 @@ def _start_ui(na_start=None):
             if not gemeen:
                 ax = fig.add_subplot(111)
                 ax.set_axis_off()
-                ax.text(0.5, 0.5, "Voor de vergelijking zijn beide runs nodig (suite en kustcorrectie).\n"
+                ax.text(0.5, 0.5, vt("Voor de vergelijking zijn beide runs nodig (suite en kustcorrectie).\n"
                                   f"Nu binnen: suite {len(dsu['rows'])} jaren, kustcorrectie {len(dku['rows'])} jaren.",
+                                     "For the comparison both runs are needed (suite and coastal correction).\n"
+                                  f"In now: suite {len(dsu['rows'])} years, coastal correction {len(dku['rows'])} years."),
                         ha="center", va="center", fontsize=13, transform=ax.transAxes)
                 t["lbl"].config(text=info_txt)
                 self._tabel(t["tv"], None, [], [])
@@ -1561,7 +1650,7 @@ def _start_ui(na_start=None):
                             ("WBT_max", "#2471a3")):
                 ax.plot(gemeen, B[var].values - A[var].values, "o-", ms=3, lw=1, color=kl, label=var)
             ax.axhline(0, color="#333", lw=0.8)
-            ax.set_title("Jaarmaxima: gecorrigeerd − suite")
+            ax.set_title(vt("Jaarmaxima: gecorrigeerd − suite", "Annual maxima: corrected − suite"))
             ax.set_ylabel("°C")
             ax.legend(fontsize=8)
             ax2 = fig.add_subplot(2, 2, 2)
@@ -1571,7 +1660,7 @@ def _start_ui(na_start=None):
                         ax2.plot(gemeen, B[var].values - A[var].values, "o-", ms=3, lw=1, color=kl, label=var)
                 ax2.axhline(0, color="#333", lw=0.8)
                 ax2.legend(fontsize=8)
-            ax2.set_title("Evenementuren: gecorrigeerd − suite")
+            ax2.set_title(vt("Evenementuren: gecorrigeerd − suite", "Event hours: corrected − suite"))
             ax2.set_ylabel("°C")
             ax3 = fig.add_subplot(2, 2, 3)
             if "hrsBelow_old" in A:
@@ -1580,8 +1669,8 @@ def _start_ui(na_start=None):
                              label=ks.LIVEABILITY_PROFILE_LABEL.get(p, p))
                 ax3.axhline(0, color="#333", lw=0.8)
                 ax3.legend(fontsize=8)
-            ax3.set_title(f"HEAT-Lim-uren onder {nl(ks.LIVEABILITY_ACTIVITY_MET, 1)} MET: gecorrigeerd − suite")
-            ax3.set_ylabel("uren per jaar")
+            ax3.set_title(vt(f"HEAT-Lim-uren onder {nl(ks.LIVEABILITY_ACTIVITY_MET, 1)} MET: gecorrigeerd − suite", f"HEAT-Lim hours below {nl(ks.LIVEABILITY_ACTIVITY_MET, 1)} MET: corrected − suite"))
+            ax3.set_ylabel(vt("uren per jaar", "hours per year"))
             ax4 = fig.add_subplot(2, 2, 4)
             self._uurdetail(ax4, c)
             # tabel: trends en gemiddelden
@@ -1595,16 +1684,21 @@ def _start_ui(na_start=None):
                               "trend_suite": 10 * ma["slope"], "trend_kust": 10 * mb["slope"]})
             self._tabel(t["tv"], pd.DataFrame(rijen), ["grootheid", "gem_suite", "gem_kust", "verschil", "max_verschil",
                                                          "trend_suite", "trend_kust"],
-                        ["grootheid", "gem. suite", "gem. gecorrigeerd", "gem. verschil", "max. verschil",
-                         "trend suite /10 j", "trend gecorr. /10 j"], {"grootheid": 160})
+                        ["grootheid", vt("gem. suite", "mean suite"), vt("gem. gecorrigeerd", "mean corrected"), vt("gem. verschil", "mean difference"), vt("max. verschil", "max. difference"),
+                         vt("trend suite /10 j", "trend suite /10 y"), vt("trend gecorr. /10 j", "trend corr. /10 y")], {"grootheid": 160})
             n_k = len(dku["rows"])
             n_tot = len(jaren(dku["inv"])) if dku["inv"] else 0
             t["lbl"].config(text=(
-                info_txt + f"Kustcorrectie: {n_k}/{n_tot} jaren. BEOORDELINGSMODUS, geen suitegedrag: per jaar "
+                info_txt + vt(f"Kustcorrectie: {n_k}/{n_tot} jaren. BEOORDELINGSMODUS, geen suitegedrag: per jaar "
                 "era5_kustcorrectie.corrigeer_dataframe, toegepast zoals de Data Engine (dauwpunt vast, RH opnieuw, vóór de "
                 "UHI; alleen hete dagen). Gefit op 26 KNMI-stations; strikte toets: TXx aan het water −3,5 → −1,9 °C, "
                 "nachten aan de kust verschuiven tussen stations (Known issue 14). Trends in de tabel: Klimatos mann_kendall "
-                "over de jaren die in beide runs zitten."))
+                "over de jaren die in beide runs zitten.",
+                              f"Coastal correction: {n_k}/{n_tot} years. ASSESSMENT MODE, not suite behaviour: per year "
+                "era5_kustcorrectie.corrigeer_dataframe, applied as the Data Engine does (dew point fixed, RH recalculated, before the "
+                "UHI; only hot days). Fitted on 26 KNMI stations; strict test: TXx at the water −3.5 → −1.9 °C, "
+                "nights on the coast shift between stations (Known issue 14). Trends in the table: Klimatos mann_kendall "
+                "over the years present in both runs.")))
             t["cv"].draw_idle()
 
         def _uurdetail(self, ax, c):
@@ -1623,11 +1717,11 @@ def _start_ui(na_start=None):
             sl = slice(dag - pd.Timedelta(days=1), dag + pd.Timedelta(days=2))
             ax.plot(ruw.loc[sl].index, ruw.loc[sl, "T_air_rural"], color=KLEUR["suite"], lw=2, label="ERA5 (suite)")
             ax.plot(gec.loc[sl].index, gec.loc[sl, "T_air_rural"], color=KLEUR["kust"], lw=2, label="gecorrigeerd")
-            ax.set_title(f"Uurverloop rond de heetste dag van {j} ({dag:%d-%m})")
-            ax.set_ylabel("°C (landelijk, vóór UHI)")
+            ax.set_title(vt(f"Uurverloop rond de heetste dag van {j} ({dag:%d-%m})", f"Hourly course around the hottest day of {j} ({taal.datum(dag, False)})"))
+            ax.set_ylabel(vt("°C (landelijk, vóór UHI)", "°C (rural, before UHI)"))
             ax.legend(fontsize=8)
             import matplotlib.dates as mdates
-            ax.xaxis.set_major_formatter(mdates.DateFormatter("%d-%m %Hh"))
+            ax.xaxis.set_major_formatter(mdates.DateFormatter(vt("%d-%m %Hh", "%d %b %Hh")))
 
         # ---------------------------------------------------- suite-figuren
         def _vul_figuren(self):
@@ -1637,14 +1731,14 @@ def _start_ui(na_start=None):
             lb.delete(0, "end")
             self._paden = []
             if d["res"] is None:
-                return self._leeg_fig("fi", f"{VARIANT_NAAM[v]}: nog geen figuren.")
+                return self._leeg_fig("fi", vt(f"{VARIANT_NAAM[v]}: nog geen figuren.", f"{VARIANT_NAAM[v]}: no figures yet."))
             self._paden = [p for p in d["res"]["gegevens"]["plot_paths"] if os.path.exists(p)]
             for p in self._paden:
                 lb.insert("end", Path(p).stem.replace("plot_", ""))
             if self._paden:
                 lb.selection_set(0)
                 self._toon_figuur()
-            t["lbl"].config(text=f"Figuren precies zoals Klimatos ze maakt (map: {d['res']['uitmap']}).")
+            t["lbl"].config(text=vt(f"Figuren precies zoals Klimatos ze maakt (map: {d['res']['uitmap']}).", f"Figures exactly as Klimatos makes them (folder: {d['res']['uitmap']})."))
 
         def _toon_figuur(self):
             t = self.tab["fi"]
@@ -1663,19 +1757,19 @@ def _start_ui(na_start=None):
         def _excel(self):
             v, d = self._huidig()
             if d["res"] is None or not d["res"].get("excel"):
-                return messagebox.showinfo("Excel", "Er is nog geen analyse voor deze variant.")
+                return messagebox.showinfo("Excel", vt("Er is nog geen analyse voor deze variant.", "There is no analysis yet for this variant."))
             p = filedialog.asksaveasfilename(defaultextension=".xlsx", filetypes=[("Excel", "*.xlsx")],
                                              initialfile=Path(d["res"]["excel"]).stem
                                              + ("_kustcorrectie_beoordeling" if v == "kust" else "") + ".xlsx")
             if p:
                 shutil.copyfile(d["res"]["excel"], p)
-                self.lbl_fase.config(text=f"Excel opgeslagen: {p}")
+                self.lbl_fase.config(text=vt(f"Excel opgeslagen: {p}", f"Excel saved: {p}"))
 
         def _rapport(self):
             v, d = self._huidig()
             if d["res"] is None:
-                return messagebox.showinfo("Rapport", "Er is nog geen analyse voor deze variant.")
-            p = filedialog.asksaveasfilename(title="Rapport opslaan als", defaultextension=".docx",
+                return messagebox.showinfo(vt("Rapport", "Report"), vt("Er is nog geen analyse voor deze variant.", "There is no analysis yet for this variant."))
+            p = filedialog.asksaveasfilename(title=vt("Rapport opslaan als", "Save report as"), defaultextension=".docx",
                                              filetypes=[("Word", "*.docx")],
                                              initialfile=Path(d["res"]["rapport_stam"]).name
                                              + ("_kustcorrectie_beoordeling" if v == "kust" else ""))
@@ -1684,15 +1778,15 @@ def _start_ui(na_start=None):
             g = dict(d["res"]["gegevens"])
             if v == "kust":
                 g["meta"] = {**g["meta"], "model": g["meta"].get("model", "") +
-                             " — BEOORDELING: ERA5 met land-zeecorrectie (era5_kustcorrectie), geen suitegedrag"}
-                g["event_name"] = f"{g['event_name']} (beoordeling kustcorrectie)"
+                             vt(" — BEOORDELING: ERA5 met land-zeecorrectie (era5_kustcorrectie), geen suitegedrag", " — ASSESSMENT: ERA5 with land–sea correction (era5_kustcorrectie), not suite behaviour")}
+                g["event_name"] = vt(f"{g['event_name']} (beoordeling kustcorrectie)", f"{g['event_name']} (coastal-correction assessment)")
             if d["res"].get("snel"):
                 g["meta"] = {**g["meta"], "reference_period": g["meta"].get("reference_period", "")
-                             + " (snelle verkenning: eerste 10 opgehaalde jaren)"}
-            self.lbl_fase.config(text="Rapport maken …")
+                             + vt(" (snelle verkenning: eerste 10 opgehaalde jaren)", " (quick exploration: first 10 fetched years)")}
+            self.lbl_fase.config(text=vt("Rapport maken …", "Making report …"))
             f = self.rpool.submit(maak_rapport, g, str(Path(p).with_suffix("")), d["res"]["uitmap"])
             f.add_done_callback(lambda fu: self.q.put(("rapport", fu.result()) if fu.exception() is None
-                                                      else ("fout", f"Rapport mislukt: {fu.exception()}")))
+                                                      else ("fout", vt(f"Rapport mislukt: {fu.exception()}", f"Report failed: {fu.exception()}"))))
 
         def _sluit(self):
             self.stop.set()

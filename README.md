@@ -2,14 +2,14 @@
 
 # Thermopoulos: HESTIA · PYROX · Klimatos
 
-**Release 2026.11.23** · research software · MIT licence
+**Release 2026.11.24** · research software · MIT licence
 
 A heat-risk modelling suite for mass-participation events, outdoor work and
 heatwaves. It starts from the human body, not from a weather index alone.
 
 | Component | Scale | What it does |
 |---|---|---|
-| **HESTIA** | individual and event population (runners, or walkers of a Four Days Marches type event) | JOS-3 thermophysiology (pythermalcomfort) plus a cardiovascular module: core temperature, sweat and fluid loss, heart rate, cardiac-output reserve (CO_reserve), exertional heat-illness endpoints, a personal runner analysis and a field-validation chain |
+| **HESTIA** | individual and event population (runners, or walkers of a Four Days Marches type event), and outdoor workers over a working day | JOS-3 thermophysiology (pythermalcomfort) plus a cardiovascular module: core temperature, sweat and fluid loss, heart rate, cardiac-output reserve (CO_reserve), exertional heat-illness endpoints, a personal runner analysis and a field-validation chain |
 | **PYROX** | population groups | control-theoretic heat-strain dynamics for 19 population groups during heatwaves ([preprint](https://doi.org/10.21203/rs.3.rs-8626369/v1)) |
 | **Klimatos** | climate | trends in WBGT, UTCI and related indices over sliding 30-year windows, with HESTIA risk evolution for recurring events |
 | **Thermopoulos Data Engine** | weather | fetches forecast and archive weather (Open-Meteo) and computes solar position, globe temperature, MRT, wet-bulb, WBGT and UTCI into one Excel format that HESTIA and PYROX read |
@@ -169,9 +169,13 @@ silently change a result. GitHub Actions runs both test sets
 ## Quick start
 
 **Visual interfaces.** `python thermopoulos_ui.py` opens a start screen with
-four windowed interfaces (Tkinter, in Dutch): one runner, an event
-population, PYROX and Klimatos. They call the same suite functions as the
-console scripts and change no calculation (see `MANIFEST.md`). On Linux,
+five windowed interfaces (Tkinter): one runner, an event
+population, outdoor workers over a working day, PYROX and Klimatos. They call the same suite functions as the
+console scripts and change no calculation (see `MANIFEST.md`). The start
+screen opens in Dutch; the British flag switches it, the five interfaces and
+the charts and Word reports made from them to English (British English,
+decimal point). The calculations are the same in both languages. The
+console menu and the reports of the console scripts stay in Dutch. On Linux,
 Tkinter may need the system package `python3-tk`.
 
 Start the main menu with `python start_thermopoulos.py` (or open it in
@@ -288,6 +292,12 @@ reports are his. The author's own contributions include:
   differ in heat tolerance, so the response is graded rather than on/off
   (2026-11-23; tested against the age gradient of Paris 2003, see
   TECHNICAL_REFERENCE.md §3.6).
+- **Work mode (HESTIA).** A group of outdoor workers over a working day with a
+  work–rest schedule and breaks (ISO 8996 classes or occupations from the 2024
+  Compendium), judged against occupational limits (group-mean core
+  temperature 38.0/38.5 °C, ACGIH, NIOSH, WBGT against ISO 7243) and checked
+  with the PHS model of ISO 7933 (2026-11-24; not yet tested against field
+  data, see TECHNICAL_REFERENCE.md §4.6.4).
 - **One chain from weather to people.** Coupling the weather pipeline
   (including measured or forecast solar radiation), individual thermophysiology
   (JOS-3) with a cardiovascular reserve model (Lloyd et al. 2022), the event

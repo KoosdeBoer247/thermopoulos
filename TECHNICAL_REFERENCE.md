@@ -252,6 +252,35 @@ land cells and the site wind direction. For this reason Klimatos (about 75
 years per site) does not apply the correction; it prints a warning
 (`era5_correctie_waarschuwing`).
 
+### 2.5 Language of the interfaces: Dutch or English [2026-11-24, author's decision]
+
+The start screen (`thermopoulos_ui.py`) opens in Dutch. Two flags at the top
+choose the language: the British flag redraws the start screen in English, and
+every interface opened from it then runs in English; the Dutch flag switches
+back. The choice reaches the interfaces through the environment variable
+`THERMOPOULOS_TAAL` (or `--lang en` on the command line), so worker processes
+started with `spawn` inherit it.
+
+`taal.py` holds the language layer. Every text in the interfaces, in their
+charts and in the Word reports and briefing made from them is written as
+`vt("Dutch", "English")`; numbers go through `getal()` (decimal comma in Dutch,
+decimal point in English) and dates through `datum()`. The terms follow a
+fixed glossary (British English; PYROX zones safe / caution / danger /
+emergency; "cardiac reserve", "sweeper bus"). Names of models, groups,
+symbols and the word "seed" are not translated. Date input is YYYY-MM-DD in
+both languages.
+
+The language layer is display only. Drop-down lists show translated text, but
+the key passed to the suite (route, sex, clothing, endpoint) is taken from the
+position in the list or from a key table, not from the text itself, so the suite receives the same
+values in both languages. `tests/test_taal.py` checks that the work-mode
+calculation and a PYROX report give identical numbers in Dutch and English.
+Not translated: the console menu (`start_thermopoulos.py`), the reports of
+the console scripts, log output of the suite modules, and texts produced
+inside frozen suite functions; where such a text appears in an interface
+(for example the count with interval from `uncertainty.py`) the interface
+renders the same numbers in English itself.
+
 ---
 
 ## 3. PYROX — population strain dynamics
@@ -638,12 +667,11 @@ group is in the emergency zone", which is stricter than with one representative
 member. The interface says so, and the margin ("Marge") also shows the share of
 members in emergency.
 
-**Planned — author's decision (2026-11-23).** HESTIA gets a separate worker
-group (a work mode for outdoor workers, with ISO 8996 metabolic classes, a
-work day with work–rest cycles, and occupational limits instead of the race
-EHS endpoints). This is started only after this PYROX version has been shown to
-work well (independent test on another heatwave). Until then outdoor workers
-are not covered by the suite.
+**Worker group — author's decision (2026-11-23, changed 2026-11-24).** On
+2026-11-23 the author decided that HESTIA would get a separate worker group
+only after this PYROX version had been shown to work well. On 2026-11-24 the
+author changed that decision and had the worker mode built first; see §4.6.4.
+The independent PYROX test on another heatwave is still open.
 
 ## 4. HESTIA — individual thermophysiology
 
@@ -2043,6 +2071,67 @@ the walking rows were aligned with the 2024 Compendium of Physical Activities
 on 2026-11-02), the military with load, and individual walking speeds
 (`sample_pace` samples running paces and is refused for walkers). Test:
 `test_wandelaars.py`.
+
+### 4.6.4 Work mode: outdoor workers over a working day [2026-11-24, author's decision]
+
+`hestia_werk.py` simulates a group of outdoor workers over a working day; the
+screen is `hestia_werk_ui.py` (option 5b: a separate screen), the Word report
+`hestia_werk_rapport.py`. The choices were set by the author after a source
+study ("HESTIA werkers: bronnenstudie", 2026-11-24): ISO 8996 classes plus
+occupations as presets (1a), a work–rest schedule entered by the user (2a), no
+voluntary pacing (3a), occupational limits instead of an EHS probability (4a).
+
+**Own time loop, same building blocks.** The race loop
+(`calculate_indices_jos3_adult`) is built around distance, finish, voluntary
+pacing, the RPE stop and the finish zone; none of these belongs to a working
+day. Instead of adding exceptions to that function, `hestia_werk.simuleer_werker`
+is a separate time loop that calls the same suite functions: weather on 5-min
+steps (`hestia_bridge.build_interp_data`), `radiation_series`, WBGT/UTCI as in
+the race loop, `maak_jos3`, `jos3_par`, `jos3_t_rect`, `jos3_leeftijd`
+(age/fitness/acclimation, dripping sweat), the same drinking rule, and the CVR
+module live and afterwards (`link_cvr_to_jos3`). `hestia_model.py` is not
+changed, so runners and walkers are bit-identical (golden test).
+
+| Part | Work mode | Source |
+|---|---|---|
+| Age | 18–67 y from the CBS age distribution of the employed labour force, Q3 2026 (45–55 derived) | CBS 85264NED, 85267NED |
+| Share of men | per occupation, default 0.80 (model choice) | CBS dashboard: ~8 in 10 in technical/agricultural jobs |
+| Height, BMI, body fat, VO2max | as the walkers (§4.6.3) | model choice, approved |
+| Work MET | occupation (2024 Adult Compendium) or ISO 8996 class (W/m² / 58.2) | pacompendium.com; ISO 8996 via Parsons |
+| Individual MET | vo2max × pct / 3.5, pct ~ N(MET×3.5/vo2max, 0.04), clipped 0.15–0.95; training offset 0.05 × tf | as `generate_base_population` |
+| Rest | rest MET (default 1.5 = `PF_MET_RUST`) in rest and breaks; optional shade (MRT = air temperature) | model choice |
+| Clothing | 0.3–0.7 clo plus ACGIH WBGT correction; vapour-barrier PPE not modelled | ACGIH TLV table 1 |
+| Pacing | none; the physical cardiovascular ceiling (`CV_CEILING_FORCED`) stays | choice 3a |
+| Not used | distance, finish, RPE stop, finish zone, EAC-staan, after-glow on slowing, self-generated wind | model choice |
+
+The after-glow on slowing (`SLOWDOWN_AFTERGLOW`) was derived for a runner who
+slows down; applied to a worker it would add heat at every break. It is off in
+the work mode (model choice, for the author to review).
+
+**Outcome.** Following the Dutch Health Council (2011), the main outcome is the
+group mean of T_rect against 38.0 °C (not acclimatised) or 38.5 °C
+(acclimatised, acclimatisation factor ≥ 0.5), with the time it is first
+reached. Additional model outcomes, with Clopper–Pearson intervals: share of
+workers ever ≥ 38.0 / 38.5 °C, net body-mass loss ≥ 1.5 % (ACGIH), heart rate
+above 180 − age for at least one 5-min step (ACGIH), the day-mean heart rate
+against about 110/min (NIOSH 2016), the share working above 50 % of their own
+VO2max, the share hitting the cardiovascular ceiling, and the share above
+`T_THERMAL_ONLY_CRITICAL` (42 °C, outside the tested range; the model lets
+nobody stop, so values there are not predictions). WBGT is compared per clock
+hour with ISO 7243 (via the Health Council table), time-weighted over work and
+rest, with the clothing correction. As a check, the average worker is also run
+through the PHS model of ISO 7933:2023 (`pythermalcomfort.models.phs`, chained
+per 5-min step; `sweat_loss_g` is already cumulative when chained, checked);
+steps outside the standard's validity range are reported.
+
+**First results (exploratory, not a test).** DtD 2024 hindcast day (Amsterdam,
+22 Sept 2024, WBGT 15–24 °C), paver 4.3 MET, 08:00–15:00, 45/15: group mean
+up to 38.1–38.3 °C, PHS 37.9–38.0 °C. Same day +10 °C: digging 7.3 MET gives a
+group mean of 43.6 °C (PHS 43.6 °C) because nobody stops and 92 % work above
+50 % of their VO2max; a Compendium value is the rate during the task, not a
+shift mean. A pre-registered test against field data (first candidate:
+Specht et al. 2025, 32 construction workers, 43 % ≥ 38.0 °C, 4 % ≥ 38.5 °C)
+is still to be written. Test: `tests/test_hestia_werk.py`.
 
 ## 5. Klimatos.ClimateShift — climate-trend analysis
 

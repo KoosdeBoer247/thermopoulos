@@ -38,6 +38,9 @@ naast elkaar te leggen zijn -- en naast een HESTIA-rapport, gezien beide
 generators dezelfde opmaakconventies delen.
 """
 
+from taal import vt, getal
+
+
 from datetime import datetime, timezone
 import numpy as np
 import pandas as pd
@@ -48,10 +51,10 @@ def _fmt(x, decimals=2, suffix=""):
     value is missing/NaN. Identical convention to generate_event_report.py's
     own _fmt(), so numbers read the same way across both report types."""
     if x is None:
-        return "n.b."
+        return vt("n.b.", "n/a")
     try:
         if pd.isna(x):
-            return "n.b."
+            return vt("n.b.", "n/a")
     except (TypeError, ValueError):
         pass
     try:
@@ -174,53 +177,64 @@ def generate_klimatos_report(event_name: str,
     lines = []
     A = lines.append
 
-    A(f"# Klimatos-rapport — {event_name}")
+    A(vt(f"# Klimatos-rapport — {event_name}", f"# Klimatos report — {event_name}"))
     A("")
-    A(f"*Automatisch gegenereerd op {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} "
-      f"door generate_klimatos_report.py (HESTIA-PYROX suite).*")
+    A(vt(f"*Automatisch gegenereerd op {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} "
+      f"door generate_klimatos_report.py (HESTIA-PYROX suite).*",
+         f"*Automatically generated on {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} "
+      f"by generate_klimatos_report.py (HESTIA-PYROX suite).*"))
     A("")
-    A("**Dit rapport bevat uitsluitend feitelijke, door het model berekende "
+    A(vt("**Dit rapport bevat uitsluitend feitelijke, door het model berekende "
       "waarden en hun herkomst. Er zijn geen aanbevelingen of adviezen "
-      "toegevoegd.**")
+      "toegevoegd.**",
+         "**This report contains only factual values calculated by the model "
+      "and their provenance. No recommendations or advice "
+      "have been added.**"))
     A("")
     A("---")
     A("")
 
     # ------------------------------------------------------------------ #
-    A("## 1. Gesimuleerd scenario")
+    A(vt("## 1. Gesimuleerd scenario", "## 1. Simulated scenario"))
     A("")
     A("| | |")
     A("|---|---|")
-    A(f"| Naam | {event_name} |")
-    A(f"| Plaats | {meta.get('city', 'n.b.')} ({_fmt(meta.get('latitude'), 4)}, "
-      f"{_fmt(meta.get('longitude'), 4)}) |")
+    A(vt(f"| Naam | {event_name} |", f"| Name | {event_name} |"))
+    A(vt(f"| Plaats | {meta.get('city', 'n.b.')} ({_fmt(meta.get('latitude'), 4)}, "
+      f"{_fmt(meta.get('longitude'), 4)}) |",
+         f"| Location | {meta.get('city', 'n/a')} ({_fmt(meta.get('latitude'), 4)}, "
+      f"{_fmt(meta.get('longitude'), 4)}) |"))
     if meta.get("population"):
-        A(f"| Inwonertal | {meta['population']:,} |")
-    A(f"| Stedelijk hitte-eiland (UHI) | {'aan' if meta.get('apply_uhi') else 'uit'} |")
-    A(f"| Referentieperiode | {meta.get('reference_period', ref_label)} |")
-    A(f"| Analyseperiode | {meta.get('analysis_start', 'n.b.')}-{meta.get('analysis_end', 'n.b.')} |")
-    A(f"| Schuifvenster | {meta.get('window_length', 'n.b.')} jaar, "
-      f"stap {meta.get('window_step', 'n.b.')} jaar |")
+        A(vt(f"| Inwonertal | {meta['population']:,} |", f"| Population | {meta['population']:,} |"))
+    A(vt(f"| Stedelijk hitte-eiland (UHI) | {'aan' if meta.get('apply_uhi') else 'uit'} |", f"| Urban heat island (UHI) | {'on' if meta.get('apply_uhi') else 'off'} |"))
+    A(vt(f"| Referentieperiode | {meta.get('reference_period', ref_label)} |", f"| Reference period | {meta.get('reference_period', ref_label)} |"))
+    A(vt(f"| Analyseperiode | {meta.get('analysis_start', 'n.b.')}-{meta.get('analysis_end', 'n.b.')} |", f"| Analysis period | {meta.get('analysis_start', 'n/a')}-{meta.get('analysis_end', 'n/a')} |"))
+    A(vt(f"| Schuifvenster | {meta.get('window_length', 'n.b.')} jaar, "
+      f"stap {meta.get('window_step', 'n.b.')} jaar |",
+         f"| Sliding window | {meta.get('window_length', 'n/a')} years, "
+      f"step {meta.get('window_step', 'n/a')} years |"))
     if meta.get("event_window"):
-        A(f"| Evenement-venster | {meta['event_window']} |")
+        A(vt(f"| Evenement-venster | {meta['event_window']} |", f"| Event window | {meta['event_window']} |"))
     if documented_reference:
-        A(f"| Gedocumenteerd referentiecijfer voor dit evenement | {documented_reference} |")
+        A(vt(f"| Gedocumenteerd referentiecijfer voor dit evenement | {documented_reference} |", f"| Documented reference figure for this event | {documented_reference} |"))
     A("")
 
     # ------------------------------------------------------------------ #
-    A("## 2. Jaarlijkse extremen (referentie vs recent)")
+    A(vt("## 2. Jaarlijkse extremen (referentie vs recent)", "## 2. Annual extremes (reference vs recent)"))
     A("")
-    A(f"Vergelijking tussen de referentieperiode ({ref_label}) en het meest "
-      f"recente schuifvenster ({latest_label}), per variabele.")
+    A(vt(f"Vergelijking tussen de referentieperiode ({ref_label}) en het meest "
+      f"recente schuifvenster ({latest_label}), per variabele.",
+         f"Comparison between the reference period ({ref_label}) and the most "
+      f"recent sliding window ({latest_label}), per variable."))
     A("")
     var_labels = {
-        "T_air_max": "Luchttemperatuur (T_air_max)",
-        "WBT_max": "Natte-boltemperatuur (WBT_max)",
+        "T_air_max": vt("Luchttemperatuur (T_air_max)", "Air temperature (T_air_max)"),
+        "WBT_max": vt("Natte-boltemperatuur (WBT_max)", "Wet-bulb temperature (WBT_max)"),
         "WBGT_max": "WBGT (WBGT_max)",
         "UTCI_max": "UTCI (UTCI_max)",
     }
     if annual is not None and not annual.empty:
-        A("| Variabele | Referentie-gemiddelde | Recent-gemiddelde | Verschil |")
+        A(vt("| Variabele | Referentie-gemiddelde | Recent-gemiddelde | Verschil |", "| Variable | Reference mean | Recent mean | Difference |"))
         A("|---|---|---|---|")
         for col, label in var_labels.items():
             if col not in annual.columns:
@@ -237,17 +251,21 @@ def generate_klimatos_report(event_name: str,
             for col, label in var_labels.items():
                 shown = _embed_plot(
                     A, plot_paths, f"plot_{col}_timeseries_trend.png",
-                    f"Jaarlijkse extreemwaarde van {label} per jaar (punten), met de "
+                    vt(f"Jaarlijkse extreemwaarde van {label} per jaar (punten), met de "
                     f"Theil-Sen-trendlijn en of die trend statistisch significant is "
                     f"(Mann-Kendall-toets), plus de referentieperiode "
-                    f"({ref_label}) als vergelijkingsband.")
+                    f"({ref_label}) als vergelijkingsband.",
+                       f"Annual extreme value of {label} per year (points), with the "
+                    f"Theil-Sen trend line and whether that trend is statistically significant "
+                    f"(Mann-Kendall test), plus the reference period "
+                    f"({ref_label}) as comparison band."))
                 any_shown = any_shown or shown
     else:
-        A("Niet beschikbaar voor deze run.")
+        A(vt("Niet beschikbaar voor deze run.", "Not available for this run."))
     A("")
 
     # ------------------------------------------------------------------ #
-    A("## 3. Trendversnelling")
+    A(vt("## 3. Trendversnelling", "## 3. Trend acceleration"))
     A("")
     if accel_df is not None and not accel_df.empty:
         # accel_df bevat, bewust, één rij per GETESTE kandidaat-breekpunt (de
@@ -257,7 +275,7 @@ def generate_klimatos_report(event_name: str,
         # bijna-identieke rijen) verschijnen in plaats van één samenvattende
         # regel per variabele.
         best_rows = accel_df[accel_df.get("is_best", False) == True] if "is_best" in accel_df.columns else accel_df
-        A("| Variabele | Breekpunt | Helling voor | Helling na | Significant? |")
+        A(vt("| Variabele | Breekpunt | Helling voor | Helling na | Significant? |", "| Variable | Breakpoint | Slope before | Slope after | Significant? |"))
         A("|---|---|---|---|---|")
         for _, row in best_rows.iterrows():
             sig = "ja" if row.get("significant", False) else "nee"
@@ -265,29 +283,39 @@ def generate_klimatos_report(event_name: str,
               f"{_fmt(row.get('slope_before'), 4, ' degC/jr')} | "
               f"{_fmt(row.get('slope_after'), 4, ' degC/jr')} | {sig} |")
         A("")
-        A("Generieke statistische toets; zie check_trend_acceleration()'s docstring "
+        A(vt("Generieke statistische toets; zie check_trend_acceleration()'s docstring "
           "in Klimatos_ClimateShift.py voordat een gevonden breekpunt buiten "
-          "Europa/Noord-Amerika aan aerosol-uitfasering wordt toegeschreven.")
+          "Europa/Noord-Amerika aan aerosol-uitfasering wordt toegeschreven.",
+             "Generic statistical test; see the docstring of check_trend_acceleration() "
+          "in Klimatos_ClimateShift.py before attributing a breakpoint found outside "
+          "Europe/North America to aerosol phase-out."))
         A("")
         if plot_paths:
             for var in accel_df["variable"].dropna().unique():
                 _embed_plot(
                     A, plot_paths, f"plot_trend_acceleration_{var}.png",
-                    "De volledige reeks met de trendlijn apart getekend vóór en ná het "
+                    vt("De volledige reeks met de trendlijn apart getekend vóór en ná het "
                     "beste kandidaat-omslagpunt; bij meerdere geteste omslagjaren ook "
                     "hoe gevoelig de uitkomst is voor de exacte keuze -- een diffuus "
                     "signaal over veel kandidaten is reden voor terughoudendheid, ook "
-                    "als er één 'beste' omslagpunt uit rolt.")
+                    "als er één 'beste' omslagpunt uit rolt.",
+                       "The full series with the trend line drawn separately before and after the "
+                    "best candidate breakpoint; with several tested break years also "
+                    "how sensitive the outcome is to the exact choice -- a diffuse "
+                    "signal over many candidates is a reason for restraint, even "
+                    "if one 'best' breakpoint comes out."))
     else:
-        A("Niet beschikbaar voor deze run (ENABLE_ACCELERATION_CHECK uitgeschakeld, "
-          "of geen enkele kandidaat-breekpunt haalde significantie).")
+        A(vt("Niet beschikbaar voor deze run (ENABLE_ACCELERATION_CHECK uitgeschakeld, "
+          "of geen enkele kandidaat-breekpunt haalde significantie).",
+             "Not available for this run (ENABLE_ACCELERATION_CHECK switched off, "
+          "or no candidate breakpoint reached significance)."))
     A("")
 
     # ------------------------------------------------------------------ #
-    A("## 4. Evenement-venster")
+    A(vt("## 4. Evenement-venster", "## 4. Event window"))
     A("")
     if event_df is not None and not event_df.empty:
-        A("| Variabele | Baseline | Referentie | Trend | 2030 | 2035 | 2040 |")
+        A(vt("| Variabele | Baseline | Referentie | Trend | 2030 | 2035 | 2040 |", "| Variable | Baseline | Reference | Trend | 2030 | 2035 | 2040 |"))
         A("|---|---|---|---|---|---|---|")
         for _, row in event_df.iterrows():
             A(f"| {row.get('variable', 'n.b.')} | "
@@ -298,35 +326,49 @@ def generate_klimatos_report(event_name: str,
               f"{_fmt(row.get('projected_2035'), 2, ' degC')} | "
               f"{_fmt(row.get('projected_2040'), 2, ' degC')} |")
         A("")
-        A("Projecties zijn een naïeve lineaire extrapolatie van de "
+        A(vt("Projecties zijn een naïeve lineaire extrapolatie van de "
           "waargenomen trend, geen fysisch klimaatmodel en geen voorspelling "
-          "voor een specifiek jaar.")
+          "voor een specifiek jaar.",
+             "Projections are a naive linear extrapolation of the "
+          "observed trend, not a physical climate model and not a forecast "
+          "for a specific year."))
         A("")
         if plot_paths:
             for var in event_df["variable"].dropna().unique():
                 _embed_plot(
                     A, plot_paths, f"plot_event_{var}_trend.png",
-                    "Het evenement-venster-gemiddelde per jaar, met de trendlijn en een "
+                    vt("Het evenement-venster-gemiddelde per jaar, met de trendlijn en een "
                     "projectie-waaier naar de toekomst; de baseline-periode staat als "
                     "gestippelde referentielijn met een onzekerheidsband. De losse "
                     "jaarpunten zijn bewust ondergeschikt getekend -- de trend is de "
-                    "boodschap, niet een individueel jaar.")
+                    "boodschap, niet een individueel jaar.",
+                       "The event-window mean per year, with the trend line and a "
+                    "projection fan into the future; the baseline period is shown as a "
+                    "dotted reference line with an uncertainty band. The individual "
+                    "year points are deliberately drawn subdued -- the trend is the "
+                    "message, not an individual year."))
     else:
-        A("Niet beschikbaar voor deze run (geen evenement-venster ingesteld, "
-          "of ENABLE_EVENT_WINDOW uitgeschakeld).")
+        A(vt("Niet beschikbaar voor deze run (geen evenement-venster ingesteld, "
+          "of ENABLE_EVENT_WINDOW uitgeschakeld).",
+             "Not available for this run (no event window set, "
+          "or ENABLE_EVENT_WINDOW switched off)."))
     A("")
 
     # ------------------------------------------------------------------ #
-    A("## 5. EHS-evolutie (Falmouth, epidemiologisch)")
+    A(vt("## 5. EHS-evolutie (Falmouth, epidemiologisch)", "## 5. EHS evolution (Falmouth, epidemiological)"))
     A("")
     if ehs_df is not None and not ehs_df.empty and "ehs_per_1000" in ehs_df.columns:
         ref_ehs = ehs_df["reference_ehs_per_1000"].iloc[0] if "reference_ehs_per_1000" in ehs_df.columns else np.nan
-        A(f"Referentiewaarde: {_fmt(ref_ehs, 2)} EHS per 1.000 deelnemers. "
+        A(vt(f"Referentiewaarde: {_fmt(ref_ehs, 2)} EHS per 1.000 deelnemers. "
           f"EHS/1000 is een zuivere functie van de omgevingstemperatuur "
           f"tijdens het evenement-venster (Falmouth-regressie, DeMartini et "
-          f"al. 2014) -- beweegt niet mee met tempo/MET.")
+          f"al. 2014) -- beweegt niet mee met tempo/MET.",
+             f"Reference value: {_fmt(ref_ehs, 2)} EHS per 1,000 participants. "
+          f"EHS/1000 is a pure function of the ambient temperature "
+          f"during the event window (Falmouth regression, DeMartini et "
+          f"al. 2014) -- it does not move with pace/MET."))
         A("")
-        A("| Doeljaar | EHS/1000 | x referentie | Vroege start |")
+        A(vt("| Doeljaar | EHS/1000 | x referentie | Vroege start |", "| Target year | EHS/1000 | x reference | Early start |"))
         A("|---|---|---|---|")
         for _, row in ehs_df.iterrows():
             A(f"| {int(row['target_year'])} | {_fmt(row.get('ehs_per_1000'), 2)} | "
@@ -336,132 +378,178 @@ def generate_klimatos_report(event_name: str,
         if plot_paths:
             _embed_plot(
                 A, plot_paths, "plot_ehs_evolution.png",
-                "Links: de absolute EHS-schatting met onzekerheidsband en het "
+                vt("Links: de absolute EHS-schatting met onzekerheidsband en het "
                 "vroege-start-scenario ernaast. Rechts: dezelfde uitkomst als "
                 "verhouding tot de referentieperiode -- de verhouding is de "
                 "robuustere van de twee, omdat een systematische kalibratiefout "
-                "daar grotendeels uit wegvalt.")
+                "daar grotendeels uit wegvalt.",
+                   "Left: the absolute EHS estimate with uncertainty band and the "
+                "early-start scenario next to it. Right: the same outcome as "
+                "ratio to the reference period -- the ratio is the "
+                "more robust of the two, because a systematic calibration error "
+                "largely cancels out of it."))
     else:
-        A("Niet beschikbaar voor deze run (ENABLE_EHS_EVOLUTION uitgeschakeld, "
-          "of geen HESTIA-omgeving aanwezig).")
+        A(vt("Niet beschikbaar voor deze run (ENABLE_EHS_EVOLUTION uitgeschakeld, "
+          "of geen HESTIA-omgeving aanwezig).",
+             "Not available for this run (ENABLE_EHS_EVOLUTION switched off, "
+          "or no HESTIA environment present)."))
     A("")
 
     # ------------------------------------------------------------------ #
-    A("## 6. Collapse-risico")
+    A(vt("## 6. Collapse-risico", "## 6. Collapse risk"))
     A("")
     if ehs_df is not None and not ehs_df.empty and "collapse_per_1000" in ehs_df.columns:
         ref_collapse = (ehs_df["reference_collapse_per_1000"].iloc[0]
                         if "reference_collapse_per_1000" in ehs_df.columns else np.nan)
-        A(f"Referentiewaarde: {_fmt(ref_collapse, 2)} per 1.000 deelnemers.")
+        A(vt(f"Referentiewaarde: {_fmt(ref_collapse, 2)} per 1.000 deelnemers.", f"Reference value: {_fmt(ref_collapse, 2)} per 1,000 participants."))
         A("")
-        A("Anders dan EHE heeft dit een gekalibreerde basiswaarde: ook een "
+        A(vt("Anders dan EHE heeft dit een gekalibreerde basiswaarde: ook een "
           "scenario waarin niemand in de steekproef een fysiologische "
           "drempel overschrijdt, geeft het geijkte achtergrondniveau, niet "
           "nul. Status: **PROVISIONAL** (geijkt op één referentie-evenement, N=5000; zie "
-          "hestia_model.py's COLLAPSE_ENDPOINTS-tabel).")
+          "hestia_model.py's COLLAPSE_ENDPOINTS-tabel).",
+             "Unlike EHE this has a calibrated baseline: even a "
+          "scenario in which nobody in the sample exceeds a physiological "
+          "threshold gives the calibrated background level, not "
+          "zero. Status: **PROVISIONAL** (calibrated on one reference event, N=5000; see "
+          "the COLLAPSE_ENDPOINTS table in hestia_model.py)."))
         A("")
-        A("| Doeljaar | per 1.000 | x referentie | Vroege start |")
+        A(vt("| Doeljaar | per 1.000 | x referentie | Vroege start |", "| Target year | per 1,000 | x reference | Early start |"))
         A("|---|---|---|---|")
         for _, row in ehs_df.iterrows():
             A(f"| {int(row['target_year'])} | {_fmt(row.get('collapse_per_1000'), 2)} | "
               f"{_fmt(row.get('collapse_ratio_vs_reference'), 2, 'x')} | "
               f"{_fmt(row.get('collapse_per_1000_early_start'), 2)} |")
     else:
-        A("Niet beschikbaar voor deze run.")
+        A(vt("Niet beschikbaar voor deze run.", "Not available for this run."))
     A("")
 
     # ------------------------------------------------------------------ #
-    A("## 7. EHE / klinisch criterium en marge-tot-drempel")
+    A(vt("## 7. EHE / klinisch criterium en marge-tot-drempel", "## 7. EHE / clinical criterion and margin to threshold"))
     A("")
-    A("De EHE- en klinische drempel worden hieronder tegen dezelfde onderliggende "
+    A(vt("De EHE- en klinische drempel worden hieronder tegen dezelfde onderliggende "
       "steekproef (T_rect, CO_reserve) getoetst -- de mediaan- en "
       "dichtstbijzijnde-punt-waarden kunnen daardoor in beide subsecties "
       "identiek zijn (het is dezelfde data); de afstand tot elke drempel "
       "('t.o.v. de X-drempel') verschilt wél, en is het cijfer dat aangeeft "
-      "hoe dicht deze specifieke drempel werd genaderd.")
+      "hoe dicht deze specifieke drempel werd genaderd.",
+         "The EHE and clinical thresholds are tested below against the same underlying "
+      "sample (T_rect, CO_reserve) -- the median and "
+      "closest-point values can therefore be identical in both subsections "
+      "(it is the same data); the distance to each threshold "
+      "('vs the X threshold') does differ, and is the figure that shows "
+      "how closely this specific threshold was approached."))
     A("")
     if ehs_evolution_res is not None:
         scen = ehs_evolution_res.get("scenarios", {})
         ref_pairs = scen.get("ref_current", {}).get("scatter_pairs", [])
         proj_key = ehs_evolution_res.get("_report_proj_key")  # e.g. "proj_2030_central"
         proj_pairs = scen.get(proj_key, {}).get("scatter_pairs", []) if proj_key else []
-        for label, tt, ct in (("EHE-drempel (T_rect>39,5 EN COr<0)", 39.5, 0.0),
-                              ("Klinische drempel (T_rect>=40,5 EN COr<=0)", 40.5, 0.0)):
+        for label, tt, ct in ((vt("EHE-drempel (T_rect>39,5 EN COr<0)", "EHE threshold (T_rect>39.5 AND COr<0)"), 39.5, 0.0),
+                              (vt("Klinische drempel (T_rect>=40,5 EN COr<=0)", "Clinical threshold (T_rect>=40.5 AND COr<=0)"), 40.5, 0.0)):
             A(f"**{label}:**")
             A("")
             for scen_label, pairs in (("Referentieperiode", ref_pairs),
-                                      (f"Projectie {proj_key.split('_')[1]} (centrale helling)"
+                                      (vt(f"Projectie {proj_key.split('_')[1]} (centrale helling)", f"Projection {proj_key.split('_')[1]} (central slope)")
                                        if proj_key else "Projectie", proj_pairs)):
                 if not pairs:
                     continue
                 stats = _local_margin_stats(pairs, tt, ct)
                 if stats is None:
                     continue
-                A(f"- {scen_label} (n={stats['n']} steekproefmomenten): "
+                A(vt(f"- {scen_label} (n={stats['n']} steekproefmomenten): "
                   f"T_rect mediaan {stats['t_p50']:.2f} degC "
                   f"({tt - stats['t_p50']:+.2f} t.o.v. de {tt:.1f} degC-drempel), "
                   f"CO-reserve mediaan {stats['c_p50']:.2f} L/min "
-                  f"({stats['c_p50'] - ct:+.2f} t.o.v. de {ct:.1f} L/min-drempel)")
+                  f"({stats['c_p50'] - ct:+.2f} t.o.v. de {ct:.1f} L/min-drempel)",
+                     f"- {scen_label} (n={stats['n']} sample moments): "
+                  f"T_rect median {stats['t_p50']:.2f} degC "
+                  f"({tt - stats['t_p50']:+.2f} vs the {tt:.1f} degC threshold), "
+                  f"CO reserve median {stats['c_p50']:.2f} L/min "
+                  f"({stats['c_p50'] - ct:+.2f} vs the {ct:.1f} L/min threshold)"))
                 bn = stats["closest_bottleneck"]
                 if bn > 0:
-                    A(f"  dichtstbijzijnde waargenomen combinatie: "
+                    A(vt(f"  dichtstbijzijnde waargenomen combinatie: "
                       f"T_rect={stats['closest_t']:.2f} degC, "
                       f"CO_reserve={stats['closest_c']:.2f} L/min "
-                      f"-> {bn:.2f} verwijderd van de moeilijkst te sluiten drempel")
+                      f"-> {bn:.2f} verwijderd van de moeilijkst te sluiten drempel",
+                         f"  closest observed combination: "
+                      f"T_rect={stats['closest_t']:.2f} degC, "
+                      f"CO_reserve={stats['closest_c']:.2f} L/min "
+                      f"-> {bn:.2f} away from the hardest threshold to close"))
                 else:
-                    A(f"  dichtstbijzijnde waargenomen combinatie: "
+                    A(vt(f"  dichtstbijzijnde waargenomen combinatie: "
                       f"T_rect={stats['closest_t']:.2f} degC, "
                       f"CO_reserve={stats['closest_c']:.2f} L/min "
                       f"-> beide drempels op dit moment overschreden "
-                      f"(momentopname, niet per se een aanhoudende treffer)")
+                      f"(momentopname, niet per se een aanhoudende treffer)",
+                         f"  closest observed combination: "
+                      f"T_rect={stats['closest_t']:.2f} degC, "
+                      f"CO_reserve={stats['closest_c']:.2f} L/min "
+                      f"-> both thresholds exceeded at this moment "
+                      f"(snapshot, not necessarily a sustained hit)"))
             A("")
         if plot_paths:
             _embed_plot(
                 A, plot_paths, "plot_trect_co_reserve_scatter.png",
-                "Elk punt is één gesimuleerd steekproefmoment (kerntemperatuur tegen "
+                vt("Elk punt is één gesimuleerd steekproefmoment (kerntemperatuur tegen "
                 "hartminuutvolume-reserve), referentieperiode naast de projectie voor "
                 "het gekozen doeljaar, met de EHE- en klinische-criteriumdrempel als "
                 "horizontale zones -- dezelfde onderliggende data als de "
-                "marge-tot-drempel-cijfers hierboven, nu visueel in plaats van in getallen.")
+                "marge-tot-drempel-cijfers hierboven, nu visueel in plaats van in getallen.",
+                   "Each point is one simulated sample moment (core temperature against "
+                "cardiac output reserve), reference period next to the projection for "
+                "the chosen target year, with the EHE and clinical criterion thresholds as "
+                "horizontal zones -- the same underlying data as the "
+                "margin-to-threshold figures above, now visual instead of in numbers."))
     else:
-        A("Niet beschikbaar voor deze run (geen ehs_evolution_res meegegeven "
-          "aan generate_klimatos_report()).")
+        A(vt("Niet beschikbaar voor deze run (geen ehs_evolution_res meegegeven "
+          "aan generate_klimatos_report()).",
+             "Not available for this run (no ehs_evolution_res passed "
+          "to generate_klimatos_report())."))
         A("")
 
     # ------------------------------------------------------------------ #
-    A("## 8. Hitte-gerelateerde ziekenhuisopnames (van Loenhout ERF)")
+    A(vt("## 8. Hitte-gerelateerde ziekenhuisopnames (van Loenhout ERF)", "## 8. Heat-related hospital admissions (van Loenhout ERF)"))
     A("")
     latest_row = _window_row(admissions_df, latest_label)
     if latest_row is not None:
-        A("| | Ratio t.o.v. referentie |")
+        A(vt("| | Ratio t.o.v. referentie |", "| | Ratio vs reference |"))
         A("|---|---|")
-        A(f"| ERF-index (beta-afhankelijk) | {_fmt(latest_row.get('ratio_ERF_vs_ref'), 2, 'x')} |")
-        A(f"| Hitte-graaddagen (beta-vrij) | {_fmt(latest_row.get('ratio_HDD_vs_ref'), 2, 'x')} |")
+        A(vt(f"| ERF-index (beta-afhankelijk) | {_fmt(latest_row.get('ratio_ERF_vs_ref'), 2, 'x')} |", f"| ERF index (beta-dependent) | {_fmt(latest_row.get('ratio_ERF_vs_ref'), 2, 'x')} |"))
+        A(vt(f"| Hitte-graaddagen (beta-vrij) | {_fmt(latest_row.get('ratio_HDD_vs_ref'), 2, 'x')} |", f"| Heat degree days (beta-free) | {_fmt(latest_row.get('ratio_HDD_vs_ref'), 2, 'x')} |"))
         A("")
-        A("Klimaat-only contrast: ERF en populatie worden constant gehouden -- "
-          "NIET de waargenomen opnametrend, die ook van vergrijzing/adaptatie afhangt.")
+        A(vt("Klimaat-only contrast: ERF en populatie worden constant gehouden -- "
+          "NIET de waargenomen opnametrend, die ook van vergrijzing/adaptatie afhangt.",
+             "Climate-only contrast: ERF and population are held constant -- "
+          "NOT the observed admissions trend, which also depends on ageing/adaptation."))
         A("")
         if plot_paths:
             _embed_plot(
                 A, plot_paths, "plot_admissions_window_ratio.png",
-                "Per venster de verhouding tot de referentieperiode, zowel via de "
+                vt("Per venster de verhouding tot de referentieperiode, zowel via de "
                 "temperatuurafhankelijke ERF-schatting als via de beta-vrije "
                 "hitte-graaddagen-controle ernaast -- komen de twee staven met elkaar "
                 "overeen, dan hangt de uitkomst niet louter af van de gekozen "
-                "beta-waarde in het ERF-model.")
+                "beta-waarde in het ERF-model.",
+                   "Per window the ratio to the reference period, both via the "
+                "temperature-dependent ERF estimate and via the beta-free "
+                "heat-degree-day check next to it -- if the two bars "
+                "agree, the outcome does not depend purely on the chosen "
+                "beta value in the ERF model."))
     else:
-        A("Niet beschikbaar voor deze run.")
+        A(vt("Niet beschikbaar voor deze run.", "Not available for this run."))
     A("")
 
     # ------------------------------------------------------------------ #
-    A("## 9. Fysiologische leefbaarheid (HEAT-Lim)")
+    A(vt("## 9. Fysiologische leefbaarheid (HEAT-Lim)", "## 9. Physiological liveability (HEAT-Lim)"))
     A("")
     latest_liv = _window_row(liveability_df, latest_label)
     ref_liv = _window_row(liveability_df, ref_label)
     if latest_liv is not None and ref_liv is not None:
-        A("| Profiel | Min. Mmax referentie | Min. Mmax recent | Verschil |")
+        A(vt("| Profiel | Min. Mmax referentie | Min. Mmax recent | Verschil |", "| Profile | Min. Mmax reference | Min. Mmax recent | Difference |"))
         A("|---|---|---|---|")
-        for prof, label in (("young", "Jongvolwassene (18-40)"), ("old", "Oudere (65+)")):
+        for prof, label in (("young", vt("Jongvolwassene (18-40)", "Young adult (18-40)")), ("old", vt("Oudere (65+)", "Older adult (65+)"))):
             col = f"minMmax_{prof}"
             if col in latest_liv.index:
                 r = ref_liv[col]
@@ -473,46 +561,66 @@ def generate_klimatos_report(event_name: str,
         if plot_paths:
             _embed_plot(
                 A, plot_paths, "plot_liveability_window_bar.png",
-                "Per venster het gemiddelde slechtste-uur-Mmax voor beide "
+                vt("Per venster het gemiddelde slechtste-uur-Mmax voor beide "
                 "leeftijdsprofielen naast elkaar -- een dalende balk betekent minder "
                 "fysiologische marge over tijdens het heetste uur van een gemiddelde "
-                "dag in dat venster.")
+                "dag in dat venster.",
+                   "Per window the mean worst-hour Mmax for both "
+                "age profiles side by side -- a falling bar means less "
+                "physiological margin left during the hottest hour of an average "
+                "day in that window."))
         A("")
-        A("**Let op bij het slechtste-uur-Mmax:** Mmax kan niet onder het "
+        A(vt("**Let op bij het slechtste-uur-Mmax:** Mmax kan niet onder het "
           "rustniveau komen (ongeveer 1,5 MET). Een uur dat nog zwaarder is, "
           "telt als 'niet leefbaar' en valt buiten dit minimum. Zodra een "
           "profiel tegen die bodem zit, toont deze maat geen verdere "
-          "verslechtering meer; daarvoor dient het aantal uren hieronder.")
+          "verslechtering meer; daarvoor dient het aantal uren hieronder.",
+             "**Note on the worst-hour Mmax:** Mmax cannot fall below the "
+          "resting level (about 1.5 MET). An hour that is even harder "
+          "counts as 'not liveable' and falls outside this minimum. Once a "
+          "profile sits against that floor, this measure shows no further "
+          "deterioration; the number of hours below serves that purpose."))
         A("")
         cols = ("hrsBelow_young", "hrsNonLiv_young", "hrsBelow_old", "hrsNonLiv_old")
         if all(c in latest_liv.index for c in cols):
-            A("| Uren per jaar | Referentie | Recent |")
+            A(vt("| Uren per jaar | Referentie | Recent |", "| Hours per year | Reference | Recent |"))
             A("|---|---|---|")
-            for c, lab in (("hrsBelow_young", "Jongvolwassene: onder 3 MET"),
-                           ("hrsNonLiv_young", "Jongvolwassene: zelfs rust niet volhoudbaar"),
-                           ("hrsBelow_old", "Oudere: onder 3 MET"),
-                           ("hrsNonLiv_old", "Oudere: zelfs rust niet volhoudbaar")):
+            for c, lab in (("hrsBelow_young", vt("Jongvolwassene: onder 3 MET", "Young adult: below 3 MET")),
+                           ("hrsNonLiv_young", vt("Jongvolwassene: zelfs rust niet volhoudbaar", "Young adult: even rest not sustainable")),
+                           ("hrsBelow_old", vt("Oudere: onder 3 MET", "Older adult: below 3 MET")),
+                           ("hrsNonLiv_old", vt("Oudere: zelfs rust niet volhoudbaar", "Older adult: even rest not sustainable"))):
                 A(f"| {lab} | {_fmt(ref_liv[c], 1)} | {_fmt(latest_liv[c], 1)} |")
             A("")
-        names = {"hrsBelow": "onder 3 MET", "hrsNonLiv": "zelfs rust niet volhoudbaar"}
-        profs = {"young": "Jongvolwassene", "old": "Oudere"}
+        names = {"hrsBelow": vt("onder 3 MET", "below 3 MET"), "hrsNonLiv": vt("zelfs rust niet volhoudbaar", "even rest not sustainable")}
+        profs = {"young": vt("Jongvolwassene", "Young adult"), "old": vt("Oudere", "Older adult")}
         if liveability_proj_df is not None and len(liveability_proj_df):
             P = liveability_proj_df
             tys = sorted(int(c) for c in P.columns if str(c).isdigit())
             a = P.iloc[0]
-            hum = {"constant_rh": "de relatieve vochtigheid blijft gelijk (de hoeveelheid "
+            hum = {"constant_rh": vt("de relatieve vochtigheid blijft gelijk (de hoeveelheid "
                                   "waterdamp stijgt mee)",
-                   "constant_vapour": "de hoeveelheid waterdamp blijft gelijk (de relatieve "
-                                      "vochtigheid daalt)"}.get(a["humidity"], a["humidity"])
-            A(f"**Vooruitblik.** Elk jaar uit {a['trend_period']} is opgewarmd naar het doeljaar "
+                                     "the relative humidity stays the same (the amount of "
+                                  "water vapour rises with it)"),
+                   "constant_vapour": vt("de hoeveelheid waterdamp blijft gelijk (de relatieve "
+                                      "vochtigheid daalt)",
+                                         "the amount of water vapour stays the same (the relative "
+                                      "humidity falls)")}.get(a["humidity"], a["humidity"])
+            A(vt(f"**Vooruitblik.** Elk jaar uit {a['trend_period']} is opgewarmd naar het doeljaar "
               f"met de trend van de zomerse dagmaximumtemperatuur ({a['shift_var']}: "
               f"{a['slope'] * 10:+.2f} °C per tien jaar, 95%-band {a['slope_lo'] * 10:+.2f} tot "
               f"{a['slope_hi'] * 10:+.2f}; Mann-Kendall p = {_fmt(a['mk_p'], 3)}); daarbij {hum}. "
               "Daarna zijn de uren met HEAT-Lim opnieuw berekend en over de jaren gemiddeld. "
               "Rechte voortzetting van de waargenomen opwarming, geen klimaatscenario. Tussen "
-              "haakjes: lage en hoge helling.")
+              "haakjes: lage en hoge helling.",
+                 f"**Outlook.** Each year from {a['trend_period']} has been warmed to the target year "
+              f"with the trend of the summer daily maximum temperature ({a['shift_var']}: "
+              f"{a['slope'] * 10:+.2f} °C per ten years, 95% band {a['slope_lo'] * 10:+.2f} to "
+              f"{a['slope_hi'] * 10:+.2f}; Mann-Kendall p = {_fmt(a['mk_p'], 3)}); {hum}. "
+              "Then the hours have been recalculated with HEAT-Lim and averaged over the years. "
+              "Straight continuation of the observed warming, not a climate scenario. In "
+              "brackets: low and high slope."))
             A("")
-            A("| Profiel en maat | Gemiddeld " + str(a["trend_period"]) + " | "
+            A(vt("| Profiel en maat | Gemiddeld ", "| Profile and measure | Mean ") + str(a["trend_period"]) + " | "
               + " | ".join(str(t) for t in tys) + " |")
             A("|---|---|" + "---|" * len(tys))
             for _, r in P.iterrows():
@@ -524,12 +632,16 @@ def generate_klimatos_report(event_name: str,
             tys = sorted(int(c.split("_")[1]) for c in liveability_hours_df.columns
                          if c.startswith("proj_") and c.count("_") == 1)
             tp = liveability_hours_df["trend_period"].iloc[0]
-            A(f"Doorgetrokken trend {tp}: kleinste-kwadratenlijn door het gemiddelde "
+            A(vt(f"Doorgetrokken trend {tp}: kleinste-kwadratenlijn door het gemiddelde "
               "van die periode, rechte lijn, geen klimaatscenario; tussen haakjes de "
               "95%-band van de helling. (Theil-Sen is hier niet bruikbaar: de uren "
-              "'niet leefbaar' zijn de meeste jaren nul.)")
+              "'niet leefbaar' zijn de meeste jaren nul.)",
+                 f"Extended trend {tp}: least-squares line through the mean "
+              "of that period, straight line, not a climate scenario; in brackets the "
+              "95% band of the slope. (Theil-Sen cannot be used here: the hours "
+              "'not liveable' are zero in most years.)"))
             A("")
-            A("| Profiel en maat | Trend (uur/jaar per jaar) | Mann-Kendall p | "
+            A(vt("| Profiel en maat | Trend (uur/jaar per jaar) | Mann-Kendall p | ", "| Profile and measure | Trend (hours/year per year) | Mann-Kendall p | ")
               + " | ".join(str(t) for t in tys) + " |")
             A("|---|---|---|" + "---|" * len(tys))
             for _, r in liveability_hours_df.iterrows():
@@ -541,34 +653,44 @@ def generate_klimatos_report(event_name: str,
         if plot_paths:
             _embed_plot(
                 A, plot_paths, "plot_liveability_hours.png",
-                "Aantal uren per jaar waarin lichte activiteit (boven) of zelfs rust "
+                vt("Aantal uren per jaar waarin lichte activiteit (boven) of zelfs rust "
                 "(onder) in de zon niet volhoudbaar is, per leeftijdsprofiel, met de "
-                "trend en de doorgetrokken lijn naar de doeljaren.")
+                "trend en de doorgetrokken lijn naar de doeljaren.",
+                   "Number of hours per year in which light activity (top) or even rest "
+                "(bottom) in the sun cannot be sustained, per age profile, with the "
+                "trend and the extended line to the target years."))
     else:
-        A("Niet beschikbaar voor deze run.")
+        A(vt("Niet beschikbaar voor deze run.", "Not available for this run."))
     A("")
 
     # ------------------------------------------------------------------ #
-    A("## 10. Herkomst en status van dit model")
+    A(vt("## 10. Herkomst en status van dit model", "## 10. Provenance and status of this model"))
     A("")
     A("| | |")
     A("|---|---|")
     A("| Model | Klimatos.ClimateShift |")
-    A("| Databron | ERA5 historisch archief (Open-Meteo archive-api) |")
-    A("| ERA5-correctie | geen: de land-zeecorrectie van de Data Engine wordt in Klimatos niet "
-      "toegepast; aan de kust kunnen absolute waarden te gunstig zijn |")
+    A(vt("| Databron | ERA5 historisch archief (Open-Meteo archive-api) |", "| Data source | ERA5 historical archive (Open-Meteo archive-api) |"))
+    A(vt("| ERA5-correctie | geen: de land-zeecorrectie van de Data Engine wordt in Klimatos niet "
+      "toegepast; aan de kust kunnen absolute waarden te gunstig zijn |",
+         "| ERA5 correction | none: the Data Engine land–sea correction is not applied "
+      "in Klimatos; on the coast absolute values may be too favourable |"))
     if meta.get("admissions_erf"):
-        A(f"| Ziekenhuisopnames-methode | {meta['admissions_erf']} |")
+        A(vt(f"| Ziekenhuisopnames-methode | {meta['admissions_erf']} |", f"| Hospital admissions method | {meta['admissions_erf']} |"))
     if meta.get("liveability"):
-        A(f"| Leefbaarheids-methode | {meta['liveability']} |")
+        A(vt(f"| Leefbaarheids-methode | {meta['liveability']} |", f"| Liveability method | {meta['liveability']} |"))
     A("")
-    A("**Beperkingen, expliciet:** projecties zijn een lineaire "
+    A(vt("**Beperkingen, expliciet:** projecties zijn een lineaire "
       "extrapolatie van de waargenomen trend, geen fysisch klimaatmodel. "
       "Het `hospitalisation`-eindpunt is PROVISIONAL (geijkt op één referentie-evenement, "
       "de Dam tot Damloop 2024; wachtend op nadere klinische onderbouwing). Geen onafhankelijke, "
-      "externe peer review van dit specifieke traject.")
+      "externe peer review van dit specifieke traject.",
+         "**Limitations, explicitly:** projections are a linear "
+      "extrapolation of the observed trend, not a physical climate model. "
+      "The `hospitalisation` endpoint is PROVISIONAL (calibrated on one reference event, "
+      "the Dam tot Damloop 2024; awaiting further clinical substantiation). No independent, "
+      "external peer review of this specific trajectory."))
     A("")
-    A("*Einde rapport.*")
+    A(vt("*Einde rapport.*", "*End of report.*"))
 
     text = "\n".join(lines)
     with open(output_path, "w", encoding="utf-8") as f:

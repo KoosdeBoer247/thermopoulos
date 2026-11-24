@@ -44,6 +44,8 @@ Status van de uitkomsten (zie ook TECHNICAL_REFERENCE.md):
 
 from __future__ import annotations
 
+from taal import vt, getal
+
 import json
 import math
 from dataclasses import dataclass, field, asdict
@@ -81,29 +83,41 @@ TRAINING_FACTOR = [(10, 0.2), (25, 0.4), (45, 0.6), (1e9, 0.8)]
 #: 2023; Casa et al. 2015 NATA position statement).
 NIET_GEMODELLEERD = {
     "koorts_of_ziekte_recent": (
-        "Koorts of een (darm)infectie in de afgelopen week",
-        "Een recente infectie verhoogt de kans op hitteziekte, ook als je je "
-        "alweer goed voelt. Het model gaat uit van een gezond lichaam."),
+        vt("Koorts of een (darm)infectie in de afgelopen week", "Fever or a (gut) infection in the past week"),
+        vt("Een recente infectie verhoogt de kans op hitteziekte, ook als je je "
+        "alweer goed voelt. Het model gaat uit van een gezond lichaam.",
+           "A recent infection raises the chance of heat illness, even if you "
+        "feel well again. The model assumes a healthy body.")),
     "slecht_geslapen": (
-        "Slecht of kort geslapen voor de loop",
-        "Slaaptekort vermindert de warmtetolerantie. Het model kent geen slaap."),
+        vt("Slecht of kort geslapen voor de loop", "Slept badly or briefly before the run"),
+        vt("Slaaptekort vermindert de warmtetolerantie. Het model kent geen slaap.", "Lack of sleep reduces heat tolerance. The model has no sleep.")),
     "alcohol_dag_ervoor": (
-        "Alcohol de dag ervoor",
-        "Alcohol werkt vochtafdrijvend; je begint dan mogelijk met een "
-        "vochttekort. Het model start iedereen goed gehydrateerd."),
+        vt("Alcohol de dag ervoor", "Alcohol the day before"),
+        vt("Alcohol werkt vochtafdrijvend; je begint dan mogelijk met een "
+        "vochttekort. Het model start iedereen goed gehydrateerd.",
+           "Alcohol is a diuretic; you may then start with a "
+        "fluid deficit. The model starts everyone well hydrated.")),
     "eerder_hitteziekte": (
-        "Eerder een hitteberoerte of hitte-uitputting gehad",
-        "Een eerdere hitteziekte is een bekende risicofactor voor herhaling. "
-        "Het model weet dat niet."),
+        vt("Eerder een hitteberoerte of hitte-uitputting gehad", "Earlier heat stroke or heat exhaustion"),
+        vt("Een eerdere hitteziekte is een bekende risicofactor voor herhaling. "
+        "Het model weet dat niet.",
+           "An earlier heat illness is a known risk factor for recurrence. "
+        "The model does not know that.")),
     "medicatie_hart_bloeddruk_zweten": (
-        "Medicijnen die hartslag, bloeddruk of zweten beinvloeden "
+        vt("Medicijnen die hartslag, bloeddruk of zweten beinvloeden "
         "(bijv. betablokkers, plaspillen, antihistaminica, sommige antidepressiva)",
-        "Zulke middelen veranderen precies de mechanismen die het model "
-        "doorrekent (hartslag, bloedvolume, zweten). Bespreek dit met je arts."),
+           "Medicines that affect heart rate, blood pressure or sweating "
+        "(e.g. beta blockers, diuretics, antihistamines, some antidepressants)"),
+        vt("Zulke middelen veranderen precies de mechanismen die het model "
+        "doorrekent (hartslag, bloedvolume, zweten). Bespreek dit met je arts.",
+           "Such medicines change exactly the mechanisms the model "
+        "calculates (heart rate, blood volume, sweating). Discuss this with your doctor.")),
     "hart_vaat_aandoening": (
-        "Een hart- of vaataandoening",
-        "Het CVR-model gaat uit van een gezond hart. Bij een hart- of "
-        "vaataandoening zegt de berekende reserve weinig; overleg met je arts."),
+        vt("Een hart- of vaataandoening", "A heart or vascular condition"),
+        vt("Het CVR-model gaat uit van een gezond hart. Bij een hart- of "
+        "vaataandoening zegt de berekende reserve weinig; overleg met je arts.",
+           "The CVR model assumes a healthy heart. With a heart or "
+        "vascular condition the calculated reserve says little; consult your doctor.")),
 }
 
 
@@ -189,42 +203,42 @@ class LoperInvoer:
         """Harde fouten -> ValueError. Geeft een lijst waarschuwingen terug."""
         fouten = []
         if self.geslacht not in ("man", "vrouw"):
-            fouten.append("geslacht moet 'man' of 'vrouw' zijn")
+            fouten.append(vt("geslacht moet 'man' of 'vrouw' zijn", "sex must be 'man' or 'vrouw'"))
         if not 130 <= self.lengte_cm <= 220:
-            fouten.append("lengte buiten 130-220 cm")
+            fouten.append(vt("lengte buiten 130-220 cm", "height outside 130-220 cm"))
         if not 30 <= self.gewicht_kg <= 200:
-            fouten.append("gewicht buiten 30-200 kg")
+            fouten.append(vt("gewicht buiten 30-200 kg", "weight outside 30-200 kg"))
         if not 16 <= self.leeftijd <= 90:
-            fouten.append("leeftijd buiten 16-90 jaar (kinderen: aparte module)")
+            fouten.append(vt("leeftijd buiten 16-90 jaar (kinderen: aparte module)", "age outside 16-90 years (children: separate module)"))
         if not 1 <= self.afstand_km <= 50:
-            fouten.append("afstand buiten 1-50 km")
+            fouten.append(vt("afstand buiten 1-50 km", "distance outside 1-50 km"))
         try:
             t = self.tempo
             if not 2.5 <= t <= 15:
-                fouten.append("tempo buiten 2:30-15:00 min/km")
+                fouten.append(vt("tempo buiten 2:30-15:00 min/km", "pace outside 2:30-15:00 min/km"))
         except ValueError:
-            fouten.append("tempo onleesbaar; gebruik bijv. 5:30")
+            fouten.append(vt("tempo onleesbaar; gebruik bijv. 5:30", "pace unreadable; use e.g. 5:30"))
         try:
             self.start
         except Exception:
-            fouten.append("datum/starttijd onleesbaar; gebruik JJJJ-MM-DD en UU:MM")
+            fouten.append(vt("datum/starttijd onleesbaar; gebruik JJJJ-MM-DD en UU:MM", "date/start time unreadable; use YYYY-MM-DD and HH:MM"))
         if self.kleding not in KLEDING_CLO:
-            fouten.append(f"kleding moet een van {list(KLEDING_CLO)} zijn")
+            fouten.append(vt(f"kleding moet een van {list(KLEDING_CLO)} zijn", f"clothing must be one of {list(KLEDING_CLO)}"))
         if self.weerbron not in ("excel", "online"):
-            fouten.append("weerbron moet 'excel' of 'online' zijn")
+            fouten.append(vt("weerbron moet 'excel' of 'online' zijn", "weather source must be 'excel' or 'online'"))
         if self.weerbron == "excel" and not self.weer_excel:
-            fouten.append("weerbron 'excel' vraagt een pad in weer_excel")
+            fouten.append(vt("weerbron 'excel' vraagt een pad in weer_excel", "weather source 'excel' needs a path in weer_excel"))
         if (self.wedstrijd_afstand_km is None) != (self.wedstrijd_tijd is None):
-            fouten.append("vul wedstrijdafstand EN wedstrijdtijd in, of geen van beide")
+            fouten.append(vt("vul wedstrijdafstand EN wedstrijdtijd in, of geen van beide", "fill in race distance AND race time, or neither"))
         if self.hr_max_bekend is not None and not 120 <= self.hr_max_bekend <= 230:
-            fouten.append("HRmax buiten 120-230")
+            fouten.append(vt("HRmax buiten 120-230", "HRmax outside 120-230"))
         if self.hr_rust_bekend is not None and not 30 <= self.hr_rust_bekend <= 110:
-            fouten.append("rusthartslag buiten 30-110")
+            fouten.append(vt("rusthartslag buiten 30-110", "resting heart rate outside 30-110"))
         if fouten:
-            raise ValueError("Invoer klopt niet:\n  - " + "\n  - ".join(fouten))
+            raise ValueError(vt("Invoer klopt niet:\n  - ", "Input is not correct:\n  - ") + "\n  - ".join(fouten))
         waarsch = []
         if self.duur_min > 300:
-            waarsch.append("Looptijd > 5 uur: het model is getest tot marathonduur.")
+            waarsch.append(vt("Looptijd > 5 uur: het model is getest tot marathonduur.", "Running time > 5 hours: the model has been tested up to marathon duration."))
         return waarsch
 
     # ------------------------------------------------------------------ JSON
@@ -316,39 +330,56 @@ class Afgeleid:
 def afleiden(inv: LoperInvoer) -> Afgeleid:
     w = []
     if inv.vo2max_bekend:
-        vo2max, bron = float(inv.vo2max_bekend), "zelf opgegeven (horloge/test)"
+        vo2max, bron = float(inv.vo2max_bekend), vt("zelf opgegeven (horloge/test)", "self-reported (watch/test)")
     elif inv.wedstrijd_afstand_km:
         vo2max = vo2max_uit_wedstrijd(inv.wedstrijd_afstand_km, inv.wedstrijd_tijd)
-        bron = (f"berekend uit wedstrijd {inv.wedstrijd_afstand_km:g} km in "
-                f"{inv.wedstrijd_tijd} (Daniels & Gilbert)")
+        bron = (vt(f"berekend uit wedstrijd {inv.wedstrijd_afstand_km:g} km in "
+                f"{inv.wedstrijd_tijd} (Daniels & Gilbert)",
+                   f"calculated from race {inv.wedstrijd_afstand_km:g} km in "
+                f"{inv.wedstrijd_tijd} (Daniels & Gilbert)"))
     else:
         vo2max = ie._default_vo2max(inv.leeftijd, inv.gender_en)
-        bron = "populatiegemiddelde voor leeftijd en geslacht (onzeker, ca. +/-15%)"
-        w.append("VO2max is niet opgegeven. Het model gebruikt een gemiddelde voor "
+        bron = vt("populatiegemiddelde voor leeftijd en geslacht (onzeker, ca. +/-15%)", "population mean for age and sex (uncertain, about +/-15%)")
+        w.append(vt("VO2max is niet opgegeven. Het model gebruikt een gemiddelde voor "
                  "jouw leeftijd en geslacht. Vul een recente wedstrijdtijd of de "
-                 "VO2max van je horloge in voor een betrouwbaarder resultaat.")
+                 "VO2max van je horloge in voor een betrouwbaarder resultaat.",
+                    "VO2max has not been given. The model uses a mean for "
+                 "your age and sex. Enter a recent race time or the "
+                 "VO2max from your watch for a more reliable result."))
     vo2_t = _daniels_gilbert_vo2_at_pace(inv.tempo)
     pct = vo2_t / vo2max
     geklemd = pct > 0.95
     ht = haalbaar_tempo(vo2max, inv.afstand_km)
     if geklemd:
-        w.append(f"Het opgegeven tempo vraagt {pct:.0%} van je (geschatte) VO2max. "
+        w.append(vt(f"Het opgegeven tempo vraagt {pct:.0%} van je (geschatte) VO2max. "
                  f"Dat is niet vol te houden; de engine begrenst op 95%, waardoor "
                  f"de simulatie langzamer loopt dan je tempo (ongeveer "
                  f"{min_naar_tempo(1000.0 / _dg_snelheid_uit_vo2(0.95 * vo2max))} min/km) "
                  f"en de uitkomsten horen bij een loper die op de grens van zijn "
                  f"vermogen loopt. Met deze VO2max is over {inv.afstand_km:g} km "
                  f"ongeveer {min_naar_tempo(ht)} min/km een realistisch wedstrijdtempo. "
-                 f"Pas het tempo of de VO2max/wedstrijdtijd aan.")
+                 f"Pas het tempo of de VO2max/wedstrijdtijd aan.",
+                    f"The given pace requires {pct:.0%} of your (estimated) VO2max. "
+                 f"That cannot be sustained; the engine caps at 95%, so "
+                 f"the simulation runs slower than your pace (about "
+                 f"{min_naar_tempo(1000.0 / _dg_snelheid_uit_vo2(0.95 * vo2max))} min/km) "
+                 f"and the results belong to a runner at the limit of their "
+                 f"capacity. With this VO2max about {min_naar_tempo(ht)} min/km is a realistic race pace "
+                 f"over {inv.afstand_km:g} km. "
+                 f"Adjust the pace or the VO2max/race time."))
     elif pct > daniels_pct_vo2max(inv.duur_min) + 0.03:
-        w.append(f"Je tempo ({pct:.0%} van VO2max) ligt boven wat een getrainde "
+        w.append(vt(f"Je tempo ({pct:.0%} van VO2max) ligt boven wat een getrainde "
                  f"loper volgens Daniels over {inv.duur_min:.0f} minuten volhoudt "
                  f"(~{daniels_pct_vo2max(inv.duur_min):.0%}). Ofwel je VO2max is hoger "
-                 f"dan geschat, ofwel het tempo is te ambitieus.")
+                 f"dan geschat, ofwel het tempo is te ambitieus.",
+                    f"Your pace ({pct:.0%} of VO2max) is above what a trained "
+                 f"runner sustains over {inv.duur_min:.0f} minutes according to Daniels "
+                 f"(~{daniels_pct_vo2max(inv.duur_min):.0%}). Either your VO2max is higher "
+                 f"than estimated, or the pace is too ambitious."))
     if inv.hr_max_bekend:
-        hrmax, hbron = float(inv.hr_max_bekend), "zelf opgegeven"
+        hrmax, hbron = float(inv.hr_max_bekend), vt("zelf opgegeven", "self-reported")
     else:
-        hrmax, hbron = 208 - 0.7 * inv.leeftijd, "Tanaka (208 - 0,7 x leeftijd)"
+        hrmax, hbron = 208 - 0.7 * inv.leeftijd, vt("Tanaka (208 - 0,7 x leeftijd)", "Tanaka (208 - 0.7 x age)")
     tf = next(f for grens, f in TRAINING_FACTOR if inv.trainingskm_per_week <= grens)
     return Afgeleid(vo2max=vo2max, vo2max_bron=bron, vo2_bij_tempo=vo2_t,
                     pct_vo2max=min(pct, 0.95), pct_geklemd=geklemd,
@@ -381,8 +412,10 @@ def _zoek_blad(xl, start, eind):
         if df.index.tz is not None:
             df.index = df.index.tz_convert(tz).tz_localize(None)
         venster = df.loc[lo.floor("h"):hi.ceil("h"), WEER_KOLOMMEN]
-        gezien.append(f"{sheet}: {df.index.min():%Y-%m-%d %H:%M} t/m {df.index.max():%Y-%m-%d %H:%M}"
-                      f" ({int(df[WEER_KOLOMMEN[0]].notna().sum())} uur met data)")
+        gezien.append(vt(f"{sheet}: {df.index.min():%Y-%m-%d %H:%M} t/m {df.index.max():%Y-%m-%d %H:%M}"
+                      f" ({int(df[WEER_KOLOMMEN[0]].notna().sum())} uur met data)",
+                         f"{sheet}: {df.index.min():%Y-%m-%d %H:%M} to {df.index.max():%Y-%m-%d %H:%M}"
+                      f" ({int(df[WEER_KOLOMMEN[0]].notna().sum())} hours with data)"))
         if len(venster) == 0 or venster.index.min() > lo or venster.index.max() < hi:
             continue
         if venster.isna().any().any():
@@ -393,8 +426,10 @@ def _zoek_blad(xl, start, eind):
         from thermal_env import actualiseer_straling
         df, herberekend = actualiseer_straling(df, meta)
         if herberekend:
-            print(f"  Let op: {sheet} is gemaakt met een oudere Data Engine; globetemperatuur, "
-                  "MRT, WBGT en UTCI zijn opnieuw berekend met het huidige globemodel.")
+            print(vt(f"  Let op: {sheet} is gemaakt met een oudere Data Engine; globetemperatuur, "
+                  "MRT, WBGT en UTCI zijn opnieuw berekend met het huidige globemodel.",
+                     f"  Note: {sheet} was made with an older Data Engine; globe temperature, "
+                  "MRT, WBGT and UTCI have been recalculated with the current globe model."))
         df.index = df.index.tz_localize(tz, nonexistent="shift_forward", ambiguous="infer")
         return (df, city, lat, lon, tz, sheet), gezien
     return None, gezien
@@ -418,11 +453,15 @@ def weer_uit_excel(pad: str | Path, start: pd.Timestamp, eind: pd.Timestamp):
         return gevonden[0]
     gezien = gevonden[1]
     raise ValueError(
-        f"Geen tabblad in {pad.name} heeft volledige weerdata voor "
-        f"{start:%Y-%m-%d %H:%M} - {eind:%H:%M}.\nBeschikbaar:\n  "
+        vt(f"Geen tabblad in {pad.name} heeft volledige weerdata voor "
+        f"{start:%Y-%m-%d %H:%M} - {eind:%H:%M}.\nBeschikbaar:\n  ",
+           f"No sheet in {pad.name} has complete weather data for "
+        f"{start:%Y-%m-%d %H:%M} - {eind:%H:%M}.\nAvailable:\n  ")
         + "\n  ".join(gezien)
-        + "\nMaak met de Data Engine een bestand met deze datum (forecast of "
-          "Historical_Custom) en probeer opnieuw.")
+        + vt("\nMaak met de Data Engine een bestand met deze datum (forecast of "
+          "Historical_Custom) en probeer opnieuw.",
+             "\nMake a file with this date using the Data Engine (forecast or "
+          "Historical_Custom) and try again."))
 
 
 # =============================================================================
@@ -634,7 +673,7 @@ def _weer(inv: LoperInvoer, eind: pd.Timestamp):
                      (eind + pd.Timedelta(hours=1)).tz_localize(w[4], ambiguous=True),
                      [c for c in WEER_KOLOMMEN if c in df.columns]]
     if venster.isna().any().any() or len(venster) == 0:
-        raise ValueError("Open-Meteo gaf onvolledige weerdata voor dit tijdvenster.")
+        raise ValueError(vt("Open-Meteo gaf onvolledige weerdata voor dit tijdvenster.", "Open-Meteo returned incomplete weather data for this time window."))
     return w, "online (Open-Meteo)"
 
 
@@ -705,8 +744,9 @@ SIGNAAL_AANDEEL = 0.05   # >= 5% van de eigen ensemble-runs telt mee
 
 
 def nl(x: float, d: int = 1) -> str:
-    """Getal met komma als decimaalteken."""
-    return f"{x:.{d}f}".replace(".", ",")
+    """Getal met komma (Nederlands) of punt (Engels) als decimaalteken (taal.py)."""
+    from taal import getal
+    return getal(x, d)
 
 
 def risicosignaal(r: LoperResultaat) -> dict:
@@ -715,50 +755,63 @@ def risicosignaal(r: LoperResultaat) -> dict:
     redenen = {"rood": [], "oranje": [], "geel": []}
     if s["f_conjunctie"]["frac"] >= SIGNAAL_AANDEEL:
         redenen["rood"].append(
-            f"In {s['f_conjunctie']['frac']:.0%} van de runs komen een rectale temperatuur "
-            f"van 40,5 C of meer en een uitgeputte hartreserve tegelijk voor.")
+            vt(f"In {s['f_conjunctie']['frac']:.0%} van de runs komen een rectale temperatuur "
+            f"van 40,5 C of meer en een uitgeputte hartreserve tegelijk voor.",
+               f"In {s['f_conjunctie']['frac']:.0%} of the runs a rectal temperature "
+            f"of 40.5 C or more and an exhausted cardiac reserve occur at the same time."))
     if s["f_roberts"]["frac"] >= SIGNAAL_AANDEEL:
         redenen["rood"].append(
-            f"In {s['f_roberts']['frac']:.0%} van de runs is de hittedosis boven 40,5 C "
-            f"groter dan {AUC_ROBERTS_GRENS:.0f} C.min (Roberts-grens).")
+            vt(f"In {s['f_roberts']['frac']:.0%} van de runs is de hittedosis boven 40,5 C "
+            f"groter dan {AUC_ROBERTS_GRENS:.0f} C.min (Roberts-grens).",
+               f"In {s['f_roberts']['frac']:.0%} of the runs the heat dose above 40.5 C "
+            f"is larger than {AUC_ROBERTS_GRENS:.0f} C.min (Roberts limit)."))
     if s["t_rect_max"]["hi"] >= 40.5 and not redenen["rood"]:
         redenen["oranje"].append(
-            f"In de ongunstigste runs loopt de kerntemperatuur op tot {nl(s['t_rect_max']['hi'])} C.")
+            vt(f"In de ongunstigste runs loopt de kerntemperatuur op tot {nl(s['t_rect_max']['hi'])} C.", f"In the least favourable runs the core temperature rises to {nl(s['t_rect_max']['hi'])} C."))
     if s["f_ehe"]["frac"] >= SIGNAAL_AANDEEL:
         redenen["oranje"].append(
-            f"In {s['f_ehe']['frac']:.0%} van de runs is de hartreserve op (onder nul) "
-            f"bij een kerntemperatuur boven 39,5 C: de regeling heeft dan geen marge meer.")
+            vt(f"In {s['f_ehe']['frac']:.0%} van de runs is de hartreserve op (onder nul) "
+            f"bij een kerntemperatuur boven 39,5 C: de regeling heeft dan geen marge meer.",
+               f"In {s['f_ehe']['frac']:.0%} of the runs the cardiac reserve is used up (below zero) "
+            f"at a core temperature above 39.5 C: the control then has no margin left."))
     if s["f_gestopt"]["frac"] >= SIGNAAL_AANDEEL:
         redenen["oranje"].append(
-            f"In {s['f_gestopt']['frac']:.0%} van de runs raak je in het model zo uitgeput "
-            f"(ervaren inspanning 19,5 of hoger op de Borg-schaal) dat je stopt.")
+            vt(f"In {s['f_gestopt']['frac']:.0%} van de runs raak je in het model zo uitgeput "
+            f"(ervaren inspanning 19,5 of hoger op de Borg-schaal) dat je stopt.",
+               f"In {s['f_gestopt']['frac']:.0%} of the runs you become so exhausted in the model "
+            f"(perceived exertion 19.5 or higher on the Borg scale) that you stop."))
     if s["dehyd"]["med"] > 3.0:
         redenen["oranje"].append(
-            f"Verwacht vochtverlies {nl(s['dehyd']['med'])}% van je lichaamsgewicht (boven 3%).")
+            vt(f"Verwacht vochtverlies {nl(s['dehyd']['med'])}% van je lichaamsgewicht (boven 3%).", f"Expected fluid loss {nl(s['dehyd']['med'])}% of your body mass (above 3%)."))
     if s["t_rect_max"]["hi"] >= 39.5 and not redenen["rood"] and not redenen["oranje"]:
         redenen["geel"].append(
-            f"In de ongunstigste runs komt de kerntemperatuur boven 39,5 C ({nl(s['t_rect_max']['hi'])} C).")
+            vt(f"In de ongunstigste runs komt de kerntemperatuur boven 39,5 C ({nl(s['t_rect_max']['hi'])} C).", f"In the least favourable runs the core temperature exceeds 39.5 C ({nl(s['t_rect_max']['hi'])} C)."))
     if s["co_min"]["lo"] < 2.0 and not redenen["rood"] and not redenen["oranje"]:
         redenen["geel"].append(
-            f"De hartreserve zakt in de ongunstigste runs onder 2 L/min ({nl(s['co_min']['lo'])}); "
-            f"weinig marge voor een extra inspanning zoals een eindsprint.")
+            vt(f"De hartreserve zakt in de ongunstigste runs onder 2 L/min ({nl(s['co_min']['lo'])}); "
+            f"weinig marge voor een extra inspanning zoals een eindsprint.",
+               f"In the least favourable runs the cardiac reserve drops below 2 L/min ({nl(s['co_min']['lo'])}); "
+            f"little margin for an extra effort such as a final sprint."))
     if s["dehyd"]["hi"] > 2.0 and not redenen["rood"] and not redenen["oranje"]:
         redenen["geel"].append(
-            f"Vochtverlies tot {nl(s['dehyd']['hi'])}% in de ongunstigste runs.")
+            vt(f"Vochtverlies tot {nl(s['dehyd']['hi'])}% in de ongunstigste runs.", f"Fluid loss up to {nl(s['dehyd']['hi'])}% in the least favourable runs."))
     for kleur in ("rood", "oranje", "geel"):
         if redenen[kleur]:
             return {"kleur": kleur, "redenen": redenen[kleur]}
     return {"kleur": "groen",
-            "redenen": [f"Kerntemperatuur blijft onder 39,5 C ({nl(s['t_rect_max']['hi'])} C in de "
+            "redenen": [vt(f"Kerntemperatuur blijft onder 39,5 C ({nl(s['t_rect_max']['hi'])} C in de "
                         f"ongunstigste runs) en de hartreserve houdt marge "
-                        f"(laagste {nl(s['co_min']['lo'])} L/min)."]}
+                        f"(laagste {nl(s['co_min']['lo'])} L/min).",
+                           f"Core temperature stays below 39.5 C ({nl(s['t_rect_max']['hi'])} C in the "
+                        f"least favourable runs) and the cardiac reserve keeps a margin "
+                        f"(lowest {nl(s['co_min']['lo'])} L/min).")]}
 
 
 SIGNAAL_TEKST = {
-    "groen":  "Laag modelsignaal",
-    "geel":   "Let op",
-    "oranje": "Verhoogd modelsignaal",
-    "rood":   "Hoog modelsignaal",
+    "groen":  vt("Laag modelsignaal", "Low model signal"),
+    "geel":   vt("Let op", "Caution"),
+    "oranje": vt("Verhoogd modelsignaal", "Raised model signal"),
+    "rood":   vt("Hoog modelsignaal", "High model signal"),
 }
 
 
@@ -832,12 +885,12 @@ def exporteer_excel(r: LoperResultaat, pad: str | Path) -> Path:
 
 
 WEER_TABEL_KOLOMMEN = [  # (sleutel loop, kolom dag, kop)
-    ("t_air", "T_air_urban", "Lucht (°C)"), ("t_air_rural", "T_air_rural", "Lucht buiten de stad (°C)"),
-    ("rh", "RH_urban", "RV (%)"), ("wind", "wind_1.5m", "Wind 1,5 m (m/s)"), ("wind10", "wind_10m", "Wind 10 m (m/s)"),
-    ("ghi", "solar_radiation", "Zon (W/m²)"), ("cloud", "cloud_cover", "Bewolking (%)"),
-    ("t_wet", "T_wetbulb", "Natte bol (°C)"), ("t_globe", "T_globe", "Bolthermometer (°C)"),
+    ("t_air", "T_air_urban", vt("Lucht (°C)", "Air (°C)")), ("t_air_rural", "T_air_rural", vt("Lucht buiten de stad (°C)", "Air outside the city (°C)")),
+    ("rh", "RH_urban", vt("RV (%)", "RH (%)")), ("wind", "wind_1.5m", vt("Wind 1,5 m (m/s)", "Wind 1.5 m (m/s)")), ("wind10", "wind_10m", vt("Wind 10 m (m/s)", "Wind 10 m (m/s)")),
+    ("ghi", "solar_radiation", vt("Zon (W/m²)", "Sun (W/m²)")), ("cloud", "cloud_cover", vt("Bewolking (%)", "Cloud cover (%)")),
+    ("t_wet", "T_wetbulb", vt("Natte bol (°C)", "Wet bulb (°C)")), ("t_globe", "T_globe", vt("Bolthermometer (°C)", "Globe thermometer (°C)")),
     ("mrt", "MRT", "MRT (°C)"), ("wbgt", "WBGT", "WBGT (°C)"), ("utci", "UTCI", "UTCI (°C)"),
-    ("pressure", "pressure", "Luchtdruk (hPa)")]
+    ("pressure", "pressure", vt("Luchtdruk (hPa)", "Air pressure (hPa)"))]
 
 
 def weer_tabellen(r: "LoperResultaat"):
@@ -857,7 +910,7 @@ def weer_tabellen(r: "LoperResultaat"):
             if c in d:
                 wd[kop] = np.round(np.asarray(d[c], float), 1)
         if "RH_urban" not in d and "RH" in d:
-            wd["RV (%)"] = np.round(np.asarray(d["RH"], float), 1)
+            wd[vt("RV (%)", "RH (%)")] = np.round(np.asarray(d["RH"], float), 1)
     return wl, wd
 
 

@@ -52,6 +52,8 @@ Starten:  python hestia_populatie_ui.py
 """
 from __future__ import annotations
 
+from taal import vt, getal, engels
+
 import inspect
 import os
 import queue
@@ -96,7 +98,7 @@ def adaptatieprofielen() -> list[tuple[str, float, float]]:
     gevonden = re.findall(r'\{"name":\s*"([^"]+)",\s*"training":\s*([0-9.]+),\s*'
                           r'"acclimatization":\s*([0-9.]+)\}', src)
     if len(gevonden) != 4:
-        raise RuntimeError("Trainingsprofielen niet te lezen uit hestia_console.get_adaptation_profile")
+        raise RuntimeError(vt("Trainingsprofielen niet te lezen uit hestia_console.get_adaptation_profile", "Training profiles cannot be read from hestia_console.get_adaptation_profile"))
     return [(n, float(t), float(a)) for n, t, a in gevonden]
 
 
@@ -139,16 +141,16 @@ def valideer(inv: PopInvoer) -> list[str]:
     _, _, hm, _, _ = _suite()
     fouten = []
     if not 0.5 <= inv.afstand_km <= 100:
-        fouten.append("afstand: 0,5 t/m 100 km")
+        fouten.append(vt("afstand: 0,5 t/m 100 km", "distance: 0.5 to 100 km"))
     if inv.eigen_tempo and inv.populatie == "wandelaars":
-        fouten.append("eigen tempo per deelnemer kan alleen bij lopers (generate_base_population)")
+        fouten.append(vt("eigen tempo per deelnemer kan alleen bij lopers (generate_base_population)", "individual pace per participant is only possible for runners (generate_base_population)"))
     if inv.activiteit not in hm.MET_ACTIVITIES_ADULT:
-        fouten.append("onbekende activiteit")
+        fouten.append(vt("onbekende activiteit", "unknown activity"))
     if inv.eindpunt not in hm.COLLAPSE_ENDPOINTS:
-        fouten.append("onbekend eindpunt")
+        fouten.append(vt("onbekend eindpunt", "unknown endpoint"))
     d = afgeleide_duur(inv)
     if not 0.1 <= d <= 24:
-        fouten.append("duur: 0,1 t/m 24 uur")
+        fouten.append(vt("duur: 0,1 t/m 24 uur", "duration: 0.1 to 24 hours"))
     return fouten
 
 
@@ -166,11 +168,14 @@ def controleer_dekking(weer: Weer, start: pd.Timestamp, eind: pd.Timestamp) -> N
     kol = [c for c in hl.WEER_KOLOMMEN if c in weer.df.columns]
     v = weer.df.loc[lo:hi, kol]
     if len(v) == 0 or v.index.min() > lo or v.index.max() < hi:
-        raise ValueError(f"Het weer dekt {start:%d-%m %H:%M} - {eind:%d-%m %H:%M} (+1 u) niet "
+        raise ValueError(vt(f"Het weer dekt {start:%d-%m %H:%M} - {eind:%d-%m %H:%M} (+1 u) niet "
                          f"volledig (beschikbaar {weer.df.index.min():%d-%m %H:%M} t/m "
-                         f"{weer.df.index.max():%d-%m %H:%M}).")
+                         f"{weer.df.index.max():%d-%m %H:%M}).",
+                            f"The weather does not fully cover {start:%d-%m %H:%M} - {eind:%d-%m %H:%M} (+1 h) "
+                         f"(available {weer.df.index.min():%d-%m %H:%M} to "
+                         f"{weer.df.index.max():%d-%m %H:%M})."))
     if v.isna().any().any():
-        raise ValueError("Het weer heeft ontbrekende waarden in het venster.")
+        raise ValueError(vt("Het weer heeft ontbrekende waarden in het venster.", "The weather has missing values in the window."))
 
 
 @dataclass
@@ -212,7 +217,7 @@ def bereid_voor(gen, inv: PopInvoer, weer: Weer, n: int, seed: int, volledig: bo
             met_value=met, sample_pace=inv.eigen_tempo, event_dist_km=inv.afstand_km,
             population=inv.populatie)
     if not pop:
-        raise ValueError("generate_base_population leverde geen deelnemers op.")
+        raise ValueError(vt("generate_base_population leverde geen deelnemers op.", "generate_base_population returned no participants."))
     # --- worker_args precies zoals in hestia_model.run_monte_carlo_adult() ----
     step = ((interp[1]["time"] - interp[0]["time"]).total_seconds() / 60.0
             if inv.eigen_tempo and len(interp) >= 2 else None)
@@ -288,11 +293,11 @@ def eindresultaat(t: PopTaak) -> dict:
     def terugspelen(args):
         i = index.get(id(args[5]))
         if i is None:
-            raise RuntimeError("Onbekende deelnemer bij terugspelen.")
+            raise RuntimeError(vt("Onbekende deelnemer bij terugspelen.", "Unknown participant on replay."))
         eigen = t.args[i]
         if (len(args[0]) != len(eigen[0]) or abs(args[3] - eigen[3]) > 1e-12
                 or abs(args[4] - eigen[4]) > 1e-12 or args[6] != eigen[6] or args[7] != eigen[7]):
-            raise RuntimeError(f"Invoer van deelnemer {i} wijkt af van de berekening.")
+            raise RuntimeError(vt(f"Invoer van deelnemer {i} wijkt af van de berekening.", f"Input of participant {i} differs from the calculation."))
         gezien.add(i)
         return t.res[i]
 
@@ -305,7 +310,7 @@ def eindresultaat(t: PopTaak) -> dict:
             run_control_failure=True, sample_pace=t.inv.eigen_tempo,
             event_dist_km=t.inv.afstand_km, population=t.inv.populatie)
     if len(gezien) != t.n:
-        raise RuntimeError("Niet alle berekende deelnemers zijn teruggespeeld.")
+        raise RuntimeError(vt("Niet alle berekende deelnemers zijn teruggespeeld.", "Not all calculated participants were replayed."))
     samen = hb._summarize_results(all_results)
     mean_t_air = float(np.mean([r["temp"] for r in t.interp]))
     samen["mean_t_air_race_window"] = mean_t_air
@@ -321,7 +326,7 @@ def eindresultaat(t: PopTaak) -> dict:
                           for res in all_results])
     k_th = int(np.sum(piek_loop > hm.T_THERMAL_ONLY_CRITICAL))
     if abs(100.0 * k_th / n - float(stats["pct_thermal_only_critical"])) > 1e-9:
-        raise RuntimeError("Telling thermisch kritiek wijkt af van pct_thermal_only_critical.")
+        raise RuntimeError(vt("Telling thermisch kritiek wijkt af van pct_thermal_only_critical.", "Count of thermally critical differs from pct_thermal_only_critical."))
     samen["n_thermisch_kritiek"] = k_th
     samen["piek_loop"] = piek_loop
     samen["fi"]["thermisch"] = fraction_interval(k_th, n)
@@ -384,7 +389,7 @@ def risicoklassen() -> list[tuple[float, str, str]]:
     v = np.round(np.arange(0.0, 20.0, 0.01), 2)
     c = [naam[C._per1000_color(float(x))] for x in v]
     grenzen = [(0.0, c[0])] + [(float(v[i]), c[i]) for i in range(1, len(v)) if c[i] != c[i - 1]]
-    labels = {"GREEN": "laag", "YELLOW": "matig", "MAGENTA": "hoog", "RED": "extreem"}
+    labels = {"GREEN": vt("laag", "low"), "YELLOW": vt("matig", "moderate"), "MAGENTA": vt("hoog", "high"), "RED": vt("extreem", "extreme")}
     return [(g, k, labels[k]) for g, k in grenzen]
 
 
@@ -401,7 +406,7 @@ def starttijden(van: str, tot: str, stap_min: int) -> list[str]:
     a = pd.Timestamp(f"2000-01-01 {van}")
     b = pd.Timestamp(f"2000-01-01 {tot}")
     if b < a or stap_min < 5:
-        raise ValueError("starttijden: 'tot' na 'van', stap minimaal 5 min")
+        raise ValueError(vt("starttijden: 'tot' na 'van', stap minimaal 5 min", "start times: 'to' after 'from', step at least 5 min"))
     return [x.strftime("%H:%M") for x in pd.date_range(a, b, freq=f"{int(stap_min)}min")]
 
 
@@ -429,8 +434,8 @@ def _start_ui(na_start=None):
     KL = {"lijn": "#1f5fa8", "rood": "#c0392b", "oranje": "#e67e22", "geel": "#d4ac0d",
           "grijs": "#7f8c8d"}
     PROFIELEN = adaptatieprofielen()
-    PROFIEL_NL = ["Beginner / niet geacclimatiseerd", "Laag-gemiddeld / deels geacclimatiseerd",
-                  "Gemiddeld / goed geacclimatiseerd", "Gevorderd / volledig geacclimatiseerd"]
+    PROFIEL_NL = [vt("Beginner / niet geacclimatiseerd", "Beginner / not acclimatised"), vt("Laag-gemiddeld / deels geacclimatiseerd", "Low-average / partly acclimatised"),
+                  vt("Gemiddeld / goed geacclimatiseerd", "Average / well acclimatised"), vt("Gevorderd / volledig geacclimatiseerd", "Advanced / fully acclimatised")]
     ACT = hm.MET_ACTIVITIES_ADULT
     ACT_TXT = {k: f"{k}. {v['description']} – {hl.nl(v['met'])} MET" for k, v in ACT.items()}
     CLO = hm.CLO_OPTIONS_ADULT
@@ -438,8 +443,7 @@ def _start_ui(na_start=None):
     EP = hm.COLLAPSE_ENDPOINTS
     EP_TXT = {k: f"{v['label']} ({v['status']})" for k, v in EP.items()}
 
-    def nl(x, d=1):
-        return f"{x:.{d}f}".replace(".", ",")
+    nl = getal   # komma (NL) of punt (EN), taal.py
 
     KLASSEN = risicoklassen()
     KLASSE_KLEUR = {"GREEN": "#27ae60", "YELLOW": "#f1c40f", "MAGENTA": "#c2185b", "RED": "#c0392b"}
@@ -454,7 +458,7 @@ def _start_ui(na_start=None):
     class App:
         def __init__(self, root):
             self.root = root
-            root.title("HESTIA · populatie-analyse voor evenementen  (research software)")
+            root.title(vt("HESTIA · populatie-analyse voor evenementen  (research software)", "HESTIA · population analysis for events  (research software)"))
             for naam in ("TkDefaultFont", "TkTextFont", "TkFixedFont", "TkMenuFont", "TkHeadingFont"):
                 try:
                     tkfont.nametofont(naam).configure(size=LETTER)
@@ -502,26 +506,26 @@ def _start_ui(na_start=None):
             self.v, self.w = {}, {}
 
             ug.invoer_legenda(self.form, LETTER)
-            r = self._sectie("Evenement", "verplicht")
-            self._tekst(r, "evenement", "Naam", "Evenement")
-            self._tekst(r, "afstand", "Afstand (km)", "16,1")
-            self._keuze(r, "tempo", "Tempo",
-                        ["eigen tempo per deelnemer", "één gedeelde activiteit"],
-                        "eigen tempo per deelnemer")
-            self._keuze(r, "activiteit", "Activiteit", list(ACT_TXT.values()), ACT_TXT[11], breed=38)
-            self._tekst(r, "duur", "Duur (uur)", "", hint="leeg: afgeleid")
+            r = self._sectie(vt("Evenement", "Event"), "verplicht")
+            self._tekst(r, "evenement", vt("Naam", "Name"), vt("Evenement", "Event"))
+            self._tekst(r, "afstand", vt("Afstand (km)", "Distance (km)"), getal(16.1))
+            self._keuze(r, "tempo", vt("Tempo", "Pace"),
+                        [vt("eigen tempo per deelnemer", "individual pace per participant"), vt("één gedeelde activiteit", "one shared activity")],
+                        vt("eigen tempo per deelnemer", "individual pace per participant"))
+            self._keuze(r, "activiteit", vt("Activiteit", "Activity"), list(ACT_TXT.values()), ACT_TXT[11], breed=38)
+            self._tekst(r, "duur", vt("Duur (uur)", "Duration (hours)"), "", hint=vt("leeg: afgeleid", "empty: derived"))
             self.lbl_duur = ttk.Label(r, text="", foreground="#555", wraplength=440, justify="left")
             self.lbl_duur.pack(anchor="w", padx=4)
 
-            r = self._sectie("Deelnemers", "verplicht")
-            self._keuze(r, "populatie", "Populatie", ["lopers", "wandelaars (Vierdaagse-type)"], "lopers")
-            self._keuze(r, "kleding", "Kleding", list(CLO_TXT.values()), CLO_TXT[1], breed=38)
-            self._keuze(r, "profiel", "Training/acclimatisatie", PROFIEL_NL, PROFIEL_NL[2], breed=40)
+            r = self._sectie(vt("Deelnemers", "Participants"), "verplicht")
+            self._keuze(r, "populatie", vt("Populatie", "Population"), [vt("lopers", "runners"), vt("wandelaars (Vierdaagse-type)", "walkers (Four Days type)")], vt("lopers", "runners"))
+            self._keuze(r, "kleding", vt("Kleding", "Clothing"), list(CLO_TXT.values()), CLO_TXT[1], breed=38)
+            self._keuze(r, "profiel", vt("Training/acclimatisatie", "Training/acclimatisation"), PROFIEL_NL, PROFIEL_NL[2], breed=40)
 
-            r = self._sectie("Datum, tijd, plaats en weer", "verplicht")
-            self._tekst(r, "datum", "Datum (JJJJ-MM-DD)", pd.Timestamp.now().strftime("%Y-%m-%d"),
+            r = self._sectie(vt("Datum, tijd, plaats en weer", "Date, time, location and weather"), "verplicht")
+            self._tekst(r, "datum", vt("Datum (JJJJ-MM-DD)", "Date (YYYY-MM-DD)"), pd.Timestamp.now().strftime("%Y-%m-%d"),
                         weer=True)
-            rij = self._rij(r, "Starttijd")
+            rij = self._rij(r, vt("Starttijd", "Start time"))
             self.v["start_min"] = tk.DoubleVar(value=9 * 60)
             self.v["starttijd"] = tk.StringVar(value="09:00")
             ent = ttk.Entry(rij, textvariable=self.v["starttijd"], width=6)
@@ -530,36 +534,38 @@ def _start_ui(na_start=None):
             ent.bind("<FocusOut>", lambda e: self._tijd_uit_tekst())
             ttk.Scale(r, from_=0, to=23 * 60 + 55, variable=self.v["start_min"],
                       command=lambda x: self._schuif()).pack(fill="x", padx=4, pady=(0, 4))
-            self._keuze(r, "bron", "Weerbron", ["online (Open-Meteo)", "Data Engine-bestand"],
+            self._keuze(r, "bron", vt("Weerbron", "Weather source"), ["online (Open-Meteo)", vt("Data Engine-bestand", "Data Engine file")],
                         "online (Open-Meteo)", weer=True)
-            rij = self._rij(r, "Plaats")
+            rij = self._rij(r, vt("Plaats", "Location"))
             self.v["plaats"] = tk.StringVar(value="Amsterdam")
             pe = ttk.Entry(rij, textvariable=self.v["plaats"], width=13)
             pe.pack(side="left")
             pe.bind("<Return>", lambda e: self._zoek_plaats())
-            ttk.Button(rij, text="Zoek", command=self._zoek_plaats, width=6).pack(side="left", padx=3)
+            ttk.Button(rij, text=vt("Zoek", "Search"), command=self._zoek_plaats, width=6).pack(side="left", padx=3)
             self.v["kandidaat"] = tk.StringVar(value="")
             self.cb_kand = ttk.Combobox(r, textvariable=self.v["kandidaat"], state="readonly", width=40)
             self.cb_kand.pack(fill="x", padx=4, pady=2)
             self.cb_kand.bind("<<ComboboxSelected>>", lambda e: self._weer_gewijzigd())
-            rij = self._rij(r, "Bestand")
+            rij = self._rij(r, vt("Bestand", "File"))
             self.v["excel"] = tk.StringVar(value="")
             ttk.Entry(rij, textvariable=self.v["excel"], width=13).pack(side="left")
-            ttk.Button(rij, text="Kies…", command=self._kies_excel, width=6).pack(side="left", padx=3)
-            self._keuze(r, "route", "Route", ["stad", "platteland"], "stad", weer=True)
+            ttk.Button(rij, text=vt("Kies…", "Choose…"), command=self._kies_excel, width=6).pack(side="left", padx=3)
+            self._keuze(r, "route", "Route", [vt("stad", "urban"), vt("platteland", "rural")], vt("stad", "urban"), weer=True)
 
-            r = self._sectie("Risicocriterium en berekening", "model",
-                             "Standaard van de suite. Het eindpunt bepaalt waarop de risicobalk rekent; "
-                             "meer deelnemers = kleinere steekproefmarge, maar langzamer.")
-            self._keuze(r, "eindpunt", "Eindpunt collapsrisico", list(EP_TXT.values()), EP_TXT["ehs"],
+            r = self._sectie(vt("Risicocriterium en berekening", "Risk criterion and calculation"), "model",
+                             vt("Standaard van de suite. Het eindpunt bepaalt waarop de risicobalk rekent; "
+                             "meer deelnemers = kleinere steekproefmarge, maar langzamer.",
+                                "Suite default. The endpoint decides what the risk bar is based on; "
+                             "more participants = smaller sampling margin, but slower."))
+            self._keuze(r, "eindpunt", vt("Eindpunt collapsrisico", "Collapse-risk endpoint"), list(EP_TXT.values()), EP_TXT["ehs"],
                         breed=38)
-            self._tekst(r, "n_snel", "Live (snel): deelnemers", str(hb.QUICK_N))
-            self._tekst(r, "n_vol", "Volledige run: deelnemers", "1000", herreken=False)
+            self._tekst(r, "n_snel", vt("Live (snel): deelnemers", "Live (quick): participants"), str(hb.QUICK_N))
+            self._tekst(r, "n_vol", vt("Volledige run: deelnemers", "Full run: participants"), "1000", herreken=False)
             self._tekst(r, "seed", "Seed", "42")
             rij = ttk.Frame(r)
             rij.pack(fill="x", pady=4)
-            ttk.Button(rij, text="Volledige run starten", command=self._volledig).pack(side="left", padx=2)
-            ttk.Button(rij, text="Excel-export", command=self._export).pack(side="left", padx=2)
+            ttk.Button(rij, text=vt("Volledige run starten", "Start full run"), command=self._volledig).pack(side="left", padx=2)
+            ttk.Button(rij, text=vt("Excel-export", "Excel export"), command=self._export).pack(side="left", padx=2)
 
             rechts = ttk.Frame(self.root, padding=(4, 6))
             rechts.pack(side="left", fill="both", expand=True)
@@ -568,7 +574,7 @@ def _start_ui(na_start=None):
             # Knoppen eerst plaatsen: dan blijven ze altijd zichtbaar, ook bij een lange kop- of statustekst.
             self.pb = ttk.Progressbar(boven, length=ug.px(self.root, 120), maximum=1.0)
             self.pb.pack(side="right")
-            ttk.Button(boven, text="Extra grafieken", command=self._open_extra).pack(
+            ttk.Button(boven, text=vt("Extra grafieken", "More charts"), command=self._open_extra).pack(
                 side="right", padx=8)
             self.lbl_kop = tk.Label(boven, text="  —  ", font=("TkDefaultFont", LETTER + 1, "bold"),
                                     bg="#dddddd", padx=10, pady=4)
@@ -580,12 +586,16 @@ def _start_ui(na_start=None):
             self.nb.pack(fill="both", expand=True, pady=(4, 0))
             tab_u = ttk.Frame(self.nb, padding=(2, 4))
             tab_g = ttk.Frame(self.nb, padding=(2, 2))
-            self.nb.add(tab_u, text="  Uitkomst  ")
-            self.nb.add(tab_g, text="  Grafieken  ")
-            ug.tab_uitleg(tab_u, "De uitkomst in het kort: risicobalk, kerncijfers en de volledige toelichting. "
+            self.nb.add(tab_u, text=vt("  Uitkomst  ", "  Result  "))
+            self.nb.add(tab_g, text=vt("  Grafieken  ", "  Charts  "))
+            ug.tab_uitleg(tab_u, vt("De uitkomst in het kort: risicobalk, kerncijfers en de volledige toelichting. "
                                  "Het tabblad Grafieken toont het weer en de verdeling over de deelnemers. De knop "
                                  "'Extra grafieken' (rechtsboven) opent o.a. de 10 deelnemers met de hoogste "
                                  "kerntemperatuur, scatter en drempels, wanneer en waar, en starttijden vergelijken.",
+                                    "The result in brief: risk bar, key figures and the full explanation. "
+                                 "The Charts tab shows the weather and the distribution over the participants. The "
+                                 "'More charts' button (top right) opens, among others, the 10 participants with the "
+                                 "highest core temperature, scatter and thresholds, when and where, and compare start times."),
                          LETTER)
             self.rb_fig = Figure(figsize=(12, 1.1), dpi=96)
             self.rb_ax = self.rb_fig.add_axes([0.02, 0.36, 0.96, 0.32])
@@ -660,21 +670,21 @@ def _start_ui(na_start=None):
             if s == "":
                 if opt:
                     return None
-                raise ValueError(f"'{k}' is leeg")
+                raise ValueError(vt(f"'{k}' is leeg", f"'{k}' is empty"))
             return float(s)
 
         def _sleutel(self, tekst_map, waarde):
             for k, t in tekst_map.items():
                 if t == waarde:
                     return k
-            raise ValueError("onbekende keuze")
+            raise ValueError(vt("onbekende keuze", "unknown choice"))
 
         def _invoer(self) -> PopInvoer:
             return PopInvoer(
-                evenement=self.v["evenement"].get().strip() or "Evenement",
-                populatie="wandelaars" if self.v["populatie"].get().startswith("wandel") else "lopers",
+                evenement=self.v["evenement"].get().strip() or vt("Evenement", "Event"),
+                populatie="wandelaars" if self.v["populatie"].get().startswith(vt("wandel", "walk")) else "lopers",
                 afstand_km=self._f("afstand"),
-                eigen_tempo=self.v["tempo"].get().startswith("eigen"),
+                eigen_tempo=self.v["tempo"].get().startswith(vt("eigen", "individual")),
                 activiteit=self._sleutel(ACT_TXT, self.v["activiteit"].get()),
                 duur_h=self._f("duur", True),
                 clo=float(CLO[self._sleutel(CLO_TXT, self.v["kleding"].get())]["clo"]),
@@ -683,6 +693,10 @@ def _start_ui(na_start=None):
                 datum=pd.Timestamp(self.v["datum"].get().strip()).strftime("%Y-%m-%d"),
                 starttijd=self.v["starttijd"].get().strip())
 
+        def _route(self) -> str:
+            """Sleutel voor de suite ('stad'/'platteland'), los van de getoonde taal."""
+            return ("stad", "platteland")[max(0, self.w["route"].current())]
+
         def _kandidaat(self):
             i = self.cb_kand.current()
             return self.kandidaten[i] if 0 <= i < len(self.kandidaten) else None
@@ -690,22 +704,24 @@ def _start_ui(na_start=None):
         def _modus(self):
             """Wandelaars: geen eigen tempo (generate_base_population staat het
             niet toe). Eigen tempo: activiteit en duur niet gebruikt."""
-            wandel = self.v["populatie"].get().startswith("wandel")
-            if wandel and self.v["tempo"].get().startswith("eigen"):
-                self.v["tempo"].set("één gedeelde activiteit")
+            wandel = self.v["populatie"].get().startswith(vt("wandel", "walk"))
+            if wandel and self.v["tempo"].get().startswith(vt("eigen", "individual")):
+                self.v["tempo"].set(vt("één gedeelde activiteit", "one shared activity"))
                 self.v["activiteit"].set(ACT_TXT[14])
             self.w["tempo"].state(["disabled"] if wandel else ["!disabled"])
-            eigen = self.v["tempo"].get().startswith("eigen")
+            eigen = self.v["tempo"].get().startswith(vt("eigen", "individual"))
             for k in ("activiteit", "duur"):
                 self.w[k].state(["disabled"] if eigen else ["!disabled"])
             try:
                 inv = self._invoer()
                 d = afgeleide_duur(inv)
                 if eigen:
-                    tekst = (f"eigen tempo per deelnemer; weervenster {nl(d, 2)} u "
-                             f"(langzaamste deelnemer + bezemwagen)")
+                    tekst = (vt(f"eigen tempo per deelnemer; weervenster {nl(d, 2)} u "
+                             f"(langzaamste deelnemer + bezemwagen)",
+                                f"individual pace per participant; weather window {nl(d, 2)} h "
+                             f"(slowest participant + sweeper bus)"))
                 else:
-                    tekst = f"duur {nl(d, 2)} u bij {nl(ACT[inv.activiteit]['speed_kmh'])} km/u"
+                    tekst = vt(f"duur {nl(d, 2)} u bij {nl(ACT[inv.activiteit]['speed_kmh'])} km/u", f"duration {nl(d, 2)} h at {nl(ACT[inv.activiteit]['speed_kmh'])} km/h")
                 self.lbl_duur.config(text=tekst)
             except Exception:
                 self.lbl_duur.config(text="")
@@ -724,7 +740,7 @@ def _start_ui(na_start=None):
                 self.v["start_min"].set(int(u) * 60 + int(m))
                 self._gewijzigd()
             except Exception:
-                self._fout("Starttijd onleesbaar; gebruik UU:MM.")
+                self._fout(vt("Starttijd onleesbaar; gebruik UU:MM.", "Start time unreadable; use HH:MM."))
 
         def _gewijzigd(self, vertraging=700):
             self._modus()
@@ -740,22 +756,22 @@ def _start_ui(na_start=None):
             naam = self.v["plaats"].get().strip()
             if not naam or self.v["bron"].get().startswith("Data"):
                 return
-            self.lbl_status.config(text=f"Plaats zoeken: {naam} …")
+            self.lbl_status.config(text=vt(f"Plaats zoeken: {naam} …", f"Searching location: {naam} …"))
 
             def werk():
                 try:
                     self.q.put(("kandidaten", de.geocode_city_candidates(naam)))
                 except Exception as ex:
-                    self.q.put(("fout", f"Plaats zoeken mislukt: {ex}", None))
+                    self.q.put(("fout", vt(f"Plaats zoeken mislukt: {ex}", f"Location search failed: {ex}"), None))
             threading.Thread(target=werk, daemon=True).start()
 
         def _kies_excel(self):
-            p = filedialog.askopenfilename(title="Data Engine-bestand",
-                                           filetypes=[("Excel", "*.xlsx"), ("Alle", "*.*")],
+            p = filedialog.askopenfilename(title=vt("Data Engine-bestand", "Data Engine file"),
+                                           filetypes=[("Excel", "*.xlsx"), (vt("Alle", "All"), "*.*")],
                                            initialdir=str(HIER))
             if p:
                 self.v["excel"].set(p)
-                self.v["bron"].set("Data Engine-bestand")
+                self.v["bron"].set(vt("Data Engine-bestand", "Data Engine file"))
 
         def _volledig(self):
             self._herbereken(True)
@@ -771,23 +787,23 @@ def _start_ui(na_start=None):
                 n = int(self._f("n_vol" if volledig else "n_snel"))
                 seed = int(self._f("seed"))
                 if not 1 <= n <= 20000:
-                    raise ValueError("aantal deelnemers: 1 t/m 20000")
+                    raise ValueError(vt("aantal deelnemers: 1 t/m 20000", "number of participants: 1 to 20000"))
             except Exception as ex:
-                self._fout(f"Invoer: {ex}")
+                self._fout(vt(f"Invoer: {ex}", f"Input: {ex}"))
                 return
             excel = self.v["bron"].get().startswith("Data")
-            route = self.v["route"].get()
+            route = self._route()
             s, e = venster(inv)
             if excel:
                 pad = self.v["excel"].get().strip()
                 if not pad:
-                    self._fout("Kies een Data Engine-bestand.")
+                    self._fout(vt("Kies een Data Engine-bestand.", "Choose a Data Engine file."))
                     return
                 sleutel = ("excel", pad, route)
             else:
                 kand = self._kandidaat()
                 if kand is None:
-                    self._fout("Kies eerst een plaats (Zoek).")
+                    self._fout(vt("Kies eerst een plaats (Zoek).", "First choose a location (Search)."))
                     return
                 sleutel = ("online", kand.get("id", (kand["latitude"], kand["longitude"])), inv.datum, route)
             self._annuleer()
@@ -809,14 +825,14 @@ def _start_ui(na_start=None):
                         w = self.weerbron.online(kand, inv.datum, route)
                     self.q.put(("weer", gen, sleutel, w, start))
                 except Exception as ex:
-                    self.q.put(("fout", f"Weer: {ex}", gen))
-            self.lbl_status.config(text="Weer laden …")
+                    self.q.put(("fout", vt(f"Weer: {ex}", f"Weather: {ex}"), gen))
+            self.lbl_status.config(text=vt("Weer laden …", "Loading weather …"))
             threading.Thread(target=laad, daemon=True).start()
 
         def _start(self, gen, inv, weer, n, seed, volledig):
             if gen != self.gen:
                 return
-            self.lbl_status.config(text="Deelnemersveld trekken …")
+            self.lbl_status.config(text=vt("Deelnemersveld trekken …", "Drawing the field of participants …"))
             self.root.update_idletasks()
             try:
                 t = bereid_voor(gen, inv, weer, n, seed, volledig)
@@ -840,7 +856,7 @@ def _start_ui(na_start=None):
             try:
                 self.q.put(("lid",) + f.result())
             except Exception as ex:
-                self.q.put(("fout", f"Deelnemer mislukt: {ex}\n{traceback.format_exc()}", None))
+                self.q.put(("fout", vt(f"Deelnemer mislukt: {ex}\n{traceback.format_exc()}", f"Participant failed: {ex}\n{traceback.format_exc()}"), None))
 
         def _annuleer(self):
             for f in self.futures:
@@ -851,7 +867,7 @@ def _start_ui(na_start=None):
             try:
                 self._poll_stap()
             except Exception as ex:
-                self._fout(f"Interne fout: {ex}\n{traceback.format_exc()}")
+                self._fout(vt(f"Interne fout: {ex}\n{traceback.format_exc()}", f"Internal error: {ex}\n{traceback.format_exc()}"))
             finally:
                 self.root.after(250, self._poll)
 
@@ -875,8 +891,10 @@ def _start_ui(na_start=None):
                     elif s == "kandidaten":
                         self.kandidaten = m[1]
                         self.cb_kand["values"] = [
-                            f"{k.get('name')}, {k.get('admin1', '')} ({k.get('country_code', '')})"
-                            f" – {k.get('population', 0) or 0:,} inw.".replace(",", ".")
+                            vt(f"{k.get('name')}, {k.get('admin1', '')} ({k.get('country_code', '')})"
+                            f" – {k.get('population', 0) or 0:,} inw.",
+                               f"{k.get('name')}, {k.get('admin1', '')} ({k.get('country_code', '')})"
+                            f" – {k.get('population', 0) or 0:,} inhabitants").replace(",", "." if not engels() else ",")
                             for k in self.kandidaten]
                         if self.kandidaten:
                             self.cb_kand.current(0)
@@ -891,8 +909,10 @@ def _start_ui(na_start=None):
                             self._teken_extra()
                             t = self.taak
                             self.lbl_status.config(
-                                text=f"Klaar: {'volledige run' if t.volledig else 'snelle schatting'}, "
-                                     f"n = {t.n} (seed {t.seed})")
+                                text=vt(f"Klaar: {'volledige run' if t.volledig else 'snelle schatting'}, "
+                                     f"n = {t.n} (seed {t.seed})",
+                                        f"Done: {'full run' if t.volledig else 'quick estimate'}, "
+                                     f"n = {t.n} (seed {t.seed})"))
                     elif s == "sweep":
                         _, sg, st, d = m
                         sw = getattr(self, "sweep", None)
@@ -915,21 +935,21 @@ def _start_ui(na_start=None):
                 self.pb["value"] = k / t.n
                 self.lbl_status.config(
                     text=f"{'Volledige run' if t.volledig else 'Snelle schatting'}: {k}/{t.n}")
-                self.tegels.leeg(f"Berekenen … {k}/{t.n} deelnemers. De grafieken tonen de voorlopige verdeling.")
+                self.tegels.leeg(vt(f"Berekenen … {k}/{t.n} deelnemers. De grafieken tonen de voorlopige verdeling.", f"Calculating … {k}/{t.n} participants. The charts show the provisional distribution."))
                 nu = time.monotonic()
                 if k == t.n or nu - self._laatst >= 1.0:
                     self._laatst = nu
                     self._teken_pop(t)
                     self._teken_extra()
                 if k == t.n:
-                    self.lbl_status.config(text="Populatiestatistiek (run_monte_carlo_adult) …")
+                    self.lbl_status.config(text=vt("Populatiestatistiek (run_monte_carlo_adult) …", "Population statistics (run_monte_carlo_adult) …"))
                     gen = t.gen
 
                     def werk():
                         try:
                             self.q.put(("eind", gen, eindresultaat(t)))
                         except Exception as ex:
-                            self.q.put(("fout", f"Samenvatten mislukt: {ex}\n{traceback.format_exc()}", gen))
+                            self.q.put(("fout", vt(f"Samenvatten mislukt: {ex}\n{traceback.format_exc()}", f"Summary failed: {ex}\n{traceback.format_exc()}"), gen))
                     threading.Thread(target=werk, daemon=True).start()
 
         # ------------------------------------------------------- tekenen
@@ -946,12 +966,12 @@ def _start_ui(na_start=None):
             for k in ("t", "wbgt", "rh", "wind"):
                 self.ax[k].clear()
             a = self.ax["t"]
-            route = self.v["route"].get()
+            route = self._route()
             a.plot(tijd, m["t_air"], color=KL["rood"], lw=2,
-                   label="luchttemp. " + ("stad (met UHI)" if route == "stad" else "platteland"))
+                   label=vt("luchttemp. ", "air temp. ") + (vt("stad (met UHI)", "urban (with UHI)") if route == "stad" else vt("platteland", "rural")))
             if route == "stad" and np.isfinite(m.get("t_air_rural", [np.nan])).any():
-                a.plot(tijd, m["t_air_rural"], color=KL["grijs"], lw=1, ls="--", label="platteland (zonder UHI)")
-            a.set_title("Luchttemperatuur")
+                a.plot(tijd, m["t_air_rural"], color=KL["grijs"], lw=1, ls="--", label=vt("platteland (zonder UHI)", "rural (without UHI)"))
+            a.set_title(vt("Luchttemperatuur", "Air temperature"))
             a.set_ylabel("°C")
             a.legend(loc="best")
             a = self.ax["wbgt"]
@@ -962,13 +982,13 @@ def _start_ui(na_start=None):
             a.set_ylabel("°C")
             a = self.ax["rh"]
             a.plot(tijd, m["rh"], color="#2471a3", lw=2)
-            a.set_title("Relatieve luchtvochtigheid")
+            a.set_title(vt("Relatieve luchtvochtigheid", "Relative humidity"))
             a.set_ylabel("%")
             a = self.ax["wind"]
-            a.plot(tijd, m["wind10"], color=KL["grijs"], lw=1.5, label="10 m (weerdata)")
+            a.plot(tijd, m["wind10"], color=KL["grijs"], lw=1.5, label=vt("10 m (weerdata)", "10 m (weather data)"))
             ti = self._tijden(t)
-            a.plot(ti, t.wind15, color="#117a65", lw=2, label="1,5 m (zoals het model rekent)")
-            a.set_title("Windsnelheid")
+            a.plot(ti, t.wind15, color="#117a65", lw=2, label=vt("1,5 m (zoals het model rekent)", "1.5 m (as the model calculates)"))
+            a.set_title(vt("Windsnelheid", "Wind speed"))
             a.set_ylabel("m/s")
             a.set_ylim(bottom=0)
             a.legend(loc="best")
@@ -981,17 +1001,17 @@ def _start_ui(na_start=None):
             b = banden(t)
             ti = self._tijden(t)
             voorlopig = self.resultaat is None
-            n_txt = (f"voorlopig, n = {len(t.res)}/{t.n}" if voorlopig else f"n = {t.n}")
+            n_txt = (vt(f"voorlopig, n = {len(t.res)}/{t.n}", f"provisional, n = {len(t.res)}/{t.n}") if voorlopig else f"n = {t.n}")
             if b is not None:
                 lengte = len(b["t"][0])
                 x = ti[:lengte]
                 for k, (gem, lo, hi), titel, eenheid in (
-                        ("kern", b["t"], "Kerntemperatuur T_rect, populatie", "°C"),
-                        ("co", b["co"], "CO_reserve, populatie", "L/min")):
+                        ("kern", b["t"], vt("Kerntemperatuur T_rect, populatie", "Core temperature T_rect, population"), "°C"),
+                        ("co", b["co"], vt("CO_reserve, populatie", "CO_reserve, population"), "L/min")):
                     ax = self.ax[k]
                     ax.fill_between(x, lo[:len(x)], hi[:len(x)], color=KL["lijn"], alpha=0.18, lw=0,
                                     label="p5–p95")
-                    ax.plot(x, gem[:len(x)], color=KL["lijn"], lw=2, label="gemiddelde")
+                    ax.plot(x, gem[:len(x)], color=KL["lijn"], lw=2, label=vt("gemiddelde", "mean"))
                     ax.set_title(f"{titel}   ({n_txt})")
                     ax.set_ylabel(eenheid)
                 k = self.ax["kern"]
@@ -1003,11 +1023,11 @@ def _start_ui(na_start=None):
                 c.axhline(2.0, color=KL["oranje"], lw=1, ls=":")
                 c.axhline(0.0, color=KL["rood"], lw=1.2)
                 if t.inv.eigen_tempo:
-                    k.text(0.01, 0.98, "band over deelnemers die nog lopen", transform=k.transAxes,
+                    k.text(0.01, 0.98, vt("band over deelnemers die nog lopen", "band over participants still running"), transform=k.transAxes,
                            va="top", fontsize=9, color="#555")
             else:
-                for k, titel in (("kern", "Kerntemperatuur T_rect, populatie"), ("co", "CO_reserve, populatie")):
-                    self.ax[k].set_title(f"{titel}   (berekenen …)")
+                for k, titel in (("kern", vt("Kerntemperatuur T_rect, populatie", "Core temperature T_rect, population")), ("co", vt("CO_reserve, populatie", "CO_reserve, population"))):
+                    self.ax[k].set_title(vt(f"{titel}   (berekenen …)", f"{titel}   (calculating …)"))
             for k in self.ax:
                 self.ax[k].set_xlim(ti[0], ti[-1])
                 self._x(self.ax[k])
@@ -1019,7 +1039,7 @@ def _start_ui(na_start=None):
             lo, hi = ax.get_ylim()
             if hi >= g - 0.3:
                 ax.axhline(g, color="#6e0b0b", lw=1.4, ls="--")
-                ax.text(0.01, g, f" {nl(g, 0)} °C: model buiten getoetst gebied", transform=ax.get_yaxis_transform(),
+                ax.text(0.01, g, vt(f" {nl(g, 0)} °C: model buiten getoetst gebied", f" {nl(g, 0)} °C: model outside its tested range"), transform=ax.get_yaxis_transform(),
                         va="bottom", fontsize=8, color="#6e0b0b")
                 ax.set_ylim(lo, max(hi, g + 0.3))
 
@@ -1049,7 +1069,7 @@ def _start_ui(na_start=None):
             a.set_xticks([])
             a.minorticks_off()
             if r is None:
-                titel = "Risicobalk: verwachte collapsen per 1000 — berekenen …"
+                titel = vt("Risicobalk: verwachte collapsen per 1000 — berekenen …", "Risk bar: expected collapses per 1000 — calculating …")
             else:
                 st = r["stats"]
                 v = float(st.get("expected_collapses_per_1000", np.nan))
@@ -1061,11 +1081,11 @@ def _start_ui(na_start=None):
                 if np.isfinite(v):
                     a.plot([np.clip(v, lo_x, hi_x)], [0.5], marker="D", ms=13, color="white",
                            markeredgecolor="black", markeredgewidth=2, zorder=5)
-                kort = {"ehs": "EHS (Boston, Breslow 2021)", "hospitalisation": "ziekenhuisopname (DtD 2024)",
-                        "first_aid": "EHBO-contact (DtD 2024)"}.get(self.taak.inv.eindpunt, self.taak.inv.eindpunt)
-                titel = (f"Verwachte collapsen per 1000: {nl(v, 1)}  ·  klasse {klasse(v)[2]}  ·  eindpunt {kort}"
+                kort = {"ehs": vt("EHS (Boston, Breslow 2021)", "EHS (Boston, Breslow 2021)"), "hospitalisation": vt("ziekenhuisopname (DtD 2024)", "hospital admission (DtD 2024)"),
+                        "first_aid": vt("EHBO-contact (DtD 2024)", "first-aid contact (DtD 2024)")}.get(self.taak.inv.eindpunt, self.taak.inv.eindpunt)
+                titel = (vt(f"Verwachte collapsen per 1000: {nl(v, 1)}  ·  klasse {klasse(v)[2]}  ·  eindpunt {kort}", f"Expected collapses per 1000: {nl(v, 1)}  ·  class {klasse(v)[2]}  ·  endpoint {kort}")
                          + f"  ·  n = {self.taak.n}"
-                         + ("  ·  voorlopig" if not self.taak.volledig else ""))
+                         + (vt("  ·  voorlopig", "  ·  provisional") if not self.taak.volledig else ""))
             self.rb_fig.suptitle(titel, fontsize=11, y=0.99)
             self.rb_canvas.draw_idle()
 
@@ -1077,9 +1097,12 @@ def _start_ui(na_start=None):
             s = r["samen"]
             fi = s["fi"]["ehs"]
             self.lbl_kop.config(
-                text=f"  EHS-criterium: {s['n_true_ehs_hits']} van {s['n_simulations_used']} "
+                text=vt(f"  EHS-criterium: {s['n_true_ehs_hits']} van {s['n_simulations_used']} "
                      f"({fi['point']:.0%}; 95%: {fi['lo']:.0%}–{fi['hi']:.0%})  ·  "
                      f"> {nl(hm.T_THERMAL_ONLY_CRITICAL, 0)} °C: {s['n_thermisch_kritiek']}  ",
+                        f"  EHS criterion: {s['n_true_ehs_hits']} of {s['n_simulations_used']} "
+                     f"({fi['point']:.0%}; 95%: {fi['lo']:.0%}–{fi['hi']:.0%})  ·  "
+                     f"> {nl(hm.T_THERMAL_ONLY_CRITICAL, 0)} °C: {s['n_thermisch_kritiek']}  "),
                 bg="#34495e", fg="white")
 
         def _toon_tegels(self):
@@ -1096,38 +1119,46 @@ def _start_ui(na_start=None):
             n = s["n_simulations_used"]
             pk = s["peak_t_rect_p95"]
             items = [
-                dict(titel="Collapsrisico per 1000", waarde=nl(v, 1) if np.isfinite(v) else "—",
-                     sub=(f"klasse {kl[2]}; " if kl else "") + f"kalibratie-intercept ±0,5: {nl(vlo, 1)}–{nl(vhi, 1)}"
+                dict(titel=vt("Collapsrisico per 1000", "Collapse risk per 1000"), waarde=nl(v, 1) if np.isfinite(v) else "—",
+                     sub=(vt(f"klasse {kl[2]}; ", f"class {kl[2]}; ") if kl else "") + vt(f"kalibratie-intercept ±0,5: {nl(vlo, 1)}–{nl(vhi, 1)}"
                          f"; eindpunt {t.inv.eindpunt} ({ep['status']})",
+                                                                  f"calibration intercept ±0.5: {nl(vlo, 1)}–{nl(vhi, 1)}"
+                         f"; endpoint {t.inv.eindpunt} ({ep['status']})"),
                      kleur=KLASSE_KLEUR[kl[1]] if kl else "#7f8c8d"),
-                dict(titel="EHS-criterium (telling)", waarde=f"{s['n_true_ehs_hits']} van {n}",
-                     sub=f"{fi['point']:.1%}; 95%-marge door steekproef {fi['lo']:.1%}–{fi['hi']:.1%}"
-                         .replace(".", ","), kleur="#34495e"),
-                dict(titel=f"Kerntemperatuur > {nl(hm.T_THERMAL_ONLY_CRITICAL, 0)} °C",
-                     waarde=f"{s['n_thermisch_kritiek']} van {n}",
-                     sub="deelnemers waar het model buiten zijn getoetste gebied rekent",
+                dict(titel=vt("EHS-criterium (telling)", "EHS criterion (count)"), waarde=vt(f"{s['n_true_ehs_hits']} van {n}", f"{s['n_true_ehs_hits']} of {n}"),
+                     sub=vt(f"{fi['point']:.1%}; 95%-marge door steekproef {fi['lo']:.1%}–{fi['hi']:.1%}", f"{fi['point']:.1%}; 95% sampling margin {fi['lo']:.1%}–{fi['hi']:.1%}")
+                         .replace(".", vt(",", ".")), kleur="#34495e"),
+                dict(titel=vt(f"Kerntemperatuur > {nl(hm.T_THERMAL_ONLY_CRITICAL, 0)} °C", f"Core temperature > {nl(hm.T_THERMAL_ONLY_CRITICAL, 0)} °C"),
+                     waarde=vt(f"{s['n_thermisch_kritiek']} van {n}", f"{s['n_thermisch_kritiek']} of {n}"),
+                     sub=vt("deelnemers waar het model buiten zijn getoetste gebied rekent", "participants for whom the model calculates outside its tested range"),
                      kleur=KL["rood"] if s["n_thermisch_kritiek"] else "#27ae60"),
-                dict(titel="Piek-T_rect", waarde=f"{nl(s['peak_t_rect_mean'], 1)} °C",
-                     sub=f"gemiddeld; warmste 5%: {nl(pk, 1)} °C",
+                dict(titel=vt("Piek-T_rect", "Peak T_rect"), waarde=f"{nl(s['peak_t_rect_mean'], 1)} °C",
+                     sub=vt(f"gemiddeld; warmste 5%: {nl(pk, 1)} °C", f"mean; hottest 5%: {nl(pk, 1)} °C"),
                      kleur=KL["rood"] if pk >= 40.5 else KL["oranje"] if pk >= 39.5 else "#27ae60"),
-                dict(titel="Laagste CO-reserve (p5)",
+                dict(titel=vt("Laagste CO-reserve (p5)", "Lowest CO reserve (p5)"),
                      waarde=f"{nl(float(st.get('co_reserve_min_p05', np.nan)), 1)} L/min",
-                     sub="de 5% deelnemers met de minste hartreserve", kleur="#5d6d7e"),
+                     sub=vt("de 5% deelnemers met de minste hartreserve", "the 5% of participants with the lowest cardiac reserve"), kleur="#5d6d7e"),
             ]
-            uitleg = (f"Gebaseerd op {n} gesimuleerde deelnemers (seed {t.seed}, "
+            uitleg = (vt(f"Gebaseerd op {n} gesimuleerde deelnemers (seed {t.seed}, "
                       f"{'volledige run' if t.volledig else 'snelle schatting'}). In de risicobalk is de zwarte "
                       "streep de gevoeligheid voor het kalibratie-intercept, niet de steekproefmarge; die staat bij "
-                      "de EHS-telling. Een risicoklasse is een modelschatting, geen vaststaande uitkomst.")
+                      "de EHS-telling. Een risicoklasse is een modelschatting, geen vaststaande uitkomst.",
+                         f"Based on {n} simulated participants (seed {t.seed}, "
+                      f"{'full run' if t.volledig else 'quick estimate'}). In the risk bar the black "
+                      "line is the sensitivity to the calibration intercept, not the sampling margin; that is shown with "
+                      "the EHS count. A risk class is a model estimate, not a fixed outcome."))
             self.tegels.zet(items, uitleg)
             nu = pd.Timestamp.now(tz=t.start_aware.tz)
             hist = t.start_aware < nu
             self.herkomst.zet(
                 f"{t.weer.label}; {t.weer.city.get('name', '')}, route {self.v['route'].get()}",
                 "historisch" if hist else "prognose",
-                status_tekst="simulatie · " + ("historisch weer" if hist else "verwachtingsweer"),
+                status_tekst=vt("simulatie · ", "simulation · ") + (vt("historisch weer", "historical weather") if hist else vt("verwachtingsweer", "forecast weather")),
                 extra=f"model: HESTIA via hestia_bridge / run_monte_carlo_adult, n = {n}, seed {t.seed}",
-                niet="een telling van werkelijke patiënten of een medisch advies (virtuele deelnemers; "
-                     "eindpunten PROVISIONAL).")
+                niet=vt("een telling van werkelijke patiënten of een medisch advies (virtuele deelnemers; "
+                     "eindpunten PROVISIONAL).",
+                        "a count of real patients or medical advice (virtual participants; "
+                     "endpoints PROVISIONAL)."))
 
         def _toon_tekst(self):
             self._toon_tegels()
@@ -1139,78 +1170,123 @@ def _start_ui(na_start=None):
                 return
             ins = self.txt.insert
             w = t.weer
-            ins("end", "Weer: ", "vet")
-            ins("end", f"{w.label}; {w.city.get('name', '')} ({(w.city.get('population') or 0):,} inw.); "
-                       f"route {self.v['route'].get()}.\n".replace(",", "."))
+            ins("end", vt("Weer: ", "Weather: "), "vet")
+            ins("end", vt(f"{w.label}; {w.city.get('name', '')} ({(w.city.get('population') or 0):,} inw.); "
+                       f"route {self.v['route'].get()}.\n",
+                          f"{w.label}; {w.city.get('name', '')} ({(w.city.get('population') or 0):,} inhabitants); "
+                       f"route {self.v['route'].get()}.\n").replace(",", "." if not engels() else ","))
             naam, tf, af = PROFIELEN[t.inv.profiel]
-            ins("end", "Opzet: ", "vet")
-            tempo = ("eigen tempo per deelnemer (sample_pace; RACE_DISTANCE_MODE: wie vertraagt, loopt langer)"
+            ins("end", vt("Opzet: ", "Set-up: "), "vet")
+            tempo = (vt("eigen tempo per deelnemer (sample_pace; RACE_DISTANCE_MODE: wie vertraagt, loopt langer)", "individual pace per participant (sample_pace; RACE_DISTANCE_MODE: whoever slows down runs longer)")
                      if t.inv.eigen_tempo else
-                     f"gedeelde activiteit {ACT[t.inv.activiteit]['description']} ({hl.nl(t.met)} MET), "
-                     f"vaste duur {nl(afgeleide_duur(t.inv), 2)} u")
-            ins("end", f"{t.inv.populatie}, {nl(t.inv.afstand_km)} km, {tempo}; clo {hl.nl(t.inv.clo)}; "
-                       f"{PROFIEL_NL[t.inv.profiel]} (training {tf:g}, acclimatisatie {af:g}).\n".replace(".", ",", 0))
+                     vt(f"gedeelde activiteit {ACT[t.inv.activiteit]['description']} ({hl.nl(t.met)} MET), "
+                     f"vaste duur {nl(afgeleide_duur(t.inv), 2)} u",
+                        f"shared activity {ACT[t.inv.activiteit]['description']} ({hl.nl(t.met)} MET), "
+                     f"fixed duration {nl(afgeleide_duur(t.inv), 2)} h"))
+            ins("end", vt(f"{t.inv.populatie}, {nl(t.inv.afstand_km)} km, {tempo}; clo {hl.nl(t.inv.clo)}; "
+                       f"{PROFIEL_NL[t.inv.profiel]} (training {tf:g}, acclimatisatie {af:g}).\n",
+                          f"{vt('lopers', 'runners') if t.inv.populatie == 'lopers' else vt('wandelaars', 'walkers')}, {nl(t.inv.afstand_km)} km, {tempo}; clo {hl.nl(t.inv.clo)}; "
+                       f"{PROFIEL_NL[t.inv.profiel]} (training {tf:g}, acclimatisation {af:g}).\n").replace(".", ",", 0))
             r = self.resultaat
             if r is not None:
                 s, st = r["samen"], r["stats"]
-                from uncertainty import format_fraction_interval
-                ins("end", "Criteria (aantal deelnemers): ", "vet")
+                from uncertainty import format_fraction_interval as _ffi
+                from taal import engels as _eng
+
+                def format_fraction_interval(res):
+                    # Suite text is Dutch; English rendering of the same numbers.
+                    if not _eng() or "error" in res:
+                        return _ffi(res)
+                    pct = int(round((1 - res["alpha"]) * 100))
+                    return (f"{res['point']:.0%} ({res['k']} of {res['n']}; "
+                            f"{pct}% interval {res['lo']:.0%}\u2013{res['hi']:.0%})")
+                ins("end", vt("Criteria (aantal deelnemers): ", "Criteria (number of participants): "), "vet")
                 ins("end", f"EHS {format_fraction_interval(s['fi']['ehs'])}; "
                            f"EHE {format_fraction_interval(s['fi']['ehe'])}; "
                            f"EAC {format_fraction_interval(s['fi']['eac'])}.\n")
-                ins("end", f"Thermisch kritiek (piek-T_rect tijdens de loop > {nl(hm.T_THERMAL_ONLY_CRITICAL)} °C, "
-                           "pct_thermal_only_critical): ", "vet")
+                ins("end", vt(f"Thermisch kritiek (piek-T_rect tijdens de loop > {nl(hm.T_THERMAL_ONLY_CRITICAL)} °C, "
+                           "pct_thermal_only_critical): ",
+                              f"Thermally critical (peak T_rect during the run > {nl(hm.T_THERMAL_ONLY_CRITICAL)} °C, "
+                           "pct_thermal_only_critical): "), "vet")
                 ins("end", format_fraction_interval(s["fi"]["thermisch"]) + ".\n")
                 if s["n_thermisch_kritiek"] > 0:
-                    ins("end", f"⚠ Boven {nl(hm.T_THERMAL_ONLY_CRITICAL)} °C (kritieke thermische maximumtemperatuur, "
+                    ins("end", vt(f"⚠ Boven {nl(hm.T_THERMAL_ONLY_CRITICAL)} °C (kritieke thermische maximumtemperatuur, "
                                "Hubbard; begin onomkeerbare zenuwschade, Gähwiler) rekent het model buiten zijn getoetste "
                                "gebied: de suite meldt dat deze grens in geen enkel kalibratiescenario is bereikt. Het model "
                                "heeft bovendien geen mechanisme dat de loop bij extreme kerntemperatuur beëindigt (de RPE-stop "
                                "is bij training ≥ 0,17 onbereikbaar). Lees zulke deelnemers als 'in werkelijkheid al eerder "
                                "uitgevallen', niet als een realistisch verloop. Ze tellen niet altijd mee in het EHS-criterium, "
-                               "omdat dat ook CO_reserve ≤ 0,05 eist.\n", "waarsch")
+                               "omdat dat ook CO_reserve ≤ 0,05 eist.\n",
+                                  f"⚠ Above {nl(hm.T_THERMAL_ONLY_CRITICAL)} °C (critical thermal maximum, "
+                               "Hubbard; onset of irreversible neural damage, Gähwiler) the model calculates outside its tested "
+                               "range: the suite reports that this limit was not reached in any calibration scenario. The model "
+                               "also has no mechanism that ends the run at extreme core temperature (the RPE stop "
+                               "is unreachable at training ≥ 0.17). Read such participants as 'in reality already dropped out "
+                               "earlier', not as a realistic course. They do not always count in the EHS criterion, "
+                               "because that also requires CO_reserve ≤ 0.05.\n"), "waarsch")
                 ei = s["ehs_interval"]
-                ins("end", "Dosis-respons-EHS: ", "vet")
+                ins("end", vt("Dosis-respons-EHS: ", "Dose–response EHS: "), "vet")
                 if "error" not in ei:
-                    ins("end", f"{nl(ei['point_per_1000'], 2)} per 1000 "
-                               f"(95%: {nl(ei['lo_per_1000'], 2)}–{nl(ei['hi_per_1000'], 2)}).  ")
+                    ins("end", vt(f"{nl(ei['point_per_1000'], 2)} per 1000 "
+                               f"(95%: {nl(ei['lo_per_1000'], 2)}–{nl(ei['hi_per_1000'], 2)}).  ",
+                                  f"{nl(ei['point_per_1000'], 2)} per 1000 "
+                               f"(95%: {nl(ei['lo_per_1000'], 2)}–{nl(ei['hi_per_1000'], 2)}).  "))
                 ep = EP[t.inv.eindpunt]
-                ins("end", "Collapsrisico (" + ep["label"] + ", " + ep["status"] + "): ", "vet")
-                ins("end", f"{nl(st.get('expected_collapses_per_1000', float('nan')), 2)} per 1000 verwacht.\n")
-                ins("end", "Verder: ", "vet")
-                ins("end", f"piek-T_rect gemiddeld {nl(s['peak_t_rect_mean'], 2)} °C, p95 "
+                ins("end", vt("Collapsrisico (", "Collapse risk (") + ep["label"] + ", " + ep["status"] + "): ", "vet")
+                ins("end", vt(f"{nl(st.get('expected_collapses_per_1000', float('nan')), 2)} per 1000 verwacht.\n", f"{nl(st.get('expected_collapses_per_1000', float('nan')), 2)} per 1000 expected.\n"))
+                ins("end", vt("Verder: ", "Further: "), "vet")
+                ins("end", vt(f"piek-T_rect gemiddeld {nl(s['peak_t_rect_mean'], 2)} °C, p95 "
                            f"{nl(s['peak_t_rect_p95'], 2)} °C; laagste CO_reserve p5 "
                            f"{nl(st.get('co_reserve_min_p05', float('nan')), 2)} L/min; uitdroging p95 "
                            f"{nl(st.get('dehy_pct_p95', float('nan')))}%; EHBO-aanleiding "
                            f"{nl(s['pct_first_aid'])}% (brede screening, geen incidentkans); gestopt op RPE "
                            f"{nl(r['pct_gestopt'])}%; Roberts-kritiek "
-                           f"{nl(st.get('pct_roberts_kritiek', float('nan')))}%.\n")
+                           f"{nl(st.get('pct_roberts_kritiek', float('nan')))}%.\n",
+                              f"peak T_rect mean {nl(s['peak_t_rect_mean'], 2)} °C, p95 "
+                           f"{nl(s['peak_t_rect_p95'], 2)} °C; lowest CO_reserve p5 "
+                           f"{nl(st.get('co_reserve_min_p05', float('nan')), 2)} L/min; dehydration p95 "
+                           f"{nl(st.get('dehy_pct_p95', float('nan')))}%; first-aid trigger "
+                           f"{nl(s['pct_first_aid'])}% (broad screening, not an incident probability); stopped on RPE "
+                           f"{nl(r['pct_gestopt'])}%; Roberts critical "
+                           f"{nl(st.get('pct_roberts_kritiek', float('nan')))}%.\n"))
             grens = 20.0 * (1.0 - 0.15 * tf)
             if grens < hm.RPE_STOP_THRESHOLD:
-                ins("end", f"⚠ Model: bij training {tf:g} is de hoogst haalbare RPE {nl(grens)} "
+                ins("end", vt(f"⚠ Model: bij training {tf:g} is de hoogst haalbare RPE {nl(grens)} "
                            f"(calculate_adult_rpe_from_hr); de RPE-stop ({nl(hm.RPE_STOP_THRESHOLD)}) kan "
-                           f"daardoor niet afgaan.\n", "waarsch")
+                           f"daardoor niet afgaan.\n",
+                              f"⚠ Model: at training {tf:g} the highest reachable RPE is {nl(grens)} "
+                           f"(calculate_adult_rpe_from_hr); the RPE stop ({nl(hm.RPE_STOP_THRESHOLD)}) can "
+                           f"therefore not trigger.\n"), "waarsch")
             if not t.inv.eigen_tempo:
-                ins("end", "⚠ Gedeelde activiteit: vaste duur, vertragen verlengt de blootstelling niet.\n",
+                ins("end", vt("⚠ Gedeelde activiteit: vaste duur, vertragen verlengt de blootstelling niet.\n", "⚠ Shared activity: fixed duration, slowing down does not lengthen the exposure.\n"),
                     "waarsch")
             try:
                 if np.nanmax(t.meteo["wbgt"]) < 18:
-                    ins("end", "⚠ WBGT onder ca. 18: het model berekent de kerntemperatuur bij koel weer "
-                               "enkele tienden te hoog (README, Known issue 9).\n", "waarsch")
+                    ins("end", vt("⚠ WBGT onder ca. 18: het model berekent de kerntemperatuur bij koel weer "
+                               "enkele tienden te hoog (README, Known issue 9).\n",
+                                  "⚠ WBGT below about 18: the model calculates the core temperature in cool weather "
+                               "a few tenths too high (README, Known issue 9).\n"), "waarsch")
             except ValueError:
                 pass
-            ins("end", "Risicobalk: verwachte collapsen per 1000 voor het gekozen eindpunt (p_collapse_mean × 10); "
+            ins("end", vt("Risicobalk: verwachte collapsen per 1000 voor het gekozen eindpunt (p_collapse_mean × 10); "
                        "kleurgrenzen uit de suite (HESTIA_CVR_Console._per1000_color: 0,5 / 1,5 / 3,0), daar "
                        "gekalibreerd rond het waargenomen DtD 2024-niveau (1,43 per 1000 ziekenhuisopnames) en "
                        "toegepast op elk eindpunt. De zwarte streep is de gevoeligheid voor het kalibratie-intercept "
-                       "(±0,5), niet de steekproefonzekerheid.\n")
-            ins("end", "Research software: niet gevalideerd voor operationele beslissingen. Alle eindpunten "
-                       "van het collapsrisico zijn PROVISIONAL.")
+                       "(±0,5), niet de steekproefonzekerheid.\n",
+                          "Risk bar: expected collapses per 1000 for the chosen endpoint (p_collapse_mean × 10); "
+                       "colour limits from the suite (HESTIA_CVR_Console._per1000_color: 0.5 / 1.5 / 3.0), there "
+                       "calibrated around the observed DtD 2024 level (1.43 per 1000 hospital admissions) and "
+                       "applied to every endpoint. The black line is the sensitivity to the calibration intercept "
+                       "(±0.5), not the sampling uncertainty.\n"))
+            ins("end", vt("Research software: niet gevalideerd voor operationele beslissingen. Alle eindpunten "
+                       "van het collapsrisico zijn PROVISIONAL.",
+                          "Research software: not validated for operational decisions. All endpoints "
+                       "of the collapse risk are PROVISIONAL."))
             self.txt.config(state="disabled")
 
         def _fout(self, tekst):
-            self.tegels.leeg("Geen uitkomst: zie de melding onder de grafieken.")
-            self.lbl_status.config(text="Fout – zie onder")
+            self.tegels.leeg(vt("Geen uitkomst: zie de melding onder de grafieken.", "No result: see the message below the charts."))
+            self.lbl_status.config(text=vt("Fout – zie onder", "Error – see below"))
             self.txt.config(state="normal")
             self.txt.delete("1.0", "end")
             self.txt.insert("end", tekst, "waarsch")
@@ -1223,7 +1299,7 @@ def _start_ui(na_start=None):
                 self.extra.lift()
                 return
             w = tk.Toplevel(self.root)
-            w.title("HESTIA populatie: extra grafieken")
+            w.title(vt("HESTIA populatie: extra grafieken", "HESTIA population: more charts"))
             bw, bh = self.root.winfo_screenwidth(), self.root.winfo_screenheight()
             w.geometry(f"{min(1500, bw - 60)}x{min(900, bh - 100)}+40+30")
             ug.maximaliseer(w)
@@ -1248,10 +1324,10 @@ def _start_ui(na_start=None):
                 self.ex[naam] = {"fig": fig, "cv": cv, "lbl": lbl, "balk": balk}
                 return balk
 
-            tab("sc", "Scatter en drempels", (15, 7.5))
-            tab("ww", "Wanneer en waar", (15, 7.5))
-            tab("wie", "Wie (na volledige run)", (15, 7.5))
-            tab("top", "Top 10 T_rect", (15, 5.2))
+            tab("sc", vt("Scatter en drempels", "Scatter and thresholds"), (15, 7.5))
+            tab("ww", vt("Wanneer en waar", "When and where"), (15, 7.5))
+            tab("wie", vt("Wie (na volledige run)", "Who (after full run)"), (15, 7.5))
+            tab("top", vt("Top 10 T_rect", "Top 10 T_rect"), (15, 5.2))
             st_ = ttk.Style()
             st_.configure("Top.Treeview", font=("TkDefaultFont", LETTER - 1), rowheight=ug.px(self.root, int(LETTER * 2.1)))
             st_.configure("Top.Treeview.Heading", font=("TkDefaultFont", LETTER - 1, "bold"))
@@ -1259,8 +1335,10 @@ def _start_ui(na_start=None):
                         "kp_pacing", "motivatie", "NSAID", "piek T_rect", "min CO_res", "EHS", "> 42 °C")
             tv = ttk.Treeview(self.ex["top"]["cv"].get_tk_widget().master, columns=kolommen, show="headings",
                               height=10, style="Top.Treeview")
+            kop_en = {"rang": "rank", "deelnemer": "participant", "geslacht": "sex", "leeftijd": "age",
+                      "gewicht": "weight", "tempo": "pace", "motivatie": "motivation", "piek T_rect": "peak T_rect"}
             for k in kolommen:
-                tv.heading(k, text=k)
+                tv.heading(k, text=vt(k, kop_en.get(k, k)))
                 tv.column(k, width=90 if k not in ("rang", "EHS", "NSAID", "> 42 °C") else 62, anchor="center")
             # Tabel vóór de grafiek inpakken: alle 10 rijen blijven zichtbaar, de grafiek krijgt de rest.
             cvw = self.ex["top"]["cv"].get_tk_widget()
@@ -1268,15 +1346,15 @@ def _start_ui(na_start=None):
             tv.pack(side="bottom", fill="x", padx=6, pady=(0, 4))
             cvw.pack(side="top", fill="both", expand=True)
             self.ex["top"]["tv"] = tv
-            balk = tab("st", "Starttijd vergelijken", (15, 7.0), met_balk=True)
+            balk = tab("st", vt("Starttijd vergelijken", "Compare start time"), (15, 7.0), met_balk=True)
             self.v.setdefault("st_van", tk.StringVar(value="06:00"))
             self.v.setdefault("st_tot", tk.StringVar(value="20:00"))
             self.v.setdefault("st_stap", tk.StringVar(value="60"))
-            for lab, k, wd in (("Van", "st_van", 6), ("tot", "st_tot", 6), ("stap (min)", "st_stap", 5)):
+            for lab, k, wd in ((vt("Van", "From"), "st_van", 6), (vt("tot", "to"), "st_tot", 6), (vt("stap (min)", "step (min)"), "st_stap", 5)):
                 ttk.Label(balk, text=lab).pack(side="left", padx=(8, 3))
                 ttk.Entry(balk, textvariable=self.v[k], width=wd).pack(side="left")
-            ttk.Button(balk, text="Vergelijking starten", command=self._sweep_start).pack(side="left", padx=10)
-            ttk.Button(balk, text="Stoppen", command=self._sweep_stop).pack(side="left")
+            ttk.Button(balk, text=vt("Vergelijking starten", "Start comparison"), command=self._sweep_start).pack(side="left", padx=10)
+            ttk.Button(balk, text=vt("Stoppen", "Stop"), command=self._sweep_stop).pack(side="left")
             self.lbl_sweep = ttk.Label(balk, text="")
             self.lbl_sweep.pack(side="left", padx=10)
             self.extra = w
@@ -1303,7 +1381,7 @@ def _start_ui(na_start=None):
             tv.delete(*tv.get_children())
             t, r = self.taak, self.resultaat
             if t is None or r is None:
-                return self._leeg("top", "Wordt getoond zodra de berekening klaar is.")
+                return self._leeg("top", vt("Wordt getoond zodra de berekening klaar is.", "Shown as soon as the calculation is ready."))
             ar = r["all_results"]
             idx = top_tien(ar, t.populatie)
             mom = ehs_momenten(ar)
@@ -1319,7 +1397,7 @@ def _start_ui(na_start=None):
                 pf_t = res[-1].get("time_min_series_postfinish") or []
                 fin = tijd[-1]
                 pf_x = [fin + pd.Timedelta(minutes=float(m)) for m in pf_t]
-                lab = f"#{rang} (deelnemer {i + 1})"
+                lab = vt(f"#{rang} (deelnemer {i + 1})", f"#{rang} (participant {i + 1})")
                 a1.plot(tijd, tr, color=kl, lw=1.8, label=lab)
                 a2.plot(tijd, co, color=kl, lw=1.8)
                 if pf_x:
@@ -1329,30 +1407,36 @@ def _start_ui(na_start=None):
                 tmax, cmin = hm.collapse_extremes(res)
                 tempo = hl.min_naar_tempo(p.pace_min_per_km) if t.inv.eigen_tempo and p.pace_min_per_km else "–"
                 tv.insert("", "end", values=(
-                    rang, i + 1, "man" if p.gender == "male" else "vrouw", p.age, nl(p.weight),
+                    rang, i + 1, vt("man", "man") if p.gender == "male" else vt("vrouw", "woman"), p.age, nl(p.weight),
                     nl(p.vo2max), f"{p.pct_vo2max:.0%}", tempo, nl(p.kp_pacing, 3), nl(p.mf_score, 2),
-                    "ja" if p.nsaid_gebruik else "nee", nl(tmax, 2), nl(cmin, 2),
-                    "ja" if mom[i] is not None else "nee",
-                    "ja" if r["samen"]["piek_loop"][i] > hm.T_THERMAL_ONLY_CRITICAL else "nee"))
+                    vt("ja", "yes") if p.nsaid_gebruik else vt("nee", "no"), nl(tmax, 2), nl(cmin, 2),
+                    vt("ja", "yes") if mom[i] is not None else vt("nee", "no"),
+                    vt("ja", "yes") if r["samen"]["piek_loop"][i] > hm.T_THERMAL_ONLY_CRITICAL else vt("nee", "no")))
             for a in (a1, a2):
                 self._x(a)
             a1.axhline(39.5, color=KL["oranje"], lw=1, ls=":")
             a1.axhline(40.5, color=KL["rood"], lw=1, ls=":")
             self._lijn42(a1)
-            a1.set_title("T_rect van de 10 deelnemers met de hoogste piek (stippel = nafinish)")
+            a1.set_title(vt("T_rect van de 10 deelnemers met de hoogste piek (stippel = nafinish)", "T_rect of the 10 participants with the highest peak (dotted = post-finish)"))
             a1.set_ylabel("°C")
             a1.legend(fontsize=8, loc="lower right", ncol=2)
             a2.axhline(0, color=KL["rood"], lw=1.2)
             a2.axhline(2.0, color=KL["oranje"], lw=1, ls=":")
-            a2.set_title("CO_reserve van dezelfde 10")
+            a2.set_title(vt("CO_reserve van dezelfde 10", "CO_reserve of the same 10"))
             a2.set_ylabel("L/min")
             e["lbl"].config(text=(
-                "Rangorde op piek-T_rect over loop + nafinish (hestia_model.collapse_extremes, dezelfde maat als de "
+                vt("Rangorde op piek-T_rect over loop + nafinish (hestia_model.collapse_extremes, dezelfde maat als de "
                 "collaps-logistiek). Tabel: profiel zoals getrokken door generate_base_population (kp_pacing = "
                 "gevoeligheid voor de thermische tempo-rem, motivatie = mf_score). Deelnemernummer = volgorde in de "
                 "populatie, gelijk aan participant_id in de Excel-export. Kolom '> 42 °C' = piek tijdens de loop boven "
                 "T_THERMAL_ONLY_CRITICAL (zelfde regel als pct_thermal_only_critical); de rangorde telt ook de "
-                "nafinish mee, dus een piek boven 42 °C alleen ná de finish staat hier als 'nee'."))
+                "nafinish mee, dus een piek boven 42 °C alleen ná de finish staat hier als 'nee'.",
+                   "Ranking on peak T_rect over run + post-finish (hestia_model.collapse_extremes, the same measure as the "
+                "collapse logistic). Table: profile as drawn by generate_base_population (kp_pacing = "
+                "sensitivity to the thermal pace brake, motivation = mf_score). Participant number = order in the "
+                "population, equal to participant_id in the Excel export. Column '> 42 °C' = peak during the run above "
+                "T_THERMAL_ONLY_CRITICAL (same rule as pct_thermal_only_critical); the ranking also counts the "
+                "post-finish, so a peak above 42 °C only after the finish shows here as 'no'.")))
             e["cv"].draw_idle()
 
         def _leeg(self, naam, tekst):
@@ -1367,7 +1451,7 @@ def _start_ui(na_start=None):
             e = self.ex["sc"]
             t = self.taak
             if t is None or not t.res:
-                return self._leeg("sc", "Berekenen …")
+                return self._leeg("sc", vt("Berekenen …", "Calculating …"))
             from hestia_loper_ui import scatter_paren
             e["fig"].clear()
             gs = e["fig"].add_gridspec(2, 2, width_ratios=[1.4, 1])
@@ -1379,27 +1463,27 @@ def _start_ui(na_start=None):
             ca = np.array([p[1] for p in paren])
             tol = hm.CO_RESERVE_CEILING_TOL
             y_hi = max(41.0, float(ta.max()) + 0.2)
-            a.axhspan(39.5, 40.5, color="#f0a30a", alpha=0.18, zorder=0, label="T_rect > 39,5 °C (EHE-drempel)")
+            a.axhspan(39.5, 40.5, color="#f0a30a", alpha=0.18, zorder=0, label=vt("T_rect > 39,5 °C (EHE-drempel)", "T_rect > 39.5 °C (EHE threshold)"))
             a.axhspan(40.5, y_hi, color="#d62728", alpha=0.22, zorder=0,
-                      label="T_rect > 40,5 °C (klinische EHS-drempel)")
+                      label=vt("T_rect > 40,5 °C (klinische EHS-drempel)", "T_rect > 40.5 °C (clinical EHS threshold)"))
             a.axvline(0, color="black", lw=1, ls=":")
             ehe = (ta > 39.5) & (ca < tol)
             kl = (ta >= 40.5) & (ca <= tol)
-            a.scatter(ca[~ehe], ta[~ehe], s=6, color="steelblue", alpha=0.35, label="tijdstap (loop + nafinish)")
+            a.scatter(ca[~ehe], ta[~ehe], s=6, color="steelblue", alpha=0.35, label=vt("tijdstap (loop + nafinish)", "time step (run + post-finish)"))
             a.scatter(ca[ehe & ~kl], ta[ehe & ~kl], s=10, color="black", alpha=0.7,
-                      label="voldoet aan EHE (T > 39,5 EN COr < 0)")
+                      label=vt("voldoet aan EHE (T > 39,5 EN COr < 0)", "meets EHE (T > 39.5 AND COr < 0)"))
             if kl.any():
                 a.scatter(ca[kl], ta[kl], s=18, marker="X", color="#8B0000",
-                          label="voldoet aan klinisch criterium (T ≥ 40,5 EN COr ≤ 0)")
+                          label=vt("voldoet aan klinisch criterium (T ≥ 40,5 EN COr ≤ 0)", "meets clinical criterion (T ≥ 40.5 AND COr ≤ 0)"))
             for drempel, kleur, naam, ms, dy in ((39.5, "#c07800", "EHE", 140, 8),
-                                                 (40.5, "#8B0000", "klinisch", 80, -16)):
+                                                 (40.5, "#8B0000", vt("klinisch", "clinical"), 80, -16)):
                 mst = K._ehe_margin_stats(paren, drempel, 0.0)
                 if mst is None:
                     continue
                 a.scatter([mst["closest_c"]], [mst["closest_t"]], s=ms, facecolors="none", edgecolors=kleur,
-                          linewidths=2, zorder=5, label=f"dichtst bij {naam}-drempel")
+                          linewidths=2, zorder=5, label=vt(f"dichtst bij {naam}-drempel", f"closest to {naam} threshold"))
                 bn = mst["closest_bottleneck"]
-                a.annotate(f"{hl.nl(bn)} van {naam}" if bn > 0 else f"{naam} overschreden",
+                a.annotate(vt(f"{hl.nl(bn)} van {naam}", f"{hl.nl(bn)} of {naam}") if bn > 0 else vt(f"{naam} overschreden", f"{naam} exceeded"),
                            xy=(mst["closest_c"], mst["closest_t"]), xytext=(10, dy), textcoords="offset points",
                            fontsize=10, color=kleur, fontweight="bold", zorder=6,
                            bbox=dict(boxstyle="round,pad=0.2", fc="white", ec=kleur, alpha=0.9))
@@ -1407,42 +1491,46 @@ def _start_ui(na_start=None):
             self._lijn42(a)
             a.set_xlabel("CO_reserve (L/min)")
             a.set_ylabel("T_rect (°C)")
-            a.set_title(f"T_rect tegen CO_reserve, alle deelnemers ({len(sporen)}/{t.n})")
+            a.set_title(vt(f"T_rect tegen CO_reserve, alle deelnemers ({len(sporen)}/{t.n})", f"T_rect against CO_reserve, all participants ({len(sporen)}/{t.n})"))
             a.legend(fontsize=8, loc="lower left")
             piek = np.array([np.nanmax(_matrix([r], "t_rect")) for r in sporen])
             h.hist(piek, bins=30, color=KL["lijn"], alpha=0.8)
             h.axvline(39.5, color=KL["oranje"], ls=":", lw=1)
             h.axvline(40.5, color=KL["rood"], ls=":", lw=1)
-            h.set_title("Verdeling piek-T_rect (loop)")
+            h.set_title(vt("Verdeling piek-T_rect (loop)", "Distribution of peak T_rect (run)"))
             h.set_xlabel("°C")
-            h.set_ylabel("deelnemers")
+            h.set_ylabel(vt("deelnemers", "participants"))
             b = banden(t)
             ti = self._tijden(t)
             for dk, kleur in (("39.5", KL["oranje"]), ("40.5", KL["rood"])):
                 st = b["drempels"][dk]
                 x = ti[:len(st["mean"])]
                 d.fill_between(x, st["ci_lower"][:len(x)], st["ci_upper"][:len(x)], color=kleur, alpha=0.15, lw=0)
-                d.plot(x, st["mean"][:len(x)], color=kleur, lw=2, label=f"T_rect > {dk.replace('.', ',')} °C")
-            d.set_title("Aandeel deelnemers boven drempel (van wie nog loopt)")
+                d.plot(x, st["mean"][:len(x)], color=kleur, lw=2, label=vt(f"T_rect > {dk.replace('.', ',')} °C", f"T_rect > {dk.replace('.', ',') if vt('nl', 'en') == 'nl' else dk} °C"))
+            d.set_title(vt("Aandeel deelnemers boven drempel (van wie nog loopt)", "Share of participants above threshold (of those still running)"))
             d.set_ylabel("%")
             d.set_ylim(bottom=0)
             d.legend(loc="upper left")
             self._x(d)
             e["lbl"].config(text=(
-                "Scatter: alle tijdstappen van alle deelnemers, loop en nafinish (hestia_bridge._summarize_results, "
+                vt("Scatter: alle tijdstappen van alle deelnemers, loop en nafinish (hestia_bridge._summarize_results, "
                 "t_rect_co_reserve_pairs); zones, kleuring en markeringen zoals Klimatos plot_trect_co_reserve_scatter. "
                 "Met het hartplafond (suite-standaard) blijft CO_reserve tijdens de loop rond 0. Drempels: "
-                "hestia_model._calculate_threshold_stats, noemer = deelnemers die nog lopen, band = 95%-Wald-interval."))
+                "hestia_model._calculate_threshold_stats, noemer = deelnemers die nog lopen, band = 95%-Wald-interval.",
+                   "Scatter: all time steps of all participants, run and post-finish (hestia_bridge._summarize_results, "
+                "t_rect_co_reserve_pairs); zones, colouring and markers as Klimatos plot_trect_co_reserve_scatter. "
+                "With the cardiovascular ceiling (suite default) CO_reserve stays around 0 during the run. Thresholds: "
+                "hestia_model._calculate_threshold_stats, denominator = participants still running, band = 95% Wald interval.")))
             e["cv"].draw_idle()
 
         def _teken_wanneer(self):
             e = self.ex["ww"]
             t, r = self.taak, self.resultaat
             if t is None or r is None:
-                return self._leeg("ww", "Wordt getoond zodra de berekening klaar is.")
+                return self._leeg("ww", vt("Wordt getoond zodra de berekening klaar is.", "Shown as soon as the calculation is ready."))
             mom = ehs_momenten(r["all_results"])
             hits = [m for m in mom if m is not None]
-            assert len(hits) == r["samen"]["n_true_ehs_hits"], "telling wijkt af van _summarize_results"
+            assert len(hits) == r["samen"]["n_true_ehs_hits"], vt("telling wijkt af van _summarize_results", "count differs from _summarize_results")
             e["fig"].clear()
             a1, a2 = e["fig"].add_subplot(1, 2, 1), e["fig"].add_subplot(1, 2, 2)
             ti = self._tijden(t)
@@ -1451,52 +1539,60 @@ def _start_ui(na_start=None):
                 loop = [m["tijd"].tz_localize(None) if m["tijd"].tzinfo else m["tijd"] for m in hits if m["fase"] == "loop"]
                 naf = [m["tijd"].tz_localize(None) if m["tijd"].tzinfo else m["tijd"] for m in hits if m["fase"] == "nafinish"]
                 a1.hist([mdates.date2num(loop), mdates.date2num(naf)], bins=mdates.date2num(bins), stacked=True,
-                        color=[KL["rood"], "#7d3c98"], label=["tijdens de loop", "alleen in de finishzone (nafinish)"])
+                        color=[KL["rood"], "#7d3c98"], label=[vt("tijdens de loop", "during the run"), vt("alleen in de finishzone (nafinish)", "only in the finish zone (post-finish)")])
                 a1.legend(loc="upper left")
             else:
-                a1.text(0.5, 0.5, "Geen deelnemer haalt het EHS-criterium", ha="center", va="center",
+                a1.text(0.5, 0.5, vt("Geen deelnemer haalt het EHS-criterium", "No participant meets the EHS criterion"), ha="center", va="center",
                         transform=a1.transAxes, fontsize=12)
-            a1.set_title(f"Eerste moment EHS-criterium, kloktijd ({len(hits)} van {t.n})")
-            a1.set_ylabel("deelnemers per 10 min")
+            a1.set_title(vt(f"Eerste moment EHS-criterium, kloktijd ({len(hits)} van {t.n})", f"First moment of EHS criterion, clock time ({len(hits)} of {t.n})"))
+            a1.set_ylabel(vt("deelnemers per 10 min", "participants per 10 min"))
             self._x(a1)
             if t.inv.eigen_tempo:
                 km_loop = [m["km"] for m in hits if m["fase"] == "loop" and m["km"] is not None]
                 km_naf = [m["km"] for m in hits if m["fase"] == "nafinish" and m["km"] is not None]
                 if km_loop or km_naf:
                     a2.hist([km_loop, km_naf], bins=np.arange(0, t.inv.afstand_km + 1.0, 1.0), stacked=True,
-                            color=[KL["rood"], "#7d3c98"], label=["tijdens de loop", "alleen in de finishzone"])
+                            color=[KL["rood"], "#7d3c98"], label=[vt("tijdens de loop", "during the run"), vt("alleen in de finishzone", "only in the finish zone")])
                     a2.legend(loc="upper left")
                 a2.axvline(t.inv.afstand_km, color="k", ls="--", lw=1)
                 a2.set_xlim(0, t.inv.afstand_km + 1)
-                a2.set_title("Eerste moment EHS-criterium, afgelegde afstand")
-                a2.set_xlabel("km (stippellijn = finish)")
-                a2.set_ylabel("deelnemers per km")
+                a2.set_title(vt("Eerste moment EHS-criterium, afgelegde afstand", "First moment of EHS criterion, distance covered"))
+                a2.set_xlabel(vt("km (stippellijn = finish)", "km (dotted line = finish)"))
+                a2.set_ylabel(vt("deelnemers per km", "participants per km"))
             else:
-                a2.text(0.5, 0.5, "Afstand alleen bij 'eigen tempo per deelnemer':\n"
+                a2.text(0.5, 0.5, vt("Afstand alleen bij 'eigen tempo per deelnemer':\n"
                                   "alleen dan houdt het model de afgelegde afstand bij\n(RACE_DISTANCE_MODE).",
+                                     "Distance only with 'individual pace per participant':\n"
+                                  "only then does the model track the distance covered\n(RACE_DISTANCE_MODE)."),
                         ha="center", va="center", transform=a2.transAxes, fontsize=12)
                 a2.set_axis_off()
             e["lbl"].config(text=(
-                "Eerste tijdstap waarop T_rect ≥ 40,5 °C en CO_reserve ≤ 0,05 L/min gelijktijdig gelden, of anders "
+                vt("Eerste tijdstap waarop T_rect ≥ 40,5 °C en CO_reserve ≤ 0,05 L/min gelijktijdig gelden, of anders "
                 "ehs_postfinish (in de finishzone): dezelfde regel als hestia_bridge._summarize_results, zodat de "
                 "aantallen optellen tot het EHS-getal bovenin. Tijdstappen zijn 10 minuten; de kloktijd is het einde "
-                "van die stap. Bruikbaar voor de plaatsing van medische posten, niet als voorspelling per persoon."))
+                "van die stap. Bruikbaar voor de plaatsing van medische posten, niet als voorspelling per persoon.",
+                   "First time step at which T_rect ≥ 40.5 °C and CO_reserve ≤ 0.05 L/min hold at the same time, or else "
+                "ehs_postfinish (in the finish zone): the same rule as hestia_bridge._summarize_results, so the "
+                "counts add up to the EHS number at the top. Time steps are 10 minutes; the clock time is the end "
+                "of that step. Useful for placing medical posts, not as a prediction per person.")))
             e["cv"].draw_idle()
 
         def _teken_wie(self):
             e = self.ex["wie"]
             t, r = self.taak, self.resultaat
             if t is None or r is None:
-                return self._leeg("wie", "Wordt getoond zodra de berekening klaar is.")
+                return self._leeg("wie", vt("Wordt getoond zodra de berekening klaar is.", "Shown as soon as the calculation is ready."))
             if not t.volledig:
-                return self._leeg("wie", "Alleen na een volledige run: bij de snelle schatting\n"
-                                         "zijn de subgroepen te klein voor een uitspraak.")
+                return self._leeg("wie", vt("Alleen na een volledige run: bij de snelle schatting\n"
+                                         "zijn de subgroepen te klein voor een uitspraak.",
+                                            "Only after a full run: with the quick estimate\n"
+                                         "the subgroups are too small for a conclusion."))
             g = per_groep(t.populatie, ehs_momenten(r["all_results"]))
             e["fig"].clear()
             ax = e["fig"].add_subplot(111)
             leeft = sorted({k[0] for k in g})
             breedte = 0.38
-            for j, (gesl, kleur, naam) in enumerate((("male", "#2e86c1", "man"), ("female", "#c0392b", "vrouw"))):
+            for j, (gesl, kleur, naam) in enumerate((("male", "#2e86c1", vt("man", "men")), ("female", "#c0392b", vt("vrouw", "women")))):
                 x, y, lo, hi, n_txt = [], [], [], [], []
                 for i, lg in enumerate(leeft):
                     fi = g.get((lg, gesl))
@@ -1513,23 +1609,27 @@ def _start_ui(na_start=None):
                     ax.text(xi, yi, tx, ha="center", va="bottom", fontsize=9)
             ax.set_xticks(range(len(leeft)))
             ax.set_xticklabels([x.replace("60-65", "60–65") for x in leeft])
-            ax.set_xlabel("leeftijdsgroep (hestia_model.get_age_group)")
-            ax.set_ylabel("% met EHS-criterium")
+            ax.set_xlabel(vt("leeftijdsgroep (hestia_model.get_age_group)", "age group (hestia_model.get_age_group)"))
+            ax.set_ylabel(vt("% met EHS-criterium", "% with EHS criterion"))
             ax.set_ylim(bottom=0)
-            ax.set_title(f"EHS-criterium per leeftijdsgroep en geslacht (n = {t.n})")
+            ax.set_title(vt(f"EHS-criterium per leeftijdsgroep en geslacht (n = {t.n})", f"EHS criterion per age group and sex (n = {t.n})"))
             ax.legend(loc="upper left")
             e["lbl"].config(text=(
-                "Balk = aandeel deelnemers met het EHS-criterium; streep = 95%-interval (Clopper-Pearson, "
+                vt("Balk = aandeel deelnemers met het EHS-criterium; streep = 95%-interval (Clopper-Pearson, "
                 "uncertainty.fraction_interval); getal = aantal met criterium / aantal in de groep. Het interval dekt "
                 "alleen de steekproefgrootte, niet de onzekerheid in de fysiologie. De verdeling naar leeftijd en "
-                "geslacht volgt generate_base_population (58 % man; leeftijd N(40, 10), 18–65)."))
+                "geslacht volgt generate_base_population (58 % man; leeftijd N(40, 10), 18–65).",
+                   "Bar = share of participants with the EHS criterion; line = 95% interval (Clopper-Pearson, "
+                "uncertainty.fraction_interval); number = count with criterion / count in the group. The interval covers "
+                "only the sample size, not the uncertainty in the physiology. The distribution by age and "
+                "sex follows generate_base_population (58 % men; age N(40, 10), 18–65).")))
             e["cv"].draw_idle()
 
         # ------------------------------------------- starttijd vergelijken
         def _sweep_sig(self):
             inv = self._invoer()
             return (tuple(v for k, v in inv.__dict__.items() if k != "starttijd"),
-                    self.v["n_snel"].get(), self.v["seed"].get(), self.v["route"].get(),
+                    self.v["n_snel"].get(), self.v["seed"].get(), self._route(),
                     self.v["bron"].get(), self.v["excel"].get(), self.v["kandidaat"].get())
 
         def _sweep_start(self):
@@ -1543,14 +1643,14 @@ def _start_ui(na_start=None):
                 if fouten:
                     raise ValueError("; ".join(fouten))
             except Exception as ex:
-                self.lbl_sweep.config(text=f"Invoer: {ex}")
+                self.lbl_sweep.config(text=vt(f"Invoer: {ex}", f"Input: {ex}"))
                 return
             excel = self.v["bron"].get().startswith("Data")
-            route = self.v["route"].get()
+            route = self._route()
             pad = self.v["excel"].get().strip()
             kand = self._kandidaat()
             if (excel and not pad) or (not excel and kand is None):
-                self.lbl_sweep.config(text="Kies eerst weerbron en plaats.")
+                self.lbl_sweep.config(text=vt("Kies eerst weerbron en plaats.", "First choose weather source and location."))
                 return
             self.sweep_gen = getattr(self, "sweep_gen", 0) + 1
             sg = self.sweep_gen
@@ -1564,7 +1664,7 @@ def _start_ui(na_start=None):
                 for st in tijden:
                     if sw["stop"]:
                         break
-                    self.q.put(("sweep_status", sg, f"bezig: {st} ({tijden.index(st) + 1}/{len(tijden)})"))
+                    self.q.put(("sweep_status", sg, vt(f"bezig: {st} ({tijden.index(st) + 1}/{len(tijden)})", f"busy: {st} ({tijden.index(st) + 1}/{len(tijden)})")))
                     try:
                         inv2 = PopInvoer(**{**inv.__dict__, "starttijd": st})
                         s2, e2 = venster(inv2)
@@ -1604,8 +1704,10 @@ def _start_ui(na_start=None):
             e = self.ex["st"]
             sw = getattr(self, "sweep", None)
             if not sw:
-                return self._leeg("st", "Kies het bereik en klik op 'Vergelijking starten'.\n"
-                                        "Elke starttijd is een eigen snelle schatting (n = 'Live (snel)').")
+                return self._leeg("st", vt("Kies het bereik en klik op 'Vergelijking starten'.\n"
+                                        "Elke starttijd is een eigen snelle schatting (n = 'Live (snel)').",
+                                           "Choose the range and click 'Start comparison'.\n"
+                                        "Each start time is its own quick estimate (n = 'Live (quick)')."))
             e["fig"].clear()
             a1, a2, a3 = (e["fig"].add_subplot(3, 1, k) for k in (1, 2, 3))
             klaar = [(st, sw["rijen"][st]) for st in sw["tijden"] if st in sw["rijen"] and "fout" not in sw["rijen"][st]]
@@ -1616,11 +1718,11 @@ def _start_ui(na_start=None):
                 p = np.array([100 * d["fi"]["point"] for _, d in klaar])
                 lo = np.array([100 * d["fi"]["lo"] for _, d in klaar])
                 hi = np.array([100 * d["fi"]["hi"] for _, d in klaar])
-                a1.fill_between(x, lo, hi, color=KL["rood"], alpha=0.15, lw=0, label="95%-interval")
-                a1.plot(x, p, "o-", color=KL["rood"], lw=2, label="EHS-criterium")
+                a1.fill_between(x, lo, hi, color=KL["rood"], alpha=0.15, lw=0, label=vt("95%-interval", "95% interval"))
+                a1.plot(x, p, "o-", color=KL["rood"], lw=2, label=vt("EHS-criterium", "EHS criterion"))
                 a1.legend(loc="upper left")
                 a2.plot(x, [d["col"] for _, d in klaar], "o-", color="#34495e", lw=2)
-                a3.plot(x, [d["wbgt_gem"] for _, d in klaar], "o-", color=KL["oranje"], lw=2, label="gemiddeld")
+                a3.plot(x, [d["wbgt_gem"] for _, d in klaar], "o-", color=KL["oranje"], lw=2, label=vt("gemiddeld", "mean"))
                 a3.plot(x, [d["wbgt_max"] for _, d in klaar], "o--", color=KL["oranje"], lw=1, label="max")
                 a3.legend(loc="upper left")
             for xf in fout:
@@ -1631,7 +1733,7 @@ def _start_ui(na_start=None):
                 a.axvline(h, color="k", ls=":", lw=1)
                 a.set_xlim(x_all[0] - pd.Timedelta(minutes=20), x_all[-1] + pd.Timedelta(minutes=20))
                 self._x(a)
-            a1.set_ylabel("% deelnemers")
+            a1.set_ylabel(vt("% deelnemers", "% participants"))
             a1.set_ylim(bottom=0)
             ep = EP[self.taak.inv.eindpunt] if self.taak else EP["ehs"]
             a2.set_ylabel("per 1000")
@@ -1647,22 +1749,26 @@ def _start_ui(na_start=None):
                 verouderd = self._sweep_sig() != sw["sig"]
             except Exception:
                 pass
-            a1.set_title(f"EHS-criterium per starttijd (n = {sw['n']} per starttijd)"
-                         + ("   — VEROUDERD: invoer gewijzigd" if verouderd else ""))
-            a2.set_title(f"Verwachte collapsen per 1000 ({ep['label']}, {ep['status']})")
-            a3.set_title("WBGT in het loopvenster")
+            a1.set_title(vt(f"EHS-criterium per starttijd (n = {sw['n']} per starttijd)", f"EHS criterion per start time (n = {sw['n']} per start time)")
+                         + (vt("   — VEROUDERD: invoer gewijzigd", "   — OUTDATED: input changed") if verouderd else ""))
+            a2.set_title(vt(f"Verwachte collapsen per 1000 ({ep['label']}, {ep['status']})", f"Expected collapses per 1000 ({ep['label']}, {ep['status']})"))
+            a3.set_title(vt("WBGT in het loopvenster", "WBGT in the running window"))
             e["lbl"].config(text=(
-                "Elke starttijd is een volledige HESTIA-berekening met dezelfde invoer, populatie-seed en n (de snelle "
+                vt("Elke starttijd is een volledige HESTIA-berekening met dezelfde invoer, populatie-seed en n (de snelle "
                 "schatting); alleen de starttijd verschilt. Stippellijn = huidige starttijd in het hoofdvenster. Grijze "
                 "balk = geen volledige weerdata voor die starttijd. Bij n = 100 zijn verschillen tussen naburige "
-                "starttijden vaak kleiner dan het interval: let op de trend, niet op één punt."
-                + (f" Mislukt: {', '.join(fout)}." if fout else "")))
+                "starttijden vaak kleiner dan het interval: let op de trend, niet op één punt.",
+                   "Each start time is a full HESTIA calculation with the same input, population seed and n (the quick "
+                "estimate); only the start time differs. Dotted line = current start time in the main window. Grey "
+                "bar = no complete weather data for that start time. At n = 100 differences between neighbouring "
+                "start times are often smaller than the interval: look at the trend, not at one point.")
+                + (vt(f" Mislukt: {', '.join(fout)}.", f" Failed: {', '.join(fout)}.") if fout else "")))
             e["cv"].draw_idle()
 
         # ------------------------------------------------------- export
         def _export(self):
             if self.resultaat is None:
-                messagebox.showinfo("Excel-export", "Er is nog geen volledig resultaat.")
+                messagebox.showinfo(vt("Excel-export", "Excel export"), vt("Er is nog geen volledig resultaat.", "There is no full result yet."))
                 return
             p = filedialog.asksaveasfilename(defaultextension=".xlsx", filetypes=[("Excel", "*.xlsx")],
                                              initialdir=str(HIER))
@@ -1672,7 +1778,7 @@ def _start_ui(na_start=None):
                 r, t = self.resultaat, self.taak
                 s = r["samen"]
                 rijen = [("evenement", t.inv.evenement), ("datum", t.inv.datum), ("start", t.inv.starttijd),
-                         ("weer", t.weer.label), ("route", self.v["route"].get()), ("populatie", t.inv.populatie),
+                         ("weer", t.weer.label), ("route", self._route()), ("populatie", t.inv.populatie),
                          ("afstand_km", t.inv.afstand_km), ("eigen_tempo", t.inv.eigen_tempo),
                          ("met_gedeeld", t.met), ("clo", t.inv.clo), ("training_factor", t.tf),
                          ("acclimatization_factor", t.af), ("eindpunt", t.inv.eindpunt), ("n", t.n),
@@ -1688,11 +1794,11 @@ def _start_ui(na_start=None):
                           "dehy_pct_p95", "co_reserve_min_p05"):
                     rijen.append((k, r["stats"].get(k)))
                 with pd.ExcelWriter(p) as xw:
-                    pd.DataFrame(rijen, columns=["grootheid", "waarde"]).to_excel(
-                        xw, sheet_name="Samenvatting", index=False)
-                    r["results_df"].to_excel(xw, sheet_name="Per deelnemer", index=False)
+                    pd.DataFrame(rijen, columns=[vt("grootheid", "quantity"), vt("waarde", "value")]).to_excel(
+                        xw, sheet_name=vt("Samenvatting", "Summary"), index=False)
+                    r["results_df"].to_excel(xw, sheet_name=vt("Per deelnemer", "Per participant"), index=False)
             except Exception as ex:
-                self._fout(f"Export mislukt: {ex}")
+                self._fout(vt(f"Export mislukt: {ex}", f"Export failed: {ex}"))
 
         def _sluit(self):
             self._sweep_stop()
