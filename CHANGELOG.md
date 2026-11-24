@@ -8,6 +8,22 @@ Entries up to 2026-10-24 were written during development; names of people
 in personal communications have been replaced by their institution, and
 results of individual field-test participants by group-level statements.
 
+## [2026-11-24] PYROX: the middle regime is bistable, not a stable equilibrium
+
+- **Found by** the independent review of 2026-11-24 and confirmed over all
+  19 groups: every interior root of `equilibrium_strain()` is unstable (a
+  tipping point with hysteresis), so the "stable accumulation" regime does
+  not exist. A stable root would need L·P·κ < 0.1·b; no group meets it.
+- **Sensitivity test (author's request):** `initial_strain` 0–0.5 gives
+  identical age-gradient results for Paris 2003 at CV 0.20/0.30/0.40;
+  starting on the first hot day moves F by at most 0.07.
+- **Author's decision: text and labels only (option A).** Corrected the
+  `pyrox_model.py` docstrings, TECHNICAL_REFERENCE §3.1 and §3.4, the
+  PYROX report text and the regime plot (`plot_three_regimes`: safe /
+  bistable with tipping point / runaway; Dutch and English labels; the
+  "safe" example load now lies below the bistable band). No number changed;
+  `equilibrium_strain()` is unchanged.
+
 ## [2026-11-24] English version of the interfaces
 
 - **Author's decision:** the start screen opens in Dutch; a British flag opens

@@ -350,24 +350,34 @@ def generate_pyrox_report(event_name: str,
     path = os.path.join(plot_dir, "pyrox_5_regimes.png")
     fig.savefig(path, dpi=140, bbox_inches="tight")
     plt.close(fig)
-    A(vt(f"![De drie regimes: dode zone, stabiele opbouw, op hol]({os.path.basename(path)})", f"![The three regimes: dead zone, stable build-up, runaway]({os.path.basename(path)})"))
+    A(vt(f"![De drie regimes: veilig, bistabiel met kantelpunt, op hol]({os.path.basename(path)})", f"![The three regimes: safe, bistable with a tipping point, runaway]({os.path.basename(path)})"))
     A("")
-    A(vt("*Dit toont, los van de specifieke dagen uit dit rapport, hoe elke groep "
-      "zich in theorie gedraagt bij een constante hitteblootstelling: bij een "
-      "lage belasting stabiliseert de belasting vanzelf (de 'dode zone'); bij "
-      "een hogere belasting blijft de belasting oplopen maar bereikt een stabiel "
-      "evenwicht; voorbij een bepaalde drempel loopt de belasting ongecontroleerd "
-      "op ('op hol'). Een kwetsbaardere groep heeft die omslagdrempel al bij een "
-      "lagere belasting liggen dan een veerkrachtige groep -- dat verschil in "
-      "drempel, niet in absolute waarde, is wat kwetsbaarheid in dit model betekent.*",
-         "*This shows, apart from the specific days of this report, how each group "
-      "behaves in theory at a constant heat exposure: at a "
-      "low load the strain stabilises by itself (the 'dead zone'); at "
-      "a higher load the strain keeps rising but reaches a stable "
-      "equilibrium; beyond a certain threshold the strain rises uncontrolled "
-      "('runaway'). A more vulnerable group has that tipping threshold at a "
-      "lower load than a resilient group -- that difference in "
-      "threshold, not in absolute value, is what vulnerability means in this model.*"))
+    A(vt("*Dit toont, los van de specifieke dagen uit dit rapport, hoe het typische "
+      "lid van elke groep zich in theorie gedraagt bij een constante hitteblootstelling. "
+      "Bij een lage belasting dooft de opgebouwde spanning vanzelf uit, ongeacht de "
+      "beginwaarde. Bij een hoge belasting loopt de spanning altijd op tot de kritieke "
+      "grens ('op hol'). Daartussen ligt een bistabiele band: de stippellijn is een "
+      "kantelpunt. Begint of staat de groep eronder, dan herstelt hij; staat hij erboven, "
+      "dan kantelt hij en blijft gekanteld tot de belasting onder de ondergrens van de band "
+      "zakt. Een stabiel tussenniveau bestaat in dit model niet. Na een hittegolf herstelt "
+      "een gekantelde groep dus pas als het duidelijk koeler wordt, en een tweede "
+      "hittegolf kort na de eerste treft een groep die nog niet hersteld is harder. Een "
+      "kwetsbaardere groep heeft deze band bij een lagere belasting liggen dan een "
+      "veerkrachtige groep. De geleidelijke respons per groep in de rest van dit rapport "
+      "komt uit de 41 leden per groep, die elk hun eigen band hebben.*",
+         "*This shows, apart from the specific days of this report, how the typical "
+      "member of each group behaves in theory at a constant heat exposure. "
+      "At a low load the accumulated strain dies out by itself, whatever its starting "
+      "value. At a high load the strain always rises to the critical level ('runaway'). "
+      "In between lies a bistable band: the dashed line is a tipping point. If the group "
+      "starts or stands below it, it recovers; above it, the group tips and stays tipped "
+      "until the load falls below the lower edge of the band. There is no stable "
+      "intermediate level in this model. After a heatwave a tipped group therefore "
+      "recovers only once it becomes clearly cooler, and a second heatwave soon after "
+      "the first hits a group that has not yet recovered harder. A more vulnerable group "
+      "has this band at a lower load than a resilient group. The graded response per "
+      "group in the rest of this report comes from the 41 members per group, each with "
+      "its own band.*"))
     A("")
 
     # ------------------------------------------------------------------ #

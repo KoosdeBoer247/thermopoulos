@@ -55,14 +55,21 @@ feedback loop that can undermine the body's response to that forcing.
     coincides with eroding net protection.
 
 Because the damping path starts late and the reinforcing loop acts from day
-one, the outcome depends on which wins first:
-  * under a mild load, damping gets ahead before the loop can bite, and
-    strain stabilises safely (an equilibrium_strain exists below critical);
-  * under a severe load, the reinforcing loop overtakes the damping path
-    before it can engage, net protection falls to zero, and strain runs
-    away to critical_strain regardless of starting point (no equilibrium
-    exists -- see equilibrium_strain()'s three-way "safe" / "equilibrium" /
-    "runaway" result below).
+one, the outcome depends on which wins first. At a constant load there are
+three regimes [2026-11-24, corrected]:
+  * low load: strain dies out to 0 from any starting point ("safe");
+  * middle band: BISTABLE. equilibrium_strain() returns an interior root,
+    but that root is UNSTABLE -- a tipping point, not a resting level.
+    Around it the daily change has slope L*P*kappa - 0.1*b (= feedback_gain),
+    which is positive for every group; a stable root would need
+    L*P*kappa < 0.1*b. Below the root strain dies out; above it strain runs
+    to critical_strain and stays there until the load falls below the lower
+    edge of the band, r + b*(1 + 0.1/kappa) (hysteresis);
+  * high load: strain runs away to critical_strain from any starting point
+    ("runaway").
+There is no stable intermediate level below critical. (Until 2026-11-24 this
+docstring said that under a mild load "strain stabilises safely (an
+equilibrium_strain exists below critical)"; the numbers were never affected.)
 
 The critical level is not a tuned threshold — it falls out of the algebra of the
 suppression term (see CRITICAL_STRAIN below). A population group is "vulnerable"
@@ -738,8 +745,11 @@ def equilibrium_strain(group: GroupParameters, baseline_heat_load: float,
                            critical_strain regardless of starting point
                            (no stable equilibrium exists below critical).
                            value is None.
-          "equilibrium" -- a genuine interior fixed point exists. value is
-                           the equilibrium strain (float).
+          "equilibrium" -- an interior fixed point exists. value is that
+                           strain (float). [2026-11-24] For every group
+                           this root is UNSTABLE: a tipping point between
+                           recovery (below) and runaway (above), not a
+                           resting level. See the module docstring.
     """
     def daily_change(strain: float) -> float:
         gate = max(0.0, 1.0 - group.strain_suppression_strength * strain)

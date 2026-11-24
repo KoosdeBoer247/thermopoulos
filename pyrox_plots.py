@@ -9,7 +9,7 @@ heat-load series (real Thermopoulos data or the Paris-2003 reconstruction):
     2. plot_feedback_race        — the uniqueness plot: the one reinforcing loop vs. time
     3. plot_paris_validation     — Σ(t) vs. observed Fouillet mortality
     4. plot_risk_heatmap         — operational: group × day strain-zone grid
-    5. plot_three_regimes        — control-theory: dead-zone / stable / runaway
+    5. plot_three_regimes        — control-theory: safe / bistable (tipping point) / runaway
     6. plot_forecast_uncertainty — strain with a ±2°C forecast-uncertainty band
 
 Each function takes already-computed data and returns a matplotlib Figure, so
@@ -521,8 +521,10 @@ def plot_risk_heatmap(heat_loads: List[float],
 def plot_three_regimes(group_names: List[str],
                        load_max: float = 2.5,
                        days_to_equilibrium: int = 80) -> plt.Figure:
-    """Show PYROX's three operating regimes (dead-zone / stable accumulation /
-    runaway) for one or more groups.
+    """Show PYROX's three operating regimes (safe / bistable with a tipping
+    point / runaway) for one or more groups. [2026-11-24] Regime 2 was called
+    "stable accumulation"; every interior root is unstable, so it is a
+    tipping point with hysteresis, not a resting level.
 
     [2026-09] days_to_equilibrium is now unused -- kept only so existing
     calls that pass it don't break. The steady-state curve is computed
@@ -530,13 +532,13 @@ def plot_three_regimes(group_names: List[str],
     brute-force simulation for this many days, see the inline note below.
 
     For each group, two panels side by side:
-      left  — steady-state equilibrium strain Σ* vs constant heat load R₁,
-               with the dead-zone (safe) and runaway zones shaded and the
-               transition load marked;
+      left  — the tipping point Σ* (unstable root of the daily change) vs
+               constant heat load R₁, with the safe, bistable and runaway
+               bands shaded and the runaway load marked;
       right — three example time-courses (one per regime).
 
     Multiple groups are stacked vertically so their transition loads can be
-    compared — a vulnerable group's knife-edge sits at a lower load than a
+    compared — a vulnerable group's bistable band sits at a lower load than a
     resilient group's. This is the control-theoretic companion to the stability
     analysis: the regimes are derived analytically and verified here against the
     running simulation.
@@ -565,73 +567,66 @@ def plot_three_regimes(group_names: List[str],
         # which is both exact and much faster (bisection, not simulation).
         states = [pm.equilibrium_strain(g, R1, g.max_acclimatization_capacity)
                  for R1 in loads]
-        sigstar = np.array([0.0 if s == "safe" else (v if v is not None else np.nan)
-                            for s, v in states])
+        # [2026-11-24] Every interior root of equilibrium_strain() is UNSTABLE:
+        # around it the daily change has slope L*P*kappa - 0.1*b > 0 for all
+        # groups (a stable root would need L*P*kappa < 0.1*b). The root is a
+        # tipping point, not a resting level: below it strain dies out, above
+        # it strain runs to critical and stays there (bistable, hysteresis).
+        # So the plot shows three regimes: safe / bistable with a tipping
+        # point / runaway. Same numbers as before, corrected meaning.
+        sigstar = np.array([v if s == "equilibrium" else np.nan for s, v in states])
         runaway_mask = np.array([s == "runaway" for s, v in states])
+        bistable_mask = np.array([s == "equilibrium" for s, v in states])
         no_runaway_found = not runaway_mask.any()
         edge = loads[np.argmax(runaway_mask)] if not no_runaway_found else load_max
+        release = loads[np.argmax(bistable_mask)] if bistable_mask.any() else edge
 
-        # left panel — steady state
-        # [2026-09] When no runaway state occurs anywhere in the tested load
-        # range (found for outdoor_workers and elite_athletes at the default
-        # load_max=2.5 -- 0/123 tested loads), the old code still drew a red
-        # "RUNAWAY" zone starting exactly at load_max, implying that load_max
-        # itself is a real transition point. It is not -- it is simply where
-        # testing stopped. Now shown as an explicit "not reached" note
-        # instead of a false transition line and false-positive red zone.
-        if no_runaway_found:
-            ax1.axvspan(0, load_max, color=ZONE_COLOURS["safe"], alpha=0.15)
-        else:
-            ax1.axvspan(0, edge, color=ZONE_COLOURS["safe"], alpha=0.15)
+        # left panel — regimes at a constant load
+        ax1.axvspan(0, release, color=ZONE_COLOURS["safe"], alpha=0.15)
+        if release < edge:
+            ax1.axvspan(release, edge, color=ZONE_COLOURS["danger"], alpha=0.18)
+        if not no_runaway_found:
             ax1.axvspan(edge, load_max, color=ZONE_COLOURS["emergency"], alpha=0.15)
-        ax1.plot(loads, sigstar, color="#222", lw=2.6, zorder=5)
+            ax1.axvline(edge, color="#7a5b00", lw=1.5, ls="--", zorder=6)
+            ax1.text(edge + 0.03, crit * 0.6, vt(f"omslag vanuit 0 bij R₁ ≈ {getal(edge, 2)}", f"runaway from 0 at R₁ ≈ {edge:.2f}"),
+                     ha="left", va="center", fontsize=8, color="#7a5b00",
+                     fontweight="bold", rotation=90)
+        ax1.plot(loads, sigstar, color="#222", lw=2.2, ls="--", zorder=5)
         ax1.axhline(crit, ls=":", color="grey", lw=1.1)
         ax1.text(0.13, crit - 0.06 * crit, "Σ_critical = 1/κ", fontsize=8.5,
                  color="grey", va="top")
+        ax1.text(max(0.3, (0.1 + release) / 2), crit * 0.5,
+                 vt("1. VEILIG\nΣ dooft uit\nvanuit elke start", "1. SAFE\nΣ dies out\nfrom any start"),
+                 ha="center", va="center", fontsize=9, color="#155e35", fontweight="bold")
+        if release < edge:
+            tekst2 = vt("2. BISTABIEL\nstippellijn = kantelpunt Σ*\nonder: herstel\nboven: kantelt, blijft kritiek",
+                        "2. BISTABLE\ndashed line = tipping point Σ*\nbelow: recovers\nabove: tips, stays critical")
+            if edge - release >= 0.6:
+                ax1.text((release + edge) / 2, crit * 0.97, tekst2,
+                         ha="center", va="top", fontsize=8, color="#7a5b00", fontweight="bold")
+            else:   # narrow band: label beside it, arrow into the band
+                ax1.annotate(tekst2, xy=((release + edge) / 2, crit * 0.9),
+                             xytext=(min(edge + 0.75, load_max - 0.45), crit * 0.97),
+                             ha="center", va="top", fontsize=8, color="#7a5b00", fontweight="bold",
+                             arrowprops=dict(arrowstyle="->", color="#7a5b00", lw=1.0))
         if no_runaway_found:
-            ax1.text(load_max / 2, crit * 0.86,
-                     vt(f"Geen runaway gevonden tot R\u2081={load_max:g}\n"
-                     "(mogelijk pas bij hogere belasting, of nooit)",
-                        f"No runaway found up to R\u2081={load_max:g}\n"
-                     "(possibly only at higher load, or never)"),
-                     ha="center", va="center", fontsize=8.5, color="#7a5b00",
-                     fontweight="bold")
-            ax1.text(load_max * 0.3, crit * 0.5, "1. DEAD-ZONE\n(safe)\nΣ* = 0",
-                     ha="center", va="center", fontsize=9, color="#155e35",
-                     fontweight="bold")
-            nz = np.where(sigstar > 1e-9)[0]
-            if len(nz):
-                ax1.annotate("2. STABLE ACCUMULATION\n(nonzero, still safe)",
-                            xy=(loads[nz[0]], sigstar[nz[-1]] * 0.6),
-                            xytext=(loads[nz[0]] - 0.5, crit * 0.25),
-                            fontsize=8, color="#7a5b00", fontweight="bold", ha="center",
-                            arrowprops=dict(arrowstyle="->", color="#7a5b00", lw=1.2))
+            ax1.text(load_max * 0.85, crit * 0.25,
+                     vt(f"geen omslag vanuit 0\ntot R₁ = {getal(load_max, 1)}", f"no runaway from 0\nup to R₁ = {load_max:g}"),
+                     ha="center", va="center", fontsize=8.5, color="#7a5b00", fontweight="bold")
         else:
-            ax1.axvline(edge, color="#7a5b00", lw=1.5, ls="--", zorder=6)
-            ax1.text(edge + 0.03, crit * 0.86, f"transition R₁ ≈ {edge:.2f}",
-                     ha="left", va="center", fontsize=8, color="#7a5b00",
-                     fontweight="bold", rotation=90)
-            ax1.text(edge / 2, crit * 0.66, "1. DEAD-ZONE\n(safe)\nΣ* = 0",
-                     ha="center", va="center", fontsize=9, color="#155e35",
-                     fontweight="bold")
             ax1.text((edge + load_max) / 2, crit * 0.5,
-                     "3. RUNAWAY\nΣ* → Σ_critical\nnet gain > 0",
-                     ha="center", va="center", fontsize=9, color="#8a1010",
-                     fontweight="bold")
-            ax1.annotate("2. STABLE ACCUMULATION\n(narrow knife-edge)",
-                        xy=(edge, crit * 0.25), xytext=(max(0.15, edge - 0.6), crit * 0.14),
-                        fontsize=8, color="#7a5b00", fontweight="bold", ha="center",
-                        arrowprops=dict(arrowstyle="->", color="#7a5b00", lw=1.2))
-        ax1.set_xlabel("constant heat load  R₁", fontsize=10)
-        ax1.set_ylabel("equilibrium strain  Σ*", fontsize=10)
-        ax1.set_title(f"{g.display_name} — steady state", fontsize=11)
+                     vt("3. OP HOL\nΣ → Σ_critical\nvanuit elke start", "3. RUNAWAY\nΣ → Σ_critical\nfrom any start"),
+                     ha="center", va="center", fontsize=9, color="#8a1010", fontweight="bold")
+        ax1.set_xlabel(vt("constante warmtebelasting  R₁", "constant heat load  R₁"), fontsize=10)
+        ax1.set_ylabel(vt("kantelpunt  Σ* (instabiel)", "tipping point  Σ* (unstable)"), fontsize=10)
+        ax1.set_title(f"{g.display_name} — regimes", fontsize=11)
         ax1.set_xlim(0.1, load_max)
         ax1.set_ylim(-0.05, crit * 1.08)
 
         # right panel — time courses, one per regime
         # pick representative loads relative to this group's transition `edge`,
         # but cap at load_max so high-threshold groups still show a spread
-        safe_load = max(0.4, edge * 0.6)
+        safe_load = max(0.3, 0.8 * release)   # [2026-11-24] below the bistable band
         edge_load = min(edge + 0.02, load_max)
         over_load = min(edge + 0.5, load_max + 0.4)
         # [2026-09] When no runaway was found within the tested range, don't
@@ -639,32 +634,38 @@ def plot_three_regimes(group_names: List[str],
         # never actually confirmed to runaway, only that it's the highest
         # load examined. Let the trajectory itself show what it does instead
         # of a label that could be wrong.
-        over_label = ("runaway to Σ_crit" if not no_runaway_found
+        over_label = (vt("op hol naar Σ_crit", "runaway to Σ_crit") if not no_runaway_found
                      else vt("hoogste geteste belasting (geen runaway bevestigd)", "highest load tested (no runaway confirmed)"))
         ex = [
-            (safe_load, ZONE_COLOURS["safe"], "dead-zone (Σ stays 0)"),
-            (edge_load, ZONE_COLOURS["danger"], "knife-edge (slow climb)"),
+            (safe_load, ZONE_COLOURS["safe"], vt("veilig (Σ blijft 0)", "safe (Σ stays 0)")),
+            (edge_load, ZONE_COLOURS["danger"],
+             vt("bistabiel, start onder kantelpunt", "bistable, start below tipping point") if no_runaway_found
+             else vt("net boven de omslag vanuit 0", "just above runaway from 0")),
             (over_load, ZONE_COLOURS["emergency"], over_label),
         ]
         for R1, col, lab in ex:
             traj = PyroxModel(g).simulate([R1] * 22,
                                           pre_heatwave_heat_load=R1)["cumulative_strain"]
             ax2.plot(range(len(traj)), traj, color=col, lw=2.6,
-                     label=f"R₁={R1:.2f}  → {lab}", marker="o", ms=3)
+                     label=f"R₁={getal(R1, 2)}  → {lab}", marker="o", ms=3)
         ax2.axhline(crit, ls=":", color="grey", lw=1.1)
         ax2.text(0.3, crit - 0.06 * crit, "Σ_critical", fontsize=8.5,
                  color="grey", va="top")
-        ax2.set_xlabel("day (constant load held fixed)", fontsize=10)
-        ax2.set_ylabel("cumulative strain  Σ(t)", fontsize=10)
-        ax2.set_title(f"{g.display_name} — time course", fontsize=11)
+        ax2.set_xlabel(vt("dag (belasting constant gehouden)", "day (constant load held fixed)"), fontsize=10)
+        ax2.set_ylabel(vt("opgebouwde spanning  Σ(t)", "cumulative strain  Σ(t)"), fontsize=10)
+        ax2.set_title(vt(f"{g.display_name} — verloop", f"{g.display_name} — time course"), fontsize=11)
         ax2.set_ylim(-0.05, crit * 1.08)
         ax2.legend(loc="center right", fontsize=8, framealpha=0.95)
 
-    fig.suptitle("PYROX — the three operating regimes",
+    fig.suptitle(vt("PYROX — de drie regimes", "PYROX — the three operating regimes"),
                  fontsize=14, fontweight="bold", y=1.0)
     fig.text(0.5, 0.005,
-             "Regime 2 (stable accumulation) is intrinsically narrow: once strain starts, the suppression gate amplifies it almost immediately. "
-             "The model is near-binary (safe ↔ critical) — the sharp group separation seen in real heatwave data.",
+             vt("Er is geen stabiel tussenniveau: in de middenband beslist de voorgeschiedenis. Onder het kantelpunt herstelt de groep, "
+                "erboven kantelt hij en blijft gekanteld tot de belasting onder de herstelgrens zakt (hysterese).\n"
+                "Analyse voor het typische lid met volle acclimatisatie; de geleidelijke respons per groep komt uit de 41 leden.",
+                "There is no stable intermediate level: in the middle band the history decides. Below the tipping point the group recovers, "
+                "above it the group tips and stays tipped until the load falls below the release threshold (hysteresis).\n"
+                "Analysis for the typical member at full acclimatisation; the graded group response comes from the 41 members."),
              ha="center", fontsize=8, color="#555", style="italic")
     fig.tight_layout(rect=[0, 0.02, 1, 0.99])
     return fig

@@ -374,15 +374,13 @@ symbols on the right match the second):
   race.
 
 Because the damping path starts late and the one reinforcing loop acts
-from day one, the outcome depends on which gets ahead first: under mild
-load, damping gets ahead before the loop can bite, and strain stabilises
-(an `equilibrium_strain` exists below critical); under severe load, the
-reinforcing loop overtakes the damping path before it can engage, net
-protection collapses to zero, and the system "runs away" to
-`critical_strain` regardless of starting point (no equilibrium exists —
-see `equilibrium_strain()`'s three-way "safe"/"equilibrium"/"runaway"
-result). The critical strain level is not a tuned threshold — it falls
-out of the algebra of the suppression term.
+from day one, the outcome depends on which gets ahead first. At a constant
+load there are three regimes (§3.4): at low load strain dies out from any
+starting point; at high load it runs away to `critical_strain` from any
+starting point; in between the system is **bistable**, with a tipping point
+and hysteresis. There is no stable intermediate level below critical.
+`critical_strain` = 1/κ follows from the algebra of the suppression term;
+κ itself is a chosen group parameter.
 
 **Reference**: de Boer, K. (2026). "A Control-Theoretic Framework for
 Dynamic Heat Risk Assessment: Modeling Acclimatization, Cumulative Strain,
@@ -553,6 +551,53 @@ plot now says so explicitly instead of drawing a red "runaway" zone
 starting at the edge of the tested range, which would otherwise imply
 that edge is a real transition point rather than simply where testing
 stopped.
+
+**[2026-11-24] The interior root is a tipping point, not an equilibrium.**
+An external review pointed out, and a check over all 19 groups and constant
+loads 0.05–4.0 confirmed, that every interior root returned by
+`equilibrium_strain()` is **unstable**. Where net input is positive and the
+suppression gate is open, the daily change is linear in Σ with slope
+L·P·κ − 0.1·b (= `feedback_gain()`); a stable root would need
+L·P·κ < 0.1·b, which no group meets (0 of 7,524 group–load combinations).
+The root is therefore the boundary between recovery (below) and runaway
+(above). At a constant load:
+
+| Load | Behaviour |
+|---|---|
+| below r + b·(1 + 0.1/κ) (release threshold) | strain dies out from any start |
+| between release threshold and runaway threshold | bistable: below the tipping point Σ* the group recovers; above it, it tips to `critical_strain` and stays there |
+| above the runaway threshold | strain runs away from any start |
+
+Once tipped, a group recovers only when the load falls below the release
+threshold (hysteresis). Example, `elderly_65_85` with the acclimatisation
+that belongs to a sustained load: bistable band 1.02–1.33 (feels-like about
+32–35 °C); after 10 days at load 1.5 the group stays at critical at load
+1.1, while an unstrained group at 1.1 stays at 0; it recovers at 1.0.
+Earlier text (model docstring, this section, the PYROX report and the
+regime plot) described the middle band as "stable accumulation" that
+"reaches a stable equilibrium"; that was wrong and has been corrected. No
+number changed: the simulations never use `equilibrium_strain()`, which
+serves only the regime plot and the PYROX interface's Regimes tab (the tab
+already determined stability by simulation).
+
+*Sensitivity to the starting strain.* Because the middle band is bistable,
+`initial_strain` (default 0.1, a choice) could in principle decide whether a
+member tips. Checked on Paris 2003 with the set-up of the age-gradient test
+(§3.6): initial strain 0 / 0.05 / 0.10 / 0.15 / 0.20 / 0.30 / 0.50 at CV 0.20,
+0.30 and 0.40 gives identical F for all four age bands and the same verdict
+per criterion; the time-shape correlation moves by at most 0.02. All 19
+groups: identical F and peak at 0, 0.1 and 0.2. Reason: the cool lead-in
+(loads 0.32 and 0.82 on 1–2 August) clears the starting strain within one to
+three days, and at load 1.5 nearly all members lie above their runaway or
+below their release threshold. Starting the run on the first hot day
+(3 or 4 August) moves F by at most 0.07, about one or two of 41 members.
+
+**Not changed (open point).** The regime plot and the Regimes tab analyse the
+typical member at full acclimatisation (`max_acclimatization_capacity`). At
+a sustained load the acclimatisation reached is lower
+(capacity × exposure signal), so the runaway threshold is lower; for
+`elderly_65_85` 1.33 instead of 1.79. The group thresholds quoted in §3.3
+(e.g. 68.5 °C) were found the same way.
 
 ---
 
