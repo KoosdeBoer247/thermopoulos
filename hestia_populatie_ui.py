@@ -335,6 +335,58 @@ def eindresultaat(t: PopTaak) -> dict:
             "pct_gestopt": gestopt}
 
 
+class _WeerMeta:
+    """Wat generate_event_report van ThermopoulosData gebruikt (metadata()),
+    uit het weer van dit venster."""
+
+    def __init__(self, weer: Weer):
+        c = weer.city or {}
+        self.city = c.get("name", "?")
+        self._meta = {"city": self.city, "latitude": float(weer.lat), "longitude": float(weer.lon),
+                      "timezone": weer.tz, "population": int(c.get("population") or 0)}
+
+    def metadata(self) -> dict:
+        return dict(self._meta)
+
+
+def maak_evenementrapport(t: PopTaak, r: dict, docx_pad) -> str:
+    """[2026-11-25] Evenementrapport (Markdown + Word) met dezelfde gegevens die
+    run_hestia.py aan generate_event_report.generate_report() geeft; plots via
+    hestia_plots.generate_population_plots(), bridge via build_bridge_summary()
+    op het interp-venster van deze berekening. Rekent niets opnieuw."""
+    _, _, hm, _, _ = _suite()
+    from pathlib import Path
+    from generate_event_report import generate_report
+    from hestia_bridge import build_bridge_summary
+    from hestia_plots import generate_population_plots
+    from report_to_docx import export_report_docx
+    docx_pad = Path(docx_pad)
+    md_pad = docx_pad.with_suffix(".md")
+    inv = t.inv
+    start_time = f"{inv.datum} {inv.starttijd}"
+    duur = afgeleide_duur(inv)
+    figuren = docx_pad.with_name(docx_pad.stem + vt("_figuren", "_figures"))
+    plots = generate_population_plots(r["all_results"], r["results_df"], r["stats"],
+                                      _WeerMeta(t.weer).city, start_time, duur, str(figuren))
+    activiteit = (vt(f"Per deelnemer eigen pace/MET, clo {inv.clo}; opgegeven nominale MET {t.met} "
+                     f"wordt in deze modus niet gebruikt",
+                     f"Own pace/MET per participant, clo {inv.clo}; the nominal MET {t.met} entered "
+                     f"is not used in this mode") if inv.eigen_tempo else f"MET {t.met}, clo {inv.clo}")
+    naam = f"{inv.evenement} {inv.datum}"
+    with _vervang(hm, "ACTIVE_ENDPOINT", inv.eindpunt):
+        tekst = generate_report(
+            event_name=naam, data=_WeerMeta(t.weer), stats=r["stats"], results_df=r["results_df"],
+            start_time=start_time, duration_hours=duur, activity_description=activiteit,
+            n_simulations=len(r["all_results"]), output_path=str(md_pad),
+            bridge_summary=build_bridge_summary(r["all_results"], t.interp),
+            plot_paths=plots, interp_data=t.interp, sample_pace=inv.eigen_tempo,
+            event_dist_km=inv.afstand_km, training_factor=t.tf, acclimatization_factor=t.af,
+            population=inv.populatie)
+    export_report_docx(tekst, str(docx_pad), report_kind="facts", event_name=naam,
+                       image_base_dir=str(figuren))
+    return str(docx_pad)
+
+
 def ehs_momenten(all_results) -> list:
     """Per deelnemer: of en wanneer het EHS-criterium voor het eerst geldt,
     met PRECIES de regel van hestia_bridge._summarize_results(): tijdens de loop
@@ -566,6 +618,7 @@ def _start_ui(na_start=None):
             rij.pack(fill="x", pady=4)
             ttk.Button(rij, text=vt("Volledige run starten", "Start full run"), command=self._volledig).pack(side="left", padx=2)
             ttk.Button(rij, text=vt("Excel-export", "Excel export"), command=self._export).pack(side="left", padx=2)
+            ttk.Button(rij, text=vt("Evenementrapport (Word)", "Event report (Word)"), command=self._rapport).pack(side="left", padx=2)
 
             rechts = ttk.Frame(self.root, padding=(4, 6))
             rechts.pack(side="left", fill="both", expand=True)
@@ -1766,6 +1819,29 @@ def _start_ui(na_start=None):
             e["cv"].draw_idle()
 
         # ------------------------------------------------------- export
+        def _rapport(self):
+            """[2026-11-25] Het evenementrapport van de suite (generate_event_report +
+            report_to_docx), met de populatie uit dit venster als bron; dezelfde
+            gegevens als run_hestia.py aan het rapport geeft; taal volgt het venster."""
+            if self.resultaat is None or self.taak is None:
+                messagebox.showinfo(vt("Evenementrapport", "Event report"), vt("Er is nog geen volledig resultaat.", "There is no full result yet."))
+                return
+            p = filedialog.asksaveasfilename(title=vt("Evenementrapport opslaan", "Save event report"), defaultextension=".docx",
+                                             initialfile=vt("HESTIA_evenementrapport.docx", "HESTIA_event_report.docx"),
+                                             filetypes=[("Word", "*.docx")], initialdir=str(HIER))
+            if not p:
+                return
+            try:
+                self.root.config(cursor="watch")
+                self.root.update_idletasks()
+                pad = maak_evenementrapport(self.taak, self.resultaat, p)
+                messagebox.showinfo(vt("Evenementrapport", "Event report"),
+                                    vt(f"Opgeslagen:\n{pad}", f"Saved:\n{pad}"))
+            except Exception as ex:
+                messagebox.showerror(vt("Evenementrapport", "Event report"), vt(f"Mislukt: {ex}", f"Failed: {ex}"))
+            finally:
+                self.root.config(cursor="")
+
         def _export(self):
             if self.resultaat is None:
                 messagebox.showinfo(vt("Excel-export", "Excel export"), vt("Er is nog geen volledig resultaat.", "There is no full result yet."))

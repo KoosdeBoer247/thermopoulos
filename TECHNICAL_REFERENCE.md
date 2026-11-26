@@ -275,8 +275,9 @@ the key passed to the suite (route, sex, clothing, endpoint) is taken from the
 position in the list or from a key table, not from the text itself, so the suite receives the same
 values in both languages. `tests/test_taal.py` checks that the work-mode
 calculation and a PYROX report give identical numbers in Dutch and English.
-Not translated: the console menu (`start_thermopoulos.py`), the reports of
-the console scripts, log output of the suite modules, and texts produced
+Not translated: the console menu (`start_thermopoulos.py`); the console
+scripts run in Dutch by default (their report generators follow `taal.py`
+when English is chosen); log output of the suite modules, and texts produced
 inside frozen suite functions; where such a text appears in an interface
 (for example the count with interval from `uncertainty.py`) the interface
 renders the same numbers in English itself.

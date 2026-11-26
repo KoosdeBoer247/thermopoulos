@@ -249,31 +249,37 @@ def format_margin_lines(label: str, stats) -> list:
     """Human-readable lines for one margin_to_threshold_stats() result --
     used identically by generate_event_report.py and (as its own copy) by
     Klimatos.ClimateShift.py, so the two report the same numbers the same
-    way."""
+    way. [2026-11-25] Dutch or English via taal.vt (display only)."""
+    from taal import vt
     if stats is None:
-        return [f"{label}: geen steekproefdata beschikbaar."]
+        return [vt(f"{label}: geen steekproefdata beschikbaar.", f"{label}: no sample data available.")]
     tt, ct = stats["t_threshold"], stats["c_threshold"]
+    tp50, tp95, cp50, cp05 = stats["t_p50"], stats["t_p95"], stats["c_p50"], stats["c_p05"]
     lines = [
-        f"{label} (n={stats['n']} steekproefmomenten):",
-        f"  T_rect     mediaan {stats['t_p50']:.2f} degC "
-        f"({tt - stats['t_p50']:+.2f} tov de {tt:.1f} degC-drempel), "
-        f"95e pct {stats['t_p95']:.2f} degC "
-        f"({tt - stats['t_p95']:+.2f} tov drempel)",
-        f"  CO-reserve mediaan {stats['c_p50']:.2f} L/min "
-        f"({stats['c_p50'] - ct:+.2f} tov de {ct:.1f} L/min-drempel), "
-        f"5e pct {stats['c_p05']:.2f} L/min "
-        f"({stats['c_p05'] - ct:+.2f} tov drempel)",
+        vt(f"{label} (n={stats['n']} steekproefmomenten):", f"{label} (n={stats['n']} sample moments):"),
+        vt(f"  T_rect     mediaan {tp50:.2f} degC ({tt - tp50:+.2f} tov de {tt:.1f} degC-drempel), "
+           f"95e pct {tp95:.2f} degC ({tt - tp95:+.2f} tov drempel)",
+           f"  T_rect     median {tp50:.2f} degC ({tt - tp50:+.2f} from the {tt:.1f} degC threshold), "
+           f"95th pct {tp95:.2f} degC ({tt - tp95:+.2f} from threshold)"),
+        vt(f"  CO-reserve mediaan {cp50:.2f} L/min ({cp50 - ct:+.2f} tov de {ct:.1f} L/min-drempel), "
+           f"5e pct {cp05:.2f} L/min ({cp05 - ct:+.2f} tov drempel)",
+           f"  CO reserve median {cp50:.2f} L/min ({cp50 - ct:+.2f} from the {ct:.1f} L/min threshold), "
+           f"5th pct {cp05:.2f} L/min ({cp05 - ct:+.2f} from threshold)"),
     ]
     bn = stats["closest_bottleneck"]
+    combi = f"T_rect={stats['closest_t']:.2f} degC, CO_reserve={stats['closest_c']:.2f} L/min"
     if bn > 0:
-        lines.append(f"  dichtstbijzijnde waargenomen combinatie: T_rect={stats['closest_t']:.2f} degC, "
-                     f"CO_reserve={stats['closest_c']:.2f} L/min "
-                     f"-> {bn:.2f} verwijderd van de moeilijkst te sluiten drempel")
+        lines.append(vt(f"  dichtstbijzijnde waargenomen combinatie: {combi} "
+                        f"-> {bn:.2f} verwijderd van de moeilijkst te sluiten drempel",
+                        f"  closest observed combination: {combi} "
+                        f"-> {bn:.2f} away from the hardest threshold to close"))
     else:
-        lines.append(f"  dichtstbijzijnde waargenomen combinatie: T_rect={stats['closest_t']:.2f} degC, "
-                     f"CO_reserve={stats['closest_c']:.2f} L/min "
-                     f"-> beide drempels op dit moment overschreden "
-                     f"(momentopname, niet per se een aanhoudende treffer)")
+        lines.append(vt(f"  dichtstbijzijnde waargenomen combinatie: {combi} "
+                        f"-> beide drempels op dit moment overschreden "
+                        f"(momentopname, niet per se een aanhoudende treffer)",
+                        f"  closest observed combination: {combi} "
+                        f"-> both thresholds exceeded at this moment "
+                        f"(snapshot, not necessarily a sustained hit)"))
     return lines
 
 

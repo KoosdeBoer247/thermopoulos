@@ -67,8 +67,8 @@ Every file in the release and what it does. History of individual files:
 | File | Purpose |
 |---|---|
 | `hestia_loper.py` | analysis for one runner (input, fitness, weather, ensemble, risk measures, signal) |
-| `hestia_loper_plots.py` | figures of the personal report |
-| `hestia_loper_rapport.py` | personal Word report (Dutch) |
+| `hestia_loper_plots.py` | figures of the personal report (Dutch or English, follows `taal.py`) |
+| `hestia_loper_rapport.py` | personal Word report (Dutch or English, follows `taal.py`); research-software status on the first page |
 | `run_loper.py` | command line / menu for the runner analysis |
 | `loper_invoer_voorbeeld.json` | example input (fictitious runner) |
 
@@ -114,7 +114,7 @@ Every file in the release and what it does. History of individual files:
 
 | File | Purpose |
 |---|---|
-| `generate_event_report.py` | factual HESTIA event report (Dutch) |
+| `generate_event_report.py` | factual HESTIA event report (Dutch or English, follows `taal.py`) |
 | `generate_klimatos_report.py` | Klimatos event report |
 | `generate_recommendation_report.py` | timing-advice report (proof of concept) |
 | `generate_pyrox_report.py` | PYROX population report |
@@ -130,8 +130,8 @@ on the start screen; see `taal.py`).
 |---|---|
 | `thermopoulos_ui.py` | start screen: choose one of the five interfaces below (keys 1–5); each opens in its own process. Dutch by default; the British flag switches the start screen and the interfaces opened from it to English (the Dutch flag switches back) |
 | `taal.py` | language of the interfaces and of the charts and Word reports made from them: `vt(nl, en)` for texts, `getal()` for decimal comma (NL) or point (EN), dates; set by `--lang en` or the environment variable `THERMOPOULOS_TAAL`, which spawned workers inherit. Display only: the values passed to the suite are the same in both languages |
-| `hestia_loper_ui.py` | one runner (or a person at rest): core temperature, CO reserve, WBGT, air temperature, humidity and wind during the run; online weather or a Data Engine file; live recalculation when the start time changes; HEAT-Lim rest mode |
-| `hestia_populatie_ui.py` | event population: progressive Monte Carlo through `run_monte_carlo_adult`, EHS per 1000 with interval, risk bar, when/where/who, ten hottest participants, start-time comparison, Excel export |
+| `hestia_loper_ui.py` | one runner (or a person at rest): core temperature, CO reserve, WBGT, air temperature, humidity and wind during the run; online weather or a Data Engine file; live recalculation when the start time changes; HEAT-Lim rest mode; Word report of the personal analysis (`hestia_loper_rapport`) |
+| `hestia_populatie_ui.py` | event population: progressive Monte Carlo through `run_monte_carlo_adult`, EHS per 1000 with interval, risk bar, when/where/who, ten hottest participants, start-time comparison, Excel export, event report (`generate_event_report` + `report_to_docx`, Dutch or English; Word copy needs `npm install` once) |
 | `hestia_werk_ui.py` | outdoor workers over a working day (`hestia_werk.py`): work–rest schedule and breaks, core temperature, fluid loss and heart rate of the group against occupational limits, WBGT per hour against ISO 7243, PHS (ISO 7933) check, ten hottest workers, Word report (`hestia_werk_rapport.py`) |
 | `pyrox_ui.py` | PYROX: strain per group via `run_pyrox.assess_population`, heatmap, feedback loop, forecast uncertainty, regimes with stability of the equilibrium and the tipping zone, briefing (calendar, margin, after-effect), buckets, tipping-point landscape, Excel, Word report and an A4 briefing (`python-docx`) |
 | `ui_gemeen.py` | shared presentation parts for the interfaces (display only, no calculations): input sections labelled required / optional / model setting, result tiles with a one-line interpretation, a provenance line (data source, suite version, status, what the result is not) and a short explanation per tab |

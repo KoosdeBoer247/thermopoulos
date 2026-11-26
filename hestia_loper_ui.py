@@ -796,6 +796,7 @@ def _start_ui(na_start=None):
             ttk.Button(rij, text=vt("Invoer opslaan", "Save input"), command=self._opslaan).pack(side="left", padx=2)
             ttk.Button(rij, text=vt("Invoer laden", "Load input"), command=self._laden).pack(side="left", padx=2)
             ttk.Button(rij, text=vt("Excel-export", "Excel export"), command=self._export).pack(side="left", padx=2)
+            ttk.Button(rij, text=vt("Word-rapport", "Word report"), command=self._rapport).pack(side="left", padx=2)
 
             # ------------------------------------------------ rechts: grafieken
             rechts = ttk.Frame(self.root, padding=(4, 6))
@@ -1049,7 +1050,7 @@ def _start_ui(na_start=None):
             kw = dict(
                 lengte_cm=self._f("lengte"), gewicht_kg=self._f("gewicht"),
                 leeftijd=int(self._f("leeftijd")), geslacht=self._geslacht(),
-                evenement="Hardloop-UI", datum=d, starttijd=self.v["starttijd"].get().strip(),
+                evenement=vt("Hardloop-UI", "Running UI"), datum=d, starttijd=self.v["starttijd"].get().strip(),
                 plaats=self._plaatsnaam(), afstand_km=self._f("afstand"),
                 tempo_min_per_km=hl.min_naar_tempo(self._tempo()),
                 drinkt_bij_elke_post=self.v["drinkt"].get(),
@@ -2052,6 +2053,36 @@ def _start_ui(na_start=None):
                     hl.exporteer_excel(self.resultaat, p)
                 except Exception as e:
                     self._fout(vt(f"Export mislukt: {e}", f"Export failed: {e}"))
+
+        def _rapport(self):
+            """[2026-11-25] Persoonlijk Word-rapport van de suite (hestia_loper_rapport
+            + hestia_loper_plots), met het resultaat uit dit venster als bron."""
+            if self._is_rust():
+                messagebox.showinfo(vt("Word-rapport", "Word report"),
+                                    vt("Het Word-rapport is er voor de loopanalyse, niet voor de rustmodus.",
+                                       "The Word report is for the running analysis, not for rest mode."))
+                return
+            if self.resultaat is None:
+                messagebox.showinfo(vt("Word-rapport", "Word report"), vt("Er is nog geen volledig resultaat.", "There is no full result yet."))
+                return
+            p = filedialog.asksaveasfilename(title=vt("Word-rapport opslaan", "Save Word report"), defaultextension=".docx",
+                                             initialfile=vt("HESTIA_loper_rapport.docx", "HESTIA_runner_report.docx"),
+                                             filetypes=[("Word", "*.docx")], initialdir=str(HIER))
+            if not p:
+                return
+            try:
+                self.root.config(cursor="watch")
+                self.root.update_idletasks()
+                from hestia_loper_plots import maak_alle_plots
+                from hestia_loper_rapport import maak_rapport
+                pad = Path(p)
+                plots = maak_alle_plots(self.resultaat, pad.with_name(pad.stem + vt("_figuren", "_figures")))
+                maak_rapport(self.resultaat, plots, pad)
+                messagebox.showinfo(vt("Word-rapport", "Word report"), vt(f"Opgeslagen:\n{p}", f"Saved:\n{p}"))
+            except Exception as ex:
+                self._fout(vt(f"Word-rapport mislukt: {ex}", f"Word report failed: {ex}"))
+            finally:
+                self.root.config(cursor="")
 
         def _sluit(self):
             self._annuleer()

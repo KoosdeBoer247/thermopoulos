@@ -8,6 +8,31 @@ Entries up to 2026-10-24 were written during development; names of people
 in personal communications have been replaced by their institution, and
 results of individual field-test participants by group-level statements.
 
+## [2026-11-25] Word reports from the HESTIA interfaces; personal report corrected and bilingual
+
+- **Author's decision:** a Word report button in the HESTIA runner and
+  population windows.
+- **Runner window:** "Word report" makes the suite's personal report
+  (`hestia_loper_plots.maak_alle_plots` + `hestia_loper_rapport.maak_rapport`)
+  from the result in the window; not for rest mode.
+- **Population window:** "Event report (Word)" makes the suite's event report
+  (`generate_event_report.generate_report` + `report_to_docx`) with the same
+  inputs `run_hestia.py` passes (plots from `hestia_plots`, bridge summary from
+  `build_bridge_summary` on this run's weather window). Nothing is recomputed.
+  The Word copy needs `npm install` once.
+- **Personal report corrected** (independent review, recommendation 1):
+  "research software, not validated" on the first page; the claims that
+  JOS-3 and the CVR heart rate are "validated" replaced by what was done
+  (compared with ten runners on one cool day, partly fitted on it); the stale
+  note that the collapse calibration predates 4 October and must be redone
+  replaced by the current status (base level set on one reference event,
+  weights expert judgement).
+- **Reports bilingual:** the personal report and its figures, the event
+  report (`generate_event_report.py`) and the margin lines it takes from
+  `hestia_bridge.format_margin_lines` follow the language chosen on the
+  start screen (`vt(nl, en)`; "n.b." becomes "n/a"). Display only; the
+  console scripts still default to Dutch.
+
 ## [2026-11-24] PYROX: the middle regime is bistable, not a stable equilibrium
 
 - **Found by** the independent review of 2026-11-24 and confirmed over all

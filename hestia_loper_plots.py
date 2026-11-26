@@ -9,6 +9,8 @@ onbekende dag-factoren (pacingrespons, windrichting, zweetvariatie).
 """
 from __future__ import annotations
 
+from taal import vt, getal, datum
+
 from pathlib import Path
 
 import matplotlib
@@ -39,7 +41,7 @@ def _komma(ax):
     from matplotlib.ticker import FuncFormatter
     def f(x, _):
         s = f"{x:g}"
-        return s.replace(".", ",")
+        return s.replace(".", vt(",", "."))
     ax.yaxis.set_major_formatter(FuncFormatter(f))
 
 
@@ -79,12 +81,12 @@ def _weer_panelen(fig, axs, tijd, d, venster=None):
                 return np.asarray(d[k], float)
         return None
     ax = axs[0]
-    for keys, lab, kl, ls in ((("t_air", "T_air_urban"), "Luchttemperatuur", BLAUW, "-"),
-                              (("t_wet", "T_wetbulb"), "Natteboltemperatuur", AQUA, "-"),
+    for keys, lab, kl, ls in ((("t_air", "T_air_urban"), vt("Luchttemperatuur", "Air temperature"), BLAUW, "-"),
+                              (("t_wet", "T_wetbulb"), vt("Natteboltemperatuur", "Wet-bulb temperature"), AQUA, "-"),
                               (("wbgt", "WBGT"), "WBGT", ORANJE, "-"),
-                              (("utci", "UTCI"), "UTCI (gevoelstemperatuur)", ROOD_S, "--"),
-                              (("mrt", "MRT"), "Stralingstemperatuur (MRT)", PAARS, ":"),
-                              (("t_globe", "T_globe"), "Bolthermometer", INKT2, "-.")):
+                              (("utci", "UTCI"), vt("UTCI (gevoelstemperatuur)", "UTCI (feels-like temperature)"), ROOD_S, "--"),
+                              (("mrt", "MRT"), vt("Stralingstemperatuur (MRT)", "Radiant temperature (MRT)"), PAARS, ":"),
+                              (("t_globe", "T_globe"), vt("Bolthermometer", "Globe thermometer"), INKT2, "-.")):
         y = g(*keys)
         if y is not None:
             ax.plot(tijd, y, color=kl, ls=ls, lw=2, label=lab)
@@ -93,11 +95,11 @@ def _weer_panelen(fig, axs, tijd, d, venster=None):
     ax = axs[1]
     y = g("rh", "RH_urban", "RH")
     if y is not None:
-        ax.plot(tijd, y, color=BLAUW, lw=2, label="Relatieve vochtigheid (%)")
-    ax.set_ylabel("RV (%)")
+        ax.plot(tijd, y, color=BLAUW, lw=2, label=vt("Relatieve vochtigheid (%)", "Relative humidity (%)"))
+    ax.set_ylabel(vt("RV (%)", "RH (%)"))
     ax2 = ax.twinx()
-    for keys, lab, kl, ls in ((("wind", "wind_1.5m"), "Wind op 1,5 m (m/s)", ORANJE, "-"),
-                              (("wind10", "wind_10m"), "Wind op 10 m (m/s)", ORANJE, "--")):
+    for keys, lab, kl, ls in ((("wind", "wind_1.5m"), vt("Wind op 1,5 m (m/s)", "Wind at 1.5 m (m/s)"), ORANJE, "-"),
+                              (("wind10", "wind_10m"), vt("Wind op 10 m (m/s)", "Wind at 10 m (m/s)"), ORANJE, "--")):
         y = g(*keys)
         if y is not None:
             ax2.plot(tijd, y, color=kl, ls=ls, lw=2, label=lab)
@@ -107,14 +109,14 @@ def _weer_panelen(fig, axs, tijd, d, venster=None):
     ax = axs[2]
     y = g("ghi", "solar_radiation")
     if y is not None:
-        ax.fill_between(tijd, 0, y, color=GEEL_S, alpha=0.5, lw=0, label="Zonnestraling (W/m²)")
+        ax.fill_between(tijd, 0, y, color=GEEL_S, alpha=0.5, lw=0, label=vt("Zonnestraling (W/m²)", "Solar radiation (W/m²)"))
         ax.plot(tijd, y, color=ORANJE, lw=1.5)
-    ax.set_ylabel("Zon (W/m²)")
+    ax.set_ylabel(vt("Zon (W/m²)", "Sun (W/m²)"))
     ax3 = ax.twinx()
     y = g("cloud", "cloud_cover")
     if y is not None:
-        ax3.plot(tijd, y, color=INKT2, lw=2, ls="--", label="Bewolking (%)")
-    ax3.set_ylabel("Bewolking (%)")
+        ax3.plot(tijd, y, color=INKT2, lw=2, ls="--", label=vt("Bewolking (%)", "Cloud cover (%)"))
+    ax3.set_ylabel(vt("Bewolking (%)", "Cloud cover (%)"))
     ax3.set_ylim(0, 105)
     h1, l1 = ax.get_legend_handles_labels(); h2, l2 = ax3.get_legend_handles_labels()
     ax.legend(h1 + h2, l1 + l2, loc="upper left", bbox_to_anchor=(1.08, 1.0), frameon=False, fontsize=11)
@@ -123,7 +125,7 @@ def _weer_panelen(fig, axs, tijd, d, venster=None):
         if venster:
             a_.axvspan(venster[0], venster[1], color=BLAUW, alpha=0.08, lw=0)
         _komma(a_)
-    axs[-1].set_xlabel("Tijd (lokaal)")
+    axs[-1].set_xlabel(vt("Tijd (lokaal)", "Time (local)"))
 
 
 def plot_weer(r: LoperResultaat, pad):
@@ -131,8 +133,10 @@ def plot_weer(r: LoperResultaat, pad):
     fig, axs = plt.subplots(3, 1, figsize=(12, 10.5), sharex=True)
     _weer_panelen(fig, axs, m["time"], m)
     t0 = m["time"][0]
-    axs[0].set_title(f"Weer tijdens de loop - {r.assessment.city_name}, {t0:%d-%m-%Y} "
-                     f"(stadsklimaat meegerekend)")
+    axs[0].set_title(vt(f"Weer tijdens de loop - {r.assessment.city_name}, {t0:%d-%m-%Y} "
+                     f"(stadsklimaat meegerekend)",
+                        f"Weather during the run - {r.assessment.city_name}, {datum(t0)} "
+                     f"(urban climate included)"))
     fig.tight_layout()
     return _opslaan(fig, pad)
 
@@ -147,8 +151,10 @@ def plot_weer_dag(r: LoperResultaat, pad):
     t1 = t1.tz_localize(None) if getattr(t1, "tzinfo", None) else t1
     fig, axs = plt.subplots(3, 1, figsize=(12, 10.5), sharex=True)
     _weer_panelen(fig, axs, d["time"], d, venster=(t0, t1))
-    axs[0].set_title(f"Het weer over de hele dag - {r.assessment.city_name}, {t0:%d-%m-%Y} "
-                     f"(blauwe band = de loop)")
+    axs[0].set_title(vt(f"Het weer over de hele dag - {r.assessment.city_name}, {t0:%d-%m-%Y} "
+                     f"(blauwe band = de loop)",
+                        f"The weather over the whole day - {r.assessment.city_name}, {datum(t0)} "
+                     f"(blue band = the run)"))
     fig.tight_layout()
     return _opslaan(fig, pad)
 
@@ -180,14 +186,14 @@ def plot_dashboard(r: LoperResultaat, pad):
     inspanningsbeleving en netto vochtverlies, met de WBGT als achtergrond."""
     a, b = r.assessment, r.banden
     panelen = [
-        ("Kerntemperatuur (°C)", "t_rect", None, ((39.5, ORANJE_S), (40.5, ROOD_S))),
-        ("Hartslag (/min)", "hr", None, ((r.afgeleid.hr_max, ROOD_S),)),
-        ("Hartreserve (L/min)", "co", None, ((2.0, ORANJE_S), (0.0, ROOD_S))),
-        ("Inspanning (MET)", "met", None, ()),
-        ("Tempo (min/km)", "tempo", None, ()),
-        ("Vochtverlies (% lichaamsgewicht)", "dehyd", None, ((2.0, ORANJE_S), (3.0, ROOD_S))),
-        ("Inspanningsbeleving (Borg 6-20)", None, "rpe_total", ((17, ORANJE_S), (19.5, ROOD_S))),
-        ("Netto vochtverlies (L, zweten min drinken)", None, "water", ()),
+        (vt("Kerntemperatuur (°C)", "Core temperature (°C)"), "t_rect", None, ((39.5, ORANJE_S), (40.5, ROOD_S))),
+        (vt("Hartslag (/min)", "Heart rate (/min)"), "hr", None, ((r.afgeleid.hr_max, ROOD_S),)),
+        (vt("Hartreserve (L/min)", "Cardiac reserve (L/min)"), "co", None, ((2.0, ORANJE_S), (0.0, ROOD_S))),
+        (vt("Inspanning (MET)", "Effort (MET)"), "met", None, ()),
+        (vt("Tempo (min/km)", "Pace (min/km)"), "tempo", None, ()),
+        (vt("Vochtverlies (% lichaamsgewicht)", "Fluid loss (% body mass)"), "dehyd", None, ((2.0, ORANJE_S), (3.0, ROOD_S))),
+        (vt("Inspanningsbeleving (Borg 6-20)", "Perceived exertion (Borg 6-20)"), None, "rpe_total", ((17, ORANJE_S), (19.5, ROOD_S))),
+        (vt("Netto vochtverlies (L, zweten min drinken)", "Net fluid loss (L, sweat minus drinking)"), None, "water", ()),
     ]
     fig, axs = plt.subplots(4, 2, figsize=(14, 15), sharex=True)
     wbgt = np.asarray(a.meteo["wbgt"], float)
@@ -224,17 +230,19 @@ def plot_dashboard(r: LoperResultaat, pad):
         ax.set_title(titel, fontsize=13)
         _komma(ax)
     for ax in axs[-1]:
-        ax.set_xlabel("Minuten na de start")
-    fig.suptitle(f"Alle modelwaarden van deze loop (blauw: mediaan en 95% van {a.n_ensemble} runs; "
-                 f"oranje: WBGT)", fontsize=14)
+        ax.set_xlabel(vt("Minuten na de start", "Minutes after the start"))
+    fig.suptitle(vt(f"Alle modelwaarden van deze loop (blauw: mediaan en 95% van {a.n_ensemble} runs; "
+                 f"oranje: WBGT)",
+                    f"All model values of this run (blue: median and 95% of {a.n_ensemble} runs; "
+                 f"orange: WBGT)"), fontsize=14)
     fig.tight_layout(rect=(0, 0, 1, 0.97))
     return _opslaan(fig, pad)
 
 
 def plot_alle_runs(r: LoperResultaat, pad):
     """Elke afzonderlijke run: kerntemperatuur, hartreserve en afgelegde afstand."""
-    sets = [("Kerntemperatuur (°C)", "t_rect"), ("Hartreserve (L/min)", "co_reserve"),
-            ("Inspanning (MET)", "current_met"), ("Inspanningsbeleving (Borg)", "rpe_total")]
+    sets = [(vt("Kerntemperatuur (°C)", "Core temperature (°C)"), "t_rect"), (vt("Hartreserve (L/min)", "Cardiac reserve (L/min)"), "co_reserve"),
+            (vt("Inspanning (MET)", "Effort (MET)"), "current_met"), (vt("Inspanningsbeleving (Borg)", "Perceived exertion (Borg)"), "rpe_total")]
     fig, axs = plt.subplots(2, 2, figsize=(14, 9.5), sharex=True)
     for ax, (titel, key) in zip(axs.flat, sets):
         band = _trace_band(r, key)
@@ -243,12 +251,12 @@ def plot_alle_runs(r: LoperResultaat, pad):
             continue
         for row in band["alle"]:
             ax.plot(band["min"], row, color=BLAUW, alpha=max(0.04, min(0.35, 8 / len(band["alle"]))), lw=0.8)
-        ax.plot(band["min"], band["med"], color=INKT, lw=2.2, label="mediaan")
+        ax.plot(band["min"], band["med"], color=INKT, lw=2.2, label=vt("mediaan", "median"))
         ax.set_title(titel, fontsize=13)
         _komma(ax)
     for ax in axs[-1]:
-        ax.set_xlabel("Minuten na de start")
-    fig.suptitle(f"Alle {r.assessment.n_ensemble} afzonderlijke runs (dunne lijnen) en de mediaan", fontsize=14)
+        ax.set_xlabel(vt("Minuten na de start", "Minutes after the start"))
+    fig.suptitle(vt(f"Alle {r.assessment.n_ensemble} afzonderlijke runs (dunne lijnen) en de mediaan", f"All {r.assessment.n_ensemble} separate runs (thin lines) and the median"), fontsize=14)
     fig.tight_layout(rect=(0, 0, 1, 0.96))
     return _opslaan(fig, pad)
 
@@ -256,14 +264,14 @@ def plot_alle_runs(r: LoperResultaat, pad):
 def plot_uitkomsten(r: LoperResultaat, pad):
     """Verdeling van de uitkomsten over alle runs."""
     d = r.per_run
-    sets = [("t_rect_max_race", "Hoogste kern tijdens de loop (°C)", ((39.5, ORANJE_S), (40.5, ROOD_S))),
-            ("t_rect_max", "Hoogste kern incl. na de finish (°C)", ((39.5, ORANJE_S), (40.5, ROOD_S))),
-            ("co_reserve_min", "Laagste hartreserve (L/min)", ((2.0, ORANJE_S), (0.0, ROOD_S))),
-            ("hr_piek", "Hoogste hartslag (/min)", ((r.afgeleid.hr_max, ROOD_S),)),
-            ("dehydratie_eind_pct", "Vochtverlies aan het eind (%)", ((2.0, ORANJE_S), (3.0, ROOD_S))),
-            ("tempo_daling_pct", "Vertraging aan het eind (%)", ()),
-            ("finish_min_geschat", "Finishtijd (min)", ()),
-            ("p_collapse", "Kans op collaps (per 10.000)", ())]
+    sets = [("t_rect_max_race", vt("Hoogste kern tijdens de loop (°C)", "Highest core during the run (°C)"), ((39.5, ORANJE_S), (40.5, ROOD_S))),
+            ("t_rect_max", vt("Hoogste kern incl. na de finish (°C)", "Highest core incl. after the finish (°C)"), ((39.5, ORANJE_S), (40.5, ROOD_S))),
+            ("co_reserve_min", vt("Laagste hartreserve (L/min)", "Lowest cardiac reserve (L/min)"), ((2.0, ORANJE_S), (0.0, ROOD_S))),
+            ("hr_piek", vt("Hoogste hartslag (/min)", "Highest heart rate (/min)"), ((r.afgeleid.hr_max, ROOD_S),)),
+            ("dehydratie_eind_pct", vt("Vochtverlies aan het eind (%)", "Fluid loss at the end (%)"), ((2.0, ORANJE_S), (3.0, ROOD_S))),
+            ("tempo_daling_pct", vt("Vertraging aan het eind (%)", "Slowing at the end (%)"), ()),
+            ("finish_min_geschat", vt("Finishtijd (min)", "Finish time (min)"), ()),
+            ("p_collapse", vt("Kans op collaps (per 10.000)", "Probability of collapse (per 10,000)"), ())]
     fig, axs = plt.subplots(2, 4, figsize=(16, 8))
     for ax, (col, titel, drempels) in zip(axs.flat, sets):
         if col not in d or not np.isfinite(d[col].astype(float)).any():
@@ -277,7 +285,7 @@ def plot_uitkomsten(r: LoperResultaat, pad):
         ax.set_title(titel, fontsize=12)
         ax.grid(axis="x", visible=False)
         _komma(ax)
-    fig.suptitle(f"Verdeling over {len(d)} runs (zwarte lijn = mediaan)", fontsize=14)
+    fig.suptitle(vt(f"Verdeling over {len(d)} runs (zwarte lijn = mediaan)", f"Distribution over {len(d)} runs (black line = median)"), fontsize=14)
     fig.tight_layout(rect=(0, 0, 1, 0.95))
     return _opslaan(fig, pad)
 
@@ -289,12 +297,12 @@ def plot_samenhang(r: LoperResultaat, pad):
     sc = ax.scatter(d["t_rect_max_race"], d["co_reserve_min"], c=d["tempo_daling_pct"], cmap="viridis",
                     s=45, edgecolor="white", linewidth=0.5)
     cb = fig.colorbar(sc, ax=ax)
-    cb.set_label("Vertraging aan het eind (%)")
+    cb.set_label(vt("Vertraging aan het eind (%)", "Slowing at the end (%)"))
     ax.axvline(39.5, color=ORANJE_S, ls="--"); ax.axvline(40.5, color=ROOD_S, ls="--")
     ax.axhline(2.0, color=ORANJE_S, ls="--"); ax.axhline(0.0, color=ROOD_S, ls="--")
-    ax.set_xlabel("Hoogste kerntemperatuur tijdens de loop (°C)")
-    ax.set_ylabel("Laagste hartreserve (L/min)")
-    ax.set_title("Elke run: hitte en hart samen (rechtsonder = beide in de gevarenzone)")
+    ax.set_xlabel(vt("Hoogste kerntemperatuur tijdens de loop (°C)", "Highest core temperature during the run (°C)"))
+    ax.set_ylabel(vt("Laagste hartreserve (L/min)", "Lowest cardiac reserve (L/min)"))
+    ax.set_title(vt("Elke run: hitte en hart samen (rechtsonder = beide in de gevarenzone)", "Each run: heat and heart together (bottom right = both in the danger zone)"))
     _komma(ax)
     return _opslaan(fig, pad)
 
@@ -304,16 +312,16 @@ def plot_kerntemperatuur(r: LoperResultaat, pad):
     x = np.array(a.minutes)
     fig, ax = plt.subplots(figsize=(10, 5.6))
     ax.fill_between(x, a.t_rect_lo, a.t_rect_hi, color=BLAUW, alpha=0.18, lw=0,
-                    label="95% van de runs")
-    ax.plot(x, a.t_rect_median, color=BLAUW, label="Mediaan")
+                    label=vt("95% van de runs", "95% of runs"))
+    ax.plot(x, a.t_rect_median, color=BLAUW, label=vt("Mediaan", "Median"))
     ax.set_xlim(0, x.max())
     ax.set_ylim(min(37.0, np.nanmin(a.t_rect_lo) - 0.2), max(41.0, np.nanmax(a.t_rect_hi) + 0.2))
-    _drempel(ax, 39.5, "39,5 C: grens hitte-uitputting (EHE-criterium)", ORANJE_S)
-    _drempel(ax, 40.5, "40,5 C: grens hitteberoerte (Roberts)", ROOD_S)
+    _drempel(ax, 39.5, vt("39,5 C: grens hitte-uitputting (EHE-criterium)", "39.5 C: heat exhaustion limit (EHE criterion)"), ORANJE_S)
+    _drempel(ax, 40.5, vt("40,5 C: grens hitteberoerte (Roberts)", "40.5 C: heat stroke limit (Roberts)"), ROOD_S)
     _finishlijn(ax, a.median_stop_minute)
-    ax.set_xlabel("Minuten na de start (na de finish: herstel)")
-    ax.set_ylabel("Rectale temperatuur (C)")
-    ax.set_title("Kerntemperatuur (model JOS-3)")
+    ax.set_xlabel(vt("Minuten na de start (na de finish: herstel)", "Minutes after the start (after the finish: recovery)"))
+    ax.set_ylabel(vt("Rectale temperatuur (C)", "Rectal temperature (C)"))
+    ax.set_title(vt("Kerntemperatuur (model JOS-3)", "Core temperature (model JOS-3)"))
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.17), ncol=2, frameon=False)
     _komma(ax)
     return _opslaan(fig, pad)
@@ -326,18 +334,18 @@ def plot_hartreserve(r: LoperResultaat, pad):
     fig, ax = plt.subplots(figsize=(10, 5.6))
     ymin = min(-1.0, np.nanmin(lo) - 0.5)
     ax.axhspan(ymin, 0, color=ROOD_S, alpha=0.06, lw=0)
-    ax.fill_between(x, lo, hi, color=BLAUW, alpha=0.18, lw=0, label="95% van de runs")
-    ax.plot(x, med, color=BLAUW, label="Mediaan")
+    ax.fill_between(x, lo, hi, color=BLAUW, alpha=0.18, lw=0, label=vt("95% van de runs", "95% of runs"))
+    ax.plot(x, med, color=BLAUW, label=vt("Mediaan", "Median"))
     ax.set_xlim(0, x.max())
     ax.set_ylim(ymin, np.nanmax(hi) + 1)
-    _drempel(ax, 2.0, "2 L/min: marge bijna op", ORANJE_S)
-    _drempel(ax, 0.0, "0: vraag = maximale pompcapaciteit", ROOD_S)
-    ax.text(x.max(), ymin, "onder nul: extrapolatie, niet gevalideerd ", ha="right", va="bottom",
+    _drempel(ax, 2.0, vt("2 L/min: marge bijna op", "2 L/min: margin almost used up"), ORANJE_S)
+    _drempel(ax, 0.0, vt("0: vraag = maximale pompcapaciteit", "0: demand = maximum pumping capacity"), ROOD_S)
+    ax.text(x.max(), ymin, vt("onder nul: extrapolatie, niet gevalideerd ", "below zero: extrapolation, not compared with measurements "), ha="right", va="bottom",
             fontsize=12, color=INKT2)
     _finishlijn(ax, a.median_stop_minute)
-    ax.set_xlabel("Minuten na de start (na de finish: herstel)")
-    ax.set_ylabel("Hartminuutvolume-reserve (L/min)")
-    ax.set_title("Hartreserve: wat het hart nog extra kan pompen (CVR, Lloyd 2022)")
+    ax.set_xlabel(vt("Minuten na de start (na de finish: herstel)", "Minutes after the start (after the finish: recovery)"))
+    ax.set_ylabel(vt("Hartminuutvolume-reserve (L/min)", "Cardiac output reserve (L/min)"))
+    ax.set_title(vt("Hartreserve: wat het hart nog extra kan pompen (CVR, Lloyd 2022)", "Cardiac reserve: what the heart can still pump extra (CVR, Lloyd 2022)"))
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.17), ncol=2, frameon=False)
     _komma(ax)
     return _opslaan(fig, pad)
@@ -347,14 +355,14 @@ def plot_hartslag(r: LoperResultaat, pad):
     b = r.banden["hr"]
     x = b["minuten"][1:]
     fig, ax = plt.subplots(figsize=(10, 5.2))
-    ax.fill_between(x, b["lo"][1:], b["hi"][1:], color=BLAUW, alpha=0.18, lw=0, label="95% van de runs")
-    ax.plot(x, b["med"][1:], color=BLAUW, label="Mediaan (voorspeld)")
+    ax.fill_between(x, b["lo"][1:], b["hi"][1:], color=BLAUW, alpha=0.18, lw=0, label=vt("95% van de runs", "95% of runs"))
+    ax.plot(x, b["med"][1:], color=BLAUW, label=vt("Mediaan (voorspeld)", "Median (predicted)"))
     ax.set_xlim(0, b["minuten"].max())
     ax.set_ylim(min(100, np.nanmin(b["lo"][1:]) - 5), r.afgeleid.hr_max + 12)
     _drempel(ax, r.afgeleid.hr_max, f"HRmax {r.afgeleid.hr_max:.0f} ({r.afgeleid.hr_max_bron})", ROOD_S)
-    ax.set_xlabel("Minuten na de start")
-    ax.set_ylabel("Hartslag (slagen/min)")
-    ax.set_title("Voorspelde hartslag - vergelijk achteraf met je horloge")
+    ax.set_xlabel(vt("Minuten na de start", "Minutes after the start"))
+    ax.set_ylabel(vt("Hartslag (slagen/min)", "Heart rate (beats/min)"))
+    ax.set_title(vt("Voorspelde hartslag - vergelijk achteraf met je horloge", "Predicted heart rate - compare afterwards with your watch"))
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.17), ncol=2, frameon=False)
     return _opslaan(fig, pad)
 
@@ -364,10 +372,10 @@ def plot_tempo(r: LoperResultaat, pad):
     med, snel, traag = b["med"], b["lo"], b["hi"]
     x = b["minuten"]
     fig, ax = plt.subplots(figsize=(10, 5.2))
-    ax.fill_between(x, snel, traag, color=BLAUW, alpha=0.18, lw=0, label="95% van de runs")
-    ax.plot(x, med, color=BLAUW, label="Mediaan")
+    ax.fill_between(x, snel, traag, color=BLAUW, alpha=0.18, lw=0, label=vt("95% van de runs", "95% of runs"))
+    ax.plot(x, med, color=BLAUW, label=vt("Mediaan", "Median"))
     ax.axhline(r.invoer.tempo, color=INKT2, ls="--", lw=1.4)
-    ax.text(0, r.invoer.tempo, f" gepland {min_naar_tempo(r.invoer.tempo)} min/km", va="bottom",
+    ax.text(0, r.invoer.tempo, vt(f" gepland {min_naar_tempo(r.invoer.tempo)} min/km", f" planned {min_naar_tempo(r.invoer.tempo)} min/km"), va="bottom",
             fontsize=12, color=INKT2)
     ax.invert_yaxis()
     from matplotlib.ticker import FuncFormatter
@@ -375,9 +383,9 @@ def plot_tempo(r: LoperResultaat, pad):
     lo_y = min(np.nanmin(snel), r.invoer.tempo) - 0.05
     hi_y = max(np.nanmax(traag), r.invoer.tempo) + 0.05
     ax.set_ylim(hi_y, lo_y)
-    ax.set_xlabel("Minuten na de start")
-    ax.set_ylabel("Tempo (min/km), omhoog = sneller")
-    ax.set_title("Tempo volgens de pacingwet (vertraging bij hitte en weinig hartreserve)")
+    ax.set_xlabel(vt("Minuten na de start", "Minutes after the start"))
+    ax.set_ylabel(vt("Tempo (min/km), omhoog = sneller", "Pace (min/km), up = faster"))
+    ax.set_title(vt("Tempo volgens de pacingwet (vertraging bij hitte en weinig hartreserve)", "Pace according to the pacing law (slowing with heat and low cardiac reserve)"))
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.17), ncol=2, frameon=False)
     return _opslaan(fig, pad)
 
@@ -386,15 +394,15 @@ def plot_vocht(r: LoperResultaat, pad):
     b = r.banden["dehyd"]
     x = b["minuten"]
     fig, ax = plt.subplots(figsize=(10, 5.2))
-    ax.fill_between(x, b["lo"], b["hi"], color=BLAUW, alpha=0.18, lw=0, label="95% van de runs")
-    ax.plot(x, b["med"], color=BLAUW, label="Mediaan")
+    ax.fill_between(x, b["lo"], b["hi"], color=BLAUW, alpha=0.18, lw=0, label=vt("95% van de runs", "95% of runs"))
+    ax.plot(x, b["med"], color=BLAUW, label=vt("Mediaan", "Median"))
     ax.set_xlim(0, x.max())
     ax.set_ylim(0, max(3.6, np.nanmax(b["hi"]) + 0.4))
-    _drempel(ax, 2.0, "2%: prestatie gaat merkbaar achteruit", ORANJE_S)
-    _drempel(ax, 3.0, "3%: telt mee in de collapsekans", ROOD_S)
-    ax.set_xlabel("Minuten na de start")
-    ax.set_ylabel("Vochtverlies (% lichaamsgewicht)")
-    ax.set_title("Vochtbalans (zweten min drinken)")
+    _drempel(ax, 2.0, vt("2%: prestatie gaat merkbaar achteruit", "2%: performance drops noticeably"), ORANJE_S)
+    _drempel(ax, 3.0, vt("3%: telt mee in de collapsekans", "3%: counts in the collapse probability"), ROOD_S)
+    ax.set_xlabel(vt("Minuten na de start", "Minutes after the start"))
+    ax.set_ylabel(vt("Vochtverlies (% lichaamsgewicht)", "Fluid loss (% body mass)"))
+    ax.set_title(vt("Vochtbalans (zweten min drinken)", "Fluid balance (sweat minus drinking)"))
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.17), ncol=2, frameon=False)
     _komma(ax)
     return _opslaan(fig, pad)
@@ -412,15 +420,15 @@ def plot_fasediagram(r: LoperResultaat, pad):
     y0, y1 = min(-1.5, cmin - 0.5), cmax + 0.5
     ax.fill_between([40.5, x1], y0, 0, color=ROOD_S, alpha=0.12, lw=0)
     ax.fill_between([39.5, x1], 0, 2, color=GEEL_S, alpha=0.12, lw=0)
-    ax.text(x1 - 0.05, y0 + 0.1, "gevarenzone\n>= 40,5 C en reserve op", ha="right", va="bottom",
+    ax.text(x1 - 0.05, y0 + 0.1, vt("gevarenzone\n>= 40,5 C en reserve op", "danger zone\n>= 40.5 C and reserve used up"), ha="right", va="bottom",
             fontsize=12, color=INKT2)
     for i, tr in enumerate(trs[:4]):
         t, c = np.array(tr["t"], float), np.array(tr["c"], float)
         ok = np.isfinite(t) & np.isfinite(c)
-        lab = {"Population median": "mediaan van alle runs", "Lowest risk (dose=0)": "run zonder dosis",
-               "Median non-zero dose": "mediane run met dosis", "Highest dose": "run met hoogste dosis",
-               "Coolest participant": "koelste run", "Median participant": "mediane run",
-               "Hottest participant": "heetste run"}.get(tr["label"], tr["label"])
+        lab = {"Population median": vt("mediaan van alle runs", "median of all runs"), "Lowest risk (dose=0)": vt("run zonder dosis", "run without dose"),
+               "Median non-zero dose": vt("mediane run met dosis", "median run with dose"), "Highest dose": vt("run met hoogste dosis", "run with highest dose"),
+               "Coolest participant": vt("koelste run", "coolest run"), "Median participant": vt("mediane run", "median run"),
+               "Hottest participant": vt("heetste run", "hottest run")}.get(tr["label"], tr["label"])
         mins = np.array(tr["min"], float)
         race = ok & (mins <= tr["stopped_at"] + 1e-6)
         pf = ok & (mins >= tr["stopped_at"] - 1e-6)
@@ -431,9 +439,9 @@ def plot_fasediagram(r: LoperResultaat, pad):
     ax.axvline(40.5, color=ROOD_S, lw=1.2, ls="--")
     ax.set_xlim(x0, x1)
     ax.set_ylim(y0, y1)
-    ax.set_xlabel("Rectale temperatuur (C)")
-    ax.set_ylabel("Hartreserve (L/min)")
-    ax.set_title("Route door het risicovlak (vierkant = start, stippel = na de finish)")
+    ax.set_xlabel(vt("Rectale temperatuur (C)", "Rectal temperature (C)"))
+    ax.set_ylabel(vt("Hartreserve (L/min)", "Cardiac reserve (L/min)"))
+    ax.set_title(vt("Route door het risicovlak (vierkant = start, stippel = na de finish)", "Route through the risk plane (square = start, dotted = after the finish)"))
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.14), ncol=2, frameon=False)
     _komma(ax)
     return _opslaan(fig, pad)
@@ -445,14 +453,14 @@ def plot_verdeling(r: LoperResultaat, pad):
     axs[0].hist(d["t_rect_max"], bins=20, color=BLAUW, edgecolor="white", linewidth=1.5)
     for y, k in ((39.5, ORANJE_S), (40.5, ROOD_S)):
         axs[0].axvline(y, color=k, ls="--", lw=1.5)
-    axs[0].set_xlabel("Hoogste rectale temperatuur (C)")
-    axs[0].set_ylabel("Aantal runs")
-    axs[0].set_title("Piektemperatuur per run")
+    axs[0].set_xlabel(vt("Hoogste rectale temperatuur (C)", "Highest rectal temperature (C)"))
+    axs[0].set_ylabel(vt("Aantal runs", "Number of runs"))
+    axs[0].set_title(vt("Piektemperatuur per run", "Peak temperature per run"))
     axs[1].hist(d["co_reserve_min"], bins=20, color=BLAUW, edgecolor="white", linewidth=1.5)
     for y, k in ((2.0, ORANJE_S), (0.0, ROOD_S)):
         axs[1].axvline(y, color=k, ls="--", lw=1.5)
-    axs[1].set_xlabel("Laagste hartreserve tijdens de loop (L/min)")
-    axs[1].set_title("Laagste hartreserve per run")
+    axs[1].set_xlabel(vt("Laagste hartreserve tijdens de loop (L/min)", "Lowest cardiac reserve during the run (L/min)"))
+    axs[1].set_title(vt("Laagste hartreserve per run", "Lowest cardiac reserve per run"))
     for ax in axs:
         ax.grid(axis="x", visible=False)
     return _opslaan(fig, pad)
@@ -467,19 +475,19 @@ def plot_tempo_watals(r: LoperResultaat, pad):
         return None
     fig, axs = plt.subplots(1, 3, figsize=(13, 5.0))
     x = np.arange(len(g))
-    lab = [f"{t}\n(+{s} s/km)" if s else f"{t}\n(gepland)" for t, s in zip(g["tempo"], g["extra_s_per_km"])]
+    lab = [vt(f"{t}\n(+{s} s/km)", f"{t}\n(+{s} s/km)") if s else vt(f"{t}\n(gepland)", f"{t}\n(planned)") for t, s in zip(g["tempo"], g["extra_s_per_km"])]
     for ax, med, staart, titel, drempels in (
-            (axs[0], "t_rect_max_med", "t_rect_max_p90", "Piektemperatuur (C)", ((39.5, ORANJE_S), (40.5, ROOD_S))),
-            (axs[1], "co_min_med", "co_min_p10", "Laagste hartreserve (L/min)", ((2.0, ORANJE_S), (0.0, ROOD_S))),
-            (axs[2], "dehyd_med", None, "Vochtverlies (%)", ((2.0, ORANJE_S),))):
+            (axs[0], "t_rect_max_med", "t_rect_max_p90", vt("Piektemperatuur (C)", "Peak temperature (C)"), ((39.5, ORANJE_S), (40.5, ROOD_S))),
+            (axs[1], "co_min_med", "co_min_p10", vt("Laagste hartreserve (L/min)", "Lowest cardiac reserve (L/min)"), ((2.0, ORANJE_S), (0.0, ROOD_S))),
+            (axs[2], "dehyd_med", None, vt("Vochtverlies (%)", "Fluid loss (%)"), ((2.0, ORANJE_S),))):
         temp = med == "t_rect_max_med"
         if temp:   # geen staaf: de as begint niet bij nul
-            ax.plot(x, g[med], "o", ms=13, color=BLAUW, zorder=4, label="mediaan")
+            ax.plot(x, g[med], "o", ms=13, color=BLAUW, zorder=4, label=vt("mediaan", "median"))
         else:
-            ax.bar(x, g[med], color=BLAUW, width=0.55, label="mediaan")
+            ax.bar(x, g[med], color=BLAUW, width=0.55, label=vt("mediaan", "median"))
         if staart:
             ax.hlines(g[staart], x - 0.2, x + 0.2, color=INKT, lw=2.5, zorder=3,
-                      label="grens 10% ongunstigste runs")
+                      label=vt("grens 10% ongunstigste runs", "limit of the 10% least favourable runs"))
             for xi, lo_, hi_ in zip(x, g[med], g[staart]):
                 ax.plot([xi, xi], [lo_, hi_], color=INKT, lw=1.2, zorder=3)
         for y, k in drempels:
@@ -499,7 +507,7 @@ def plot_tempo_watals(r: LoperResultaat, pad):
             ax.set_ylim(min(38.0, g[med].min() - 0.3), max(41, g[staart].max() + 0.3))
         _komma(ax)
     h, l = axs[0].get_legend_handles_labels()
-    fig.suptitle("Wat als je langzamer loopt?", fontsize=17)
+    fig.suptitle(vt("Wat als je langzamer loopt?", "What if you run slower?"), fontsize=17)
     fig.tight_layout(rect=(0, 0.08, 1, 1))
     fig.legend(h, l, loc="lower center", ncol=2, frameon=False)
     fig.savefig(pad, dpi=150)
