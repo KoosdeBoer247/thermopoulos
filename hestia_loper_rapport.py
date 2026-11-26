@@ -443,7 +443,7 @@ def maak_rapport(r: LoperResultaat, plots: dict, pad: str | Path) -> Path:
              [vt("EHS-criterium tijdens de loop: > 40,5 °C én hartreserve op (≤ 0,05 L/min) op hetzelfde moment", "EHS criterion during the run: > 40.5 °C and cardiac reserve used up (≤ 0.05 L/min) at the same moment"),
               _frac_tekst(s["f_conjunctie"]),
               vt(f"Waarvan in het model hersteld: {s['f_hersteld']}", f"Of which recovered in the model: {s['f_hersteld']}")],
-             [vt("TCF-dosis (hitte × tekort × tijd)", "TCF dose (heat × deficit × time)"),
+             [vt("TCF-dosis (hitte × tekort × tijd): > 40,5 °C én hartreserve onder 0 L/min; strenger dan het EHS-criterium (≤ 0,05 L/min)", "TCF dose (heat × deficit × time): > 40.5 °C and cardiac reserve below 0 L/min; stricter than the EHS criterion (≤ 0.05 L/min)"),
               vt(f"ongunstig {nl(s['tcf']['hi'])} °C·L; ≥ {TCF_CFG.relevant_dose:g}: "
               f"{_frac_tekst(s['f_tcf_relevant'])}",
                  f"unfavourable {nl(s['tcf']['hi'])} °C·L; ≥ {TCF_CFG.relevant_dose:g}: "

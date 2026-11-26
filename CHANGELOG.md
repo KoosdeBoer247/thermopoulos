@@ -19,7 +19,7 @@ results of individual field-test participants by group-level statements.
   Clopper-Pearson interval and a short explanation of what EHS (exertional
   heat stroke) and EHE (exertional heat exhaustion) mean:
     - EHS criterion (severe): core ≥ 40.5 °C and cardiac reserve used up
-      (≤ 0.05 L/min) at the same moment, during the run or in the 10 minutes
+      (≤ 0.05 L/min) at the same moment, during the run or in the 30 minutes
       after the finish;
     - EHE criterion (in trouble): core > 39.5 °C and cardiac reserve used up
       at the same moment, during the run.
@@ -63,6 +63,28 @@ results of individual field-test participants by group-level statements.
 - Texts shared between window and report via
   `generate_event_report.criteria_betekenis()` and `pct_interval()`.
   Display only; nothing recomputed.
+- **TCF dose shown with its own limits (author's request).** The TCF dose
+  (`HESTIA_ControlFailure_Module`) uses T_rect > 40.5 °C and CO_reserve
+  < 0 L/min, which is stricter than the EHS criterion's ≤ 0.05 L/min.
+  Reports did not state this, so a reader could assume the same limit, and a
+  participant counted as an EHS case could show "no episode" in figure 8
+  (4 of 200 in a Dam tot Dam 2024 run). Now:
+    - personal report: the TCF row states its limits and that they are
+      stricter than the EHS criterion;
+    - event report figure 8 renamed "TCF dose", with the limits in the
+      title and caption, the note about EHS cases and "experimental, not
+      validated";
+    - event report section 7 renamed "Temperature dose and thermally
+      critical limit" (it holds Roberts' AUC and the 42 °C limit, not the
+      TCF dose);
+    - risk-zone figure (plot 5): the reserve line and the title now use
+      the criteria's 0.05 L/min instead of 0, and the zones are drawn left
+      of that line in data coordinates (they were drawn over the left half
+      of the axes regardless of where the line was).
+  The TCF definition itself is unchanged until data are available (author's
+  decision); a comparison of variants (limit 0 / 0.05 / 2 L/min, relative to
+  start or to CO_max, %HRR, degree-minutes) for a Dam tot Dam run and the
+  Utrecht street-paver runs is kept outside the suite.
 
 ## [2026-11-25] Word reports from the HESTIA interfaces; personal report corrected and bilingual
 

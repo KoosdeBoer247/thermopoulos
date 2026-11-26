@@ -614,7 +614,7 @@ def generate_report(event_name: str,
     A("")
 
     # ------------------------------------------------------------------ #
-    A(vt("## 7. Thermoregulatoir regelfalen (experimentele mechanistische maat)", "## 7. Thermoregulatory control failure (experimental mechanistic measure)"))
+    A(vt("## 7. Temperatuurdosis en thermisch-kritische grens", "## 7. Temperature dose and thermally critical limit"))
     A("")
     A(vt("| Grootheid | Waarde |", "| Quantity | Value |"))
     A("|---|---|")
@@ -948,20 +948,26 @@ def generate_report(event_name: str,
          "ten participants with the highest peak temperature, plus the ten with "
          "the lowest reserve -- shows when in the race these two "
          "groups began to be at risk, and whether that happened before or after the finish.")),
-        ("plot8_", vt("De cumulatieve 'conjunctieve dosis' (hoe lang en hoe ver "
-         "iemand tegelijk boven de temperatuur- én onder de reserve-drempel "
-         "zat, opgeteld over de tijd) voor dezelfde twee groepen als "
-         "hierboven. Elke lijn vermeldt ook hoeveel aparte keren (episodes) "
-         "en hoeveel minuten die deelnemer daadwerkelijk aan beide "
-         "voorwaarden tegelijk voldeed -- een enkel eindgetal verbergt of "
-         "dat één aanhoudende periode was of meerdere korte.",
-                      "The cumulative 'conjunctive dose' (how long and how far "
-         "someone was above the temperature threshold and below the reserve threshold at the same time, "
-         "summed over time) for the same two groups as "
-         "above. Each line also states how many separate times (episodes) "
-         "and how many minutes that participant actually met both "
-         "conditions at once -- a single final number hides whether "
-         "that was one sustained period or several short ones.")),
+        ("plot8_", vt("De cumulatieve TCF-dosis (hoe lang en hoe ver iemand "
+         "tegelijk boven 40,5 °C én onder een hartreserve van 0 L/min zat, "
+         "opgeteld over de tijd) voor dezelfde twee groepen als hierboven. "
+         "Let op: deze grens is strenger dan die van het EHS-criterium "
+         "(≤ 0,05 L/min). Een deelnemer die als EHS-geval meetelt, kan hier "
+         "dus toch 'no episode' hebben. Elke lijn vermeldt ook hoeveel aparte "
+         "keren (episodes) en hoeveel minuten die deelnemer daadwerkelijk aan "
+         "beide voorwaarden tegelijk voldeed -- een enkel eindgetal verbergt "
+         "of dat één aanhoudende periode was of meerdere korte. De "
+         "TCF-dosis is een experimentele maat en niet gevalideerd.",
+                      "The cumulative TCF dose (how long and how far someone "
+         "was above 40.5 °C and below a cardiac reserve of 0 L/min at the "
+         "same time, summed over time) for the same two groups as above. "
+         "Note: this limit is stricter than that of the EHS criterion "
+         "(≤ 0.05 L/min). A participant counted as an EHS case can therefore "
+         "still show 'no episode' here. Each line also states how many "
+         "separate times (episodes) and how many minutes that participant "
+         "actually met both conditions at once -- a single final number "
+         "hides whether that was one sustained period or several short ones. "
+         "The TCF dose is an experimental measure and is not validated.")),
         ("plot9_", vt("De cumulatieve tijd-gewogen oppervlakte onder de curve "
          "boven 40,5°C (Roberts 2007's klinische dosis-maat) voor de "
          "deelnemers met de hoogste eindwaarde. In tegenstelling tot de "

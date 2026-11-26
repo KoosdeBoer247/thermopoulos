@@ -161,24 +161,33 @@ def plot_conjunctive_risk_scatter(results_df: pd.DataFrame, title: str) -> plt.F
     sc = ax.scatter(results_df['cvr_co_reserve_min'], results_df['max_t_rect'],
                      c=c, cmap='RdYlGn_r', s=60, alpha=0.85, edgecolor='black', linewidth=0.4,
                      zorder=3)
-    ax.axvline(0.0, color='red', linestyle='-', linewidth=1.5, alpha=0.7, zorder=2)
+    # [2026-11-26] Lijn op de tolerantie van het EHS/EHE-criterium
+    # (hestia_model.CO_RESERVE_CEILING_TOL = 0,05 L/min), niet op 0.
+    ax.axvline(0.05, color='red', linestyle='-', linewidth=1.5, alpha=0.7, zorder=2)
     ax.axhline(40.5, color='red', linestyle='-', linewidth=1.5, alpha=0.7, zorder=2,
                label='Klinische drempel (40,5°C)')
     ax.axhline(39.5, color='darkorange', linestyle='--', linewidth=1.5, alpha=0.8, zorder=2,
                label='EHE-drempel (39,5°C)')
     y_top = ax.get_ylim()[1] if ax.get_ylim()[1] > 40.5 else 43
-    ax.axhspan(40.5, y_top, xmin=0, xmax=0.5, color='red', alpha=0.08, zorder=1,
-               label='Klinische zone')
-    ax.axhspan(39.5, 40.5, xmin=0, xmax=0.5, color='darkorange', alpha=0.08, zorder=1,
-               label='EHE-zone (niet ook klinisch)')
+    # [2026-11-26] Zones in datacoördinaten links van de reservegrens (0,05
+    # L/min); axhspan(xmin, xmax) werkt in asfracties en kleurde de linker
+    # helft van de grafiek, los van waar de grens lag.
+    x_lo, x_hi = ax.get_xlim()
+    x_lo = min(x_lo, -0.5)
+    ax.fill_between([x_lo, 0.05], 40.5, y_top, color='red', alpha=0.08, zorder=1,
+                    linewidth=0, label='Klinische zone')
+    ax.fill_between([x_lo, 0.05], 39.5, 40.5, color='darkorange', alpha=0.08, zorder=1,
+                    linewidth=0, label='EHE-zone (niet ook klinisch)')
+    ax.set_xlim(x_lo, max(x_hi, 0.5))
+    ax.set_ylim(top=y_top)
     # [2026-10-15] upper right: the high-T/positive-reserve corner is normally
     # empty; 'lower right' covered the bulk of the cloud.
     ax.legend(loc='upper right', fontsize=9, framealpha=0.9)
     ax.set_xlabel("Minimum CO_reserve (L/min)")
     ax.set_ylabel("Peak T_rect (°C)")
     ax.set_title(f"Conjunctive risk zones — {title}\n"
-                 f"EHE: T_rect > 39,5°C EN CO_reserve ≤ 0  --  "
-                 f"Klinisch: T_rect > 40,5°C EN CO_reserve ≤ 0")
+                 f"EHE: T_rect > 39,5°C EN CO_reserve ≤ 0,05 L/min  --  "
+                 f"Klinisch: T_rect > 40,5°C EN CO_reserve ≤ 0,05 L/min")
     cbar = fig.colorbar(sc, ax=ax)
     cbar.set_label("Individual collapse probability (%)")
     ax.grid(True, alpha=0.3)
@@ -209,7 +218,7 @@ def plot_conjunctive_risk_scatter(results_df: pd.DataFrame, title: str) -> plt.F
         "orgaanschade en overlijden. Snelheid van koelen (bij voorkeur\n"
         "ijswaterbad, vóór vervoer) is bepalend voor de uitkomst.\n"
         "\n"
-        "Het model toetst niet direct bewustzijn: CO_reserve≤0 is een\n"
+        "Het model toetst niet direct bewustzijn: CO_reserve≤0,05 is een\n"
         "oorzakelijke schakel via cerebrale onderperfusie bij falende\n"
         "cardiac output (Starling's-Law-cascade; Périard et al. 2021).\n"
         "Boven ~42°C kan T_rect zelf, los van CO_reserve, ook direct\n"
@@ -328,11 +337,12 @@ def _conjunctive_series(times: List, t_rect_vals: List[float], co_reserve_vals: 
 
 
 def plot_conjunctive_criterion_individual(results: List[Dict], title: str) -> plt.Figure:
-    """Conjunctive criterion (T_rect > 40.5 AND CO_reserve <= 0) shown as a
+    """TCF dose (T_rect > 40.5 AND CO_reserve < 0; stricter than the EHS
+    criterion's CO_reserve <= 0.05 L/min) shown as a
     time course for one participant: the instantaneous TCF "rate"
     (max(0, T_rect-40.5) x max(0, -CO_reserve)) and its running time
     integral -- the control-failure dose building up over the race and the
-    10-minute post-finish window. Uses the same official formula as
+    30-minute post-finish window. Uses the same official formula as
     `control_failure_dose_total` (via HESTIA_ControlFailure_Module), not the
     raw T_rect x CO_reserve product (which isn't physically meaningful: T_rect
     in Celsius has an arbitrary zero point, so a direct product isn't
@@ -344,7 +354,7 @@ def plot_conjunctive_criterion_individual(results: List[Dict], title: str) -> pl
     race_end = pd.to_datetime(results[-1]["time"])
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 9), gridspec_kw={'hspace': 0.35})
-    fig.suptitle(f"Conjunctive criterion time course — {title}", fontsize=14, weight='bold')
+    fig.suptitle(f"TCF dose time course — {title}", fontsize=14, weight='bold')
 
     ax1.plot(times, rate, color='darkred', linewidth=2)
     ax1.fill_between(times, 0, rate, color='darkred', alpha=0.15)
@@ -437,8 +447,9 @@ def plot_conjunctive_dose_extreme_cohorts(all_results: List[List[Dict]], results
 
     if race_end is not None:
         ax.axvline(race_end, color='black', linestyle='--', linewidth=1.5, label='Race end / finish')
-    ax.set_title(f"Conjunctive-criterion cumulative dose — {title}\n"
-                f"(top {n} by peak T_rect + bottom {n} by min CO_reserve)")
+    ax.set_title(f"TCF dose, cumulative (T_rect > 40.5 °C and CO_reserve < 0 L/min) — {title}\n"
+                f"(top {n} by peak T_rect + bottom {n} by min CO_reserve; "
+                f"stricter than the EHS criterion, CO_reserve ≤ 0.05 L/min)")
     ax.set_xlabel("Time")
     ax.set_ylabel("Cumulative dose (°C · L)")
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
