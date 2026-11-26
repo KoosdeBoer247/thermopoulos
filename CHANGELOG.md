@@ -40,6 +40,16 @@ results of individual field-test participants by group-level statements.
     - `test_pyrox_report.py` always tests the Word export (tables and
       number of images); the Node route is tested too where `npm install`
       was done (CI).
+- **WBGT in the event report from the population window (author's request).**
+  Table 2 showed "n/a" for WBGT, UTCI and rural air temperature: the weather
+  file has them, but `hestia_bridge.build_interp_data` does not pass them on
+  (the command-line route does). `hestia_populatie_ui.interp_voor_rapport()`
+  now adds them, interpolated the same way, to a copy of the time steps used
+  only for the report. The simulation keeps the original time steps, so no
+  result changes (WBGT drives no physiology). Rural globe, MRT, WBGT and UTCI
+  stay "n/a" in this route. Option not taken (author's decision): passing
+  the fields through the bridge itself, which would also change the stored
+  WBGT and the worker window's ISO 7243 check.
 - Display and export only; nothing recomputed.
 
 ## [2026-11-26] Key figure: participants in trouble (EHS and EHE side by side)

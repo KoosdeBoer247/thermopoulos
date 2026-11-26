@@ -350,6 +350,31 @@ class _WeerMeta:
         return dict(self._meta)
 
 
+def interp_voor_rapport(weer_df, interp: list) -> list:
+    """[2026-11-26] Kopie van het interp-venster met de velden die het
+    evenementrapport (tabel 2) zoekt maar die hestia_bridge.build_interp_data
+    niet doorgeeft: landelijke luchttemperatuur, WBGT en UTCI uit het weerbestand
+    (Thermopoulos_Data_Engine). Alleen voor het rapport; de simulatie gebruikt
+    het oorspronkelijke interp-venster en verandert niet. Zelfde interpolatie
+    als de bridge (lineair op de tijdas)."""
+    import numpy as np
+    if not interp:
+        return interp
+    idx = weer_df.index.astype("int64").to_numpy()
+    q = pd.DatetimeIndex([e["time"] for e in interp]).astype("int64").to_numpy()
+    extra = {}
+    for kol, sleutel in (("T_air_rural", "temp_rural"), ("WBGT", "wbgt_precomputed"),
+                         ("UTCI", "utci_precomputed")):
+        if kol in weer_df.columns:
+            v = pd.to_numeric(weer_df[kol], errors="coerce").to_numpy(dtype=float)
+            ok = np.isfinite(v)
+            if ok.sum() >= 2:
+                extra[sleutel] = np.interp(q, idx[ok], v[ok])
+    if not extra:
+        return interp
+    return [{**e, **{k: float(a[i]) for k, a in extra.items()}} for i, e in enumerate(interp)]
+
+
 def maak_evenementrapport(t: PopTaak, r: dict, docx_pad) -> str:
     """[2026-11-25] Evenementrapport (Markdown + Word) met dezelfde gegevens die
     run_hestia.py aan generate_event_report.generate_report() geeft; plots via
@@ -380,7 +405,8 @@ def maak_evenementrapport(t: PopTaak, r: dict, docx_pad) -> str:
             start_time=start_time, duration_hours=duur, activity_description=activiteit,
             n_simulations=len(r["all_results"]), output_path=str(md_pad),
             bridge_summary=build_bridge_summary(r["all_results"], t.interp),
-            plot_paths=plots, interp_data=t.interp, sample_pace=inv.eigen_tempo,
+            plot_paths=plots, interp_data=interp_voor_rapport(t.weer.df, t.interp),
+            sample_pace=inv.eigen_tempo,
             event_dist_km=inv.afstand_km, training_factor=t.tf, acclimatization_factor=t.af,
             population=inv.populatie)
     export_report_docx(tekst, str(docx_pad), report_kind="facts", event_name=naam,
