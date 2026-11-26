@@ -143,8 +143,8 @@ stats = {"percent_first_aid": np.r_[np.linspace(0, 60, 20), [np.nan] * 3],
          "vulnerable_tail_n": 5}
 txt = R.generate_report("Test", _D(), stats, df, "2026-10-18 09:00", 4.4, "test", n,
                         _REPORT_PATH, sample_pace=True, event_dist_km=42.195)
-check("distance shown", "| Afstand | 42.195 km |" in txt)
-check("effective window shown (5.24 h x sweep 1.25 = 6.55 h)", "6.55 uur" in txt and "bezemwagen" in txt)
+check("distance shown", "| Afstand | 42,195 km |" in txt)   # [2026-11-26] decimal comma in the Dutch report
+check("effective window shown (5.24 h x sweep 1.25 = 6.55 h)", "6,55 uur" in txt and "bezemwagen" in txt)
 check("finish time row", "Gesimuleerde finishtijd" in txt)
 check("section 3 uses peak values", "Piek T_rect tijdens de race" in txt)
 tail_line = [l for l in txt.splitlines() if l.startswith("| Gemiddelde piek T_rect in deze groep")][0]
