@@ -38,7 +38,12 @@ naast elkaar te leggen zijn -- en naast een HESTIA-rapport, gezien beide
 generators dezelfde opmaakconventies delen.
 """
 
-from taal import vt, getal
+from taal import vt, getal, duizend
+
+
+def _sg(x, d=2) -> str:
+    """Getal met teken (+/-) en de decimale komma van de taal."""
+    return ("+" if x >= 0 else "") + getal(x, d)
 
 
 from datetime import datetime, timezone
@@ -58,7 +63,7 @@ def _fmt(x, decimals=2, suffix=""):
     except (TypeError, ValueError):
         pass
     try:
-        return f"{float(x):.{decimals}f}{suffix}"
+        return f"{getal(float(x), decimals)}{suffix}"
     except (TypeError, ValueError):
         return str(x)
 
@@ -205,7 +210,7 @@ def generate_klimatos_report(event_name: str,
          f"| Location | {meta.get('city', 'n/a')} ({_fmt(meta.get('latitude'), 4)}, "
       f"{_fmt(meta.get('longitude'), 4)}) |"))
     if meta.get("population"):
-        A(vt(f"| Inwonertal | {meta['population']:,} |", f"| Population | {meta['population']:,} |"))
+        A(vt(f"| Inwonertal | {duizend(meta['population'])} |", f"| Population | {duizend(meta['population'])} |"))
     A(vt(f"| Stedelijk hitte-eiland (UHI) | {'aan' if meta.get('apply_uhi') else 'uit'} |", f"| Urban heat island (UHI) | {'on' if meta.get('apply_uhi') else 'off'} |"))
     A(vt(f"| Referentieperiode | {meta.get('reference_period', ref_label)} |", f"| Reference period | {meta.get('reference_period', ref_label)} |"))
     A(vt(f"| Analyseperiode | {meta.get('analysis_start', 'n.b.')}-{meta.get('analysis_end', 'n.b.')} |", f"| Analysis period | {meta.get('analysis_start', 'n/a')}-{meta.get('analysis_end', 'n/a')} |"))
@@ -243,8 +248,8 @@ def generate_klimatos_report(event_name: str,
             ref_mean = s[(s.index >= ref_window[0]) & (s.index <= ref_window[1])].dropna().mean()
             lat_mean = s[(s.index >= latest_window[0]) & (s.index <= latest_window[1])].dropna().mean()
             diff = lat_mean - ref_mean if pd.notna(ref_mean) and pd.notna(lat_mean) else np.nan
-            A(f"| {label} | {_fmt(ref_mean, 2, ' degC')} | {_fmt(lat_mean, 2, ' degC')} | "
-              f"{_fmt(diff, 2, ' degC') if pd.isna(diff) else f'{diff:+.2f} degC'} |")
+            A(f"| {label} | {_fmt(ref_mean, 2, ' °C')} | {_fmt(lat_mean, 2, ' °C')} | "
+              f"{_fmt(diff, 2, ' °C') if pd.isna(diff) else f'{_sg(diff, 2)} °C'} |")
         A("")
         if plot_paths:
             any_shown = False
@@ -280,8 +285,8 @@ def generate_klimatos_report(event_name: str,
         for _, row in best_rows.iterrows():
             sig = "ja" if row.get("significant", False) else "nee"
             A(f"| {row.get('variable', 'n.b.')} | {row.get('breakpoint', 'n.b.')} | "
-              f"{_fmt(row.get('slope_before'), 4, ' degC/jr')} | "
-              f"{_fmt(row.get('slope_after'), 4, ' degC/jr')} | {sig} |")
+              f"{_fmt(row.get('slope_before'), 4, ' °C/jr')} | "
+              f"{_fmt(row.get('slope_after'), 4, ' °C/jr')} | {sig} |")
         A("")
         A(vt("Generieke statistische toets; zie check_trend_acceleration()'s docstring "
           "in Klimatos_ClimateShift.py voordat een gevonden breekpunt buiten "
@@ -319,12 +324,12 @@ def generate_klimatos_report(event_name: str,
         A("|---|---|---|---|---|---|---|")
         for _, row in event_df.iterrows():
             A(f"| {row.get('variable', 'n.b.')} | "
-              f"{_fmt(row.get('baseline_mean'), 2, ' degC')} | "
-              f"{_fmt(row.get('trend_mean'), 2, ' degC')} | "
-              f"{_fmt(row.get('slope_degC_per_yr'), 4, ' degC/jr')} | "
-              f"{_fmt(row.get('projected_2030'), 2, ' degC')} | "
-              f"{_fmt(row.get('projected_2035'), 2, ' degC')} | "
-              f"{_fmt(row.get('projected_2040'), 2, ' degC')} |")
+              f"{_fmt(row.get('baseline_mean'), 2, ' °C')} | "
+              f"{_fmt(row.get('trend_mean'), 2, ' °C')} | "
+              f"{_fmt(row.get('slope_°C_per_yr'), 4, ' °C/jr')} | "
+              f"{_fmt(row.get('projected_2030'), 2, ' °C')} | "
+              f"{_fmt(row.get('projected_2035'), 2, ' °C')} | "
+              f"{_fmt(row.get('projected_2040'), 2, ' °C')} |")
         A("")
         A(vt("Projecties zijn een naïeve lineaire extrapolatie van de "
           "waargenomen trend, geen fysisch klimaatmodel en geen voorspelling "
@@ -458,34 +463,34 @@ def generate_klimatos_report(event_name: str,
                 if stats is None:
                     continue
                 A(vt(f"- {scen_label} (n={stats['n']} steekproefmomenten): "
-                  f"T_rect mediaan {stats['t_p50']:.2f} degC "
-                  f"({tt - stats['t_p50']:+.2f} t.o.v. de {tt:.1f} degC-drempel), "
-                  f"CO-reserve mediaan {stats['c_p50']:.2f} L/min "
-                  f"({stats['c_p50'] - ct:+.2f} t.o.v. de {ct:.1f} L/min-drempel)",
+                  f"T_rect mediaan {getal(stats['t_p50'], 2)} °C "
+                  f"({_sg(tt - stats['t_p50'], 2)} t.o.v. de {getal(tt, 1)} °C-drempel), "
+                  f"CO-reserve mediaan {getal(stats['c_p50'], 2)} L/min "
+                  f"({_sg(stats['c_p50'] - ct, 2)} t.o.v. de {getal(ct, 1)} L/min-drempel)",
                      f"- {scen_label} (n={stats['n']} sample moments): "
-                  f"T_rect median {stats['t_p50']:.2f} degC "
-                  f"({tt - stats['t_p50']:+.2f} vs the {tt:.1f} degC threshold), "
-                  f"CO reserve median {stats['c_p50']:.2f} L/min "
-                  f"({stats['c_p50'] - ct:+.2f} vs the {ct:.1f} L/min threshold)"))
+                  f"T_rect median {getal(stats['t_p50'], 2)} °C "
+                  f"({_sg(tt - stats['t_p50'], 2)} vs the {getal(tt, 1)} °C threshold), "
+                  f"CO reserve median {getal(stats['c_p50'], 2)} L/min "
+                  f"({_sg(stats['c_p50'] - ct, 2)} vs the {getal(ct, 1)} L/min threshold)"))
                 bn = stats["closest_bottleneck"]
                 if bn > 0:
                     A(vt(f"  dichtstbijzijnde waargenomen combinatie: "
-                      f"T_rect={stats['closest_t']:.2f} degC, "
-                      f"CO_reserve={stats['closest_c']:.2f} L/min "
-                      f"-> {bn:.2f} verwijderd van de moeilijkst te sluiten drempel",
+                      f"T_rect={getal(stats['closest_t'], 2)} °C, "
+                      f"CO_reserve={getal(stats['closest_c'], 2)} L/min "
+                      f"-> {getal(bn, 2)} verwijderd van de moeilijkst te sluiten drempel",
                          f"  closest observed combination: "
-                      f"T_rect={stats['closest_t']:.2f} degC, "
-                      f"CO_reserve={stats['closest_c']:.2f} L/min "
-                      f"-> {bn:.2f} away from the hardest threshold to close"))
+                      f"T_rect={getal(stats['closest_t'], 2)} °C, "
+                      f"CO_reserve={getal(stats['closest_c'], 2)} L/min "
+                      f"-> {getal(bn, 2)} away from the hardest threshold to close"))
                 else:
                     A(vt(f"  dichtstbijzijnde waargenomen combinatie: "
-                      f"T_rect={stats['closest_t']:.2f} degC, "
-                      f"CO_reserve={stats['closest_c']:.2f} L/min "
+                      f"T_rect={getal(stats['closest_t'], 2)} °C, "
+                      f"CO_reserve={getal(stats['closest_c'], 2)} L/min "
                       f"-> beide drempels op dit moment overschreden "
                       f"(momentopname, niet per se een aanhoudende treffer)",
                          f"  closest observed combination: "
-                      f"T_rect={stats['closest_t']:.2f} degC, "
-                      f"CO_reserve={stats['closest_c']:.2f} L/min "
+                      f"T_rect={getal(stats['closest_t'], 2)} °C, "
+                      f"CO_reserve={getal(stats['closest_c'], 2)} L/min "
                       f"-> both thresholds exceeded at this moment "
                       f"(snapshot, not necessarily a sustained hit)"))
             A("")
@@ -555,7 +560,7 @@ def generate_klimatos_report(event_name: str,
                 r = ref_liv[col]
                 l = latest_liv[col]
                 A(f"| {label} | {_fmt(r, 2, ' MET')} | {_fmt(l, 2, ' MET')} | "
-                  f"{(l - r):+.2f} MET |" if pd.notna(r) and pd.notna(l)
+                  f"{_sg((l - r), 2)} MET |" if pd.notna(r) and pd.notna(l)
                   else f"| {label} | n.b. | n.b. | n.b. |")
         A("")
         if plot_paths:
@@ -607,15 +612,15 @@ def generate_klimatos_report(event_name: str,
                                       "humidity falls)")}.get(a["humidity"], a["humidity"])
             A(vt(f"**Vooruitblik.** Elk jaar uit {a['trend_period']} is opgewarmd naar het doeljaar "
               f"met de trend van de zomerse dagmaximumtemperatuur ({a['shift_var']}: "
-              f"{a['slope'] * 10:+.2f} °C per tien jaar, 95%-band {a['slope_lo'] * 10:+.2f} tot "
-              f"{a['slope_hi'] * 10:+.2f}; Mann-Kendall p = {_fmt(a['mk_p'], 3)}); daarbij {hum}. "
+              f"{_sg(a['slope'] * 10, 2)} °C per tien jaar, 95%-band {_sg(a['slope_lo'] * 10, 2)} tot "
+              f"{_sg(a['slope_hi'] * 10, 2)}; Mann-Kendall p = {_fmt(a['mk_p'], 3)}); daarbij {hum}. "
               "Daarna zijn de uren met HEAT-Lim opnieuw berekend en over de jaren gemiddeld. "
               "Rechte voortzetting van de waargenomen opwarming, geen klimaatscenario. Tussen "
               "haakjes: lage en hoge helling.",
                  f"**Outlook.** Each year from {a['trend_period']} has been warmed to the target year "
               f"with the trend of the summer daily maximum temperature ({a['shift_var']}: "
-              f"{a['slope'] * 10:+.2f} °C per ten years, 95% band {a['slope_lo'] * 10:+.2f} to "
-              f"{a['slope_hi'] * 10:+.2f}; Mann-Kendall p = {_fmt(a['mk_p'], 3)}); {hum}. "
+              f"{_sg(a['slope'] * 10, 2)} °C per ten years, 95% band {_sg(a['slope_lo'] * 10, 2)} to "
+              f"{_sg(a['slope_hi'] * 10, 2)}; Mann-Kendall p = {_fmt(a['mk_p'], 3)}); {hum}. "
               "Then the hours have been recalculated with HEAT-Lim and averaged over the years. "
               "Straight continuation of the observed warming, not a climate scenario. In "
               "brackets: low and high slope."))
@@ -624,9 +629,9 @@ def generate_klimatos_report(event_name: str,
               + " | ".join(str(t) for t in tys) + " |")
             A("|---|---|" + "---|" * len(tys))
             for _, r in P.iterrows():
-                cells = [f"{r[str(t)]:.1f} ({r[f'{t}_lo']:.1f}-{r[f'{t}_hi']:.1f})" for t in tys]
+                cells = [f"{getal(r[str(t)], 1)} ({getal(r[f'{t}_lo'], 1)}–{getal(r[f'{t}_hi'], 1)})" for t in tys]
                 A(f"| {profs.get(r.profile, r.profile)}: {names.get(r.metric, r.metric)} | "
-                  f"{r.reference_mean:.1f} | " + " | ".join(cells) + " |")
+                  f"{getal(r.reference_mean, 1)} | " + " | ".join(cells) + " |")
             A("")
         elif liveability_hours_df is not None and len(liveability_hours_df):
             tys = sorted(int(c.split("_")[1]) for c in liveability_hours_df.columns
@@ -645,10 +650,10 @@ def generate_klimatos_report(event_name: str,
               + " | ".join(str(t) for t in tys) + " |")
             A("|---|---|---|" + "---|" * len(tys))
             for _, r in liveability_hours_df.iterrows():
-                cells = [f"{r[f'proj_{t}']:.1f} ({r[f'proj_{t}_lo']:.1f}-{r[f'proj_{t}_hi']:.1f})"
+                cells = [f"{getal(r[f'proj_{t}'], 1)} ({getal(r[f'proj_{t}_lo'], 1)}–{getal(r[f'proj_{t}_hi'], 1)})"
                          for t in tys]
                 A(f"| {profs.get(r.profile, r.profile)}: {names.get(r.metric, r.metric)} | "
-                  f"{r.slope_hours_per_yr:+.2f} | {_fmt(r.mk_p, 3)} | " + " | ".join(cells) + " |")
+                  f"{_sg(r.slope_hours_per_yr, 2)} | {_fmt(r.mk_p, 3)} | " + " | ".join(cells) + " |")
             A("")
         if plot_paths:
             _embed_plot(

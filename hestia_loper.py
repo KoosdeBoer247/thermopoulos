@@ -770,9 +770,9 @@ def risicosignaal(r: LoperResultaat) -> dict:
             vt(f"In de ongunstigste runs loopt de kerntemperatuur op tot {nl(s['t_rect_max']['hi'])} C.", f"In the least favourable runs the core temperature rises to {nl(s['t_rect_max']['hi'])} C."))
     if s["f_ehe"]["frac"] >= SIGNAAL_AANDEEL:
         redenen["oranje"].append(
-            vt(f"In {s['f_ehe']['frac']:.0%} van de runs is de hartreserve op (onder nul) "
+            vt(f"In {s['f_ehe']['frac']:.0%} van de runs is de hartreserve op (≤ 0,05 L/min) "
             f"bij een kerntemperatuur boven 39,5 C: de regeling heeft dan geen marge meer.",
-               f"In {s['f_ehe']['frac']:.0%} of the runs the cardiac reserve is used up (below zero) "
+               f"In {s['f_ehe']['frac']:.0%} of the runs the cardiac reserve is used up (≤ 0.05 L/min) "
             f"at a core temperature above 39.5 C: the control then has no margin left."))
     if s["f_gestopt"]["frac"] >= SIGNAAL_AANDEEL:
         redenen["oranje"].append(

@@ -699,7 +699,7 @@ def plot_individual_timeseries(results: List[Dict], title: str) -> plt.Figure:
 
 def plot_extreme_cohorts_timeseries(all_results: List[List[Dict]], results_df: pd.DataFrame,
                                     title: str, n: int = 10) -> plt.Figure:
-    """Time course (race start -> race end -> 10 min post-finish) for the two
+    """Time course (race start -> race end -> 30 min post-finish) for the two
     most at-risk cohorts: the `n` participants with the highest peak T_rect,
     and the `n` with the lowest minimum CO_reserve. Uses the post-finish
     trajectory hestia_model.py's simulate_post_finish() already computes

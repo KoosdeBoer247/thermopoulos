@@ -602,6 +602,12 @@ def rust_tabel(r: RustResultaat) -> pd.DataFrame:
 # =============================================================================
 # 3. GEBRUIKERSINTERFACE
 # =============================================================================
+def _uur(minuten) -> str:
+    """Duur in minuten -> 'u:mm', zoals het loperrapport (hestia_loper_rapport._uur)."""
+    totaal = int(round(float(minuten)))
+    return f"{totaal // 60}:{totaal % 60:02d}"
+
+
 def _start_ui(na_start=None):
     """na_start: optioneel callable(app, root), alleen voor tests."""
     import tkinter as tk
@@ -1025,9 +1031,9 @@ def _start_ui(na_start=None):
                 t = self._tempo()
                 km = self._f("afstand")
                 self.lbl_tempo.config(text=vt(f"= {hl.min_naar_tempo(t)} min/km, {60 / t:.1f} km/u; "
-                                           f"looptijd ≈ {hl.min_naar_tempo(km * t)} (mm:ss)",
+                                           f"looptijd ≈ {_uur(km * t)} (u:mm)",
                                               f"= {hl.min_naar_tempo(t)} min/km, {60 / t:.1f} km/h; "
-                                           f"running time ≈ {hl.min_naar_tempo(km * t)} (mm:ss)").replace(".", "," if not engels() else ".", 1))
+                                           f"running time ≈ {_uur(km * t)} (h:mm)").replace(".", "," if not engels() else ".", 1))
             except Exception:
                 self.lbl_tempo.config(text="")
 
@@ -1706,7 +1712,7 @@ def _start_ui(na_start=None):
                 ax.scatter(ca[~in_ehe], ta[~in_ehe], s=12, color="steelblue", alpha=0.55, zorder=3,
                            label=vt("zonder hartplafond: tijdstap", "without cardiovascular ceiling: time step"))
                 ax.scatter(ca[in_ehe & ~in_kl], ta[in_ehe & ~in_kl], s=18, color="black", alpha=0.8,
-                           zorder=4, label=vt("voldoet aan EHE (T > 39,5 EN COr < 0)", "meets EHE (T > 39.5 AND COr < 0)"))
+                           zorder=4, label=vt("voldoet aan EHE (T > 39,5 én hartreserve ≤ 0,05)", "meets EHE (T > 39.5 and cardiac reserve ≤ 0.05)"))
                 if in_kl.any():
                     ax.scatter(ca[in_kl], ta[in_kl], s=26, marker="X", color="#8B0000", zorder=4,
                                label=vt("voldoet aan klinisch criterium (T ≥ 40,5 EN COr ≤ 0)", "meets clinical criterion (T ≥ 40.5 AND COr ≤ 0)"))
@@ -1802,13 +1808,13 @@ def _start_ui(na_start=None):
                     f"[{hl.nl(s['co_min']['lo'])}–{hl.nl(s['co_min']['hi'])}] L/min; piekhartslag "
                     f"{s['hr_piek']['med']:.0f}/min; vochtverlies {hl.nl(s['dehyd']['med'])}% "
                     f"(tot {hl.nl(s['dehyd']['hi'])}%); finish ≈ "
-                    f"{hl.min_naar_tempo(s['finish']['med'])} (mm:ss).\n",
+                    f"{_uur(s['finish']['med'])} (u:mm).\n",
                        f"peak T_rect {hl.nl(s['t_rect_max']['med'])} [{hl.nl(s['t_rect_max']['lo'])}–"
                     f"{hl.nl(s['t_rect_max']['hi'])}] °C; lowest CO_reserve {hl.nl(s['co_min']['med'])} "
                     f"[{hl.nl(s['co_min']['lo'])}–{hl.nl(s['co_min']['hi'])}] L/min; peak heart rate "
                     f"{s['hr_piek']['med']:.0f}/min; fluid loss {hl.nl(s['dehyd']['med'])}% "
                     f"(up to {hl.nl(s['dehyd']['hi'])}%); finish ≈ "
-                    f"{hl.min_naar_tempo(s['finish']['med'])} (mm:ss).\n"))
+                    f"{_uur(s['finish']['med'])} (h:mm).\n"))
                 self.txt.insert("end", vt("Modelsignaal: ", "Model signal: "), "vet")
                 self.txt.insert("end", " ".join(r.signaal["redenen"]) + "\n")
                 if s["t_rect_max"]["hi"] > hm.T_THERMAL_ONLY_CRITICAL:
@@ -1920,10 +1926,10 @@ def _start_ui(na_start=None):
                      sub=vt(f"95%-band {hl.nl(co['lo'])}–{hl.nl(co['hi'])} L/min", f"95% band {hl.nl(co['lo'])}–{hl.nl(co['hi'])} L/min"), kleur=kl_c),
                 dict(titel=vt("Grenswaarde bereikt", "Limit value reached"), waarde=kritiek if len(kritiek) < 22 else kritiek.split(" · ")[0],
                      sub=(kritiek.split(" · ")[1] + "; " if " · " in kritiek else "") + sub_k, kleur=kl_k),
-                dict(titel=vt("Looptijd (mediaan, mm:ss)", "Running time (median, mm:ss)"), waarde=hl.min_naar_tempo(s["finish"]["med"]),
-                     sub=vt(f"traagste 2,5%: {hl.min_naar_tempo(s['finish']['hi'])}; vochtverlies "
+                dict(titel=vt("Looptijd (mediaan, u:mm)", "Running time (median, h:mm)"), waarde=_uur(s["finish"]["med"]),
+                     sub=vt(f"traagste 2,5%: {_uur(s['finish']['hi'])}; vochtverlies "
                          f"{hl.nl(s['dehyd']['med'])}%",
-                            f"slowest 2.5%: {hl.min_naar_tempo(s['finish']['hi'])}; fluid loss "
+                            f"slowest 2.5%: {_uur(s['finish']['hi'])}; fluid loss "
                          f"{hl.nl(s['dehyd']['med'])}%"), kleur="#5d6d7e"),
                 dict(titel=vt("Modelsignaal", "Model signal"), waarde=hl.SIGNAAL_TEKST.get(sig.get("kleur"), "—"),
                      sub=vt(f"n = {t.n} ensemble-leden", f"n = {t.n} ensemble members"), kleur=SIGNAAL_KLEUR.get(sig.get("kleur"), "#7f8c8d")),

@@ -35,9 +35,71 @@ evenement) zodat rapporten van verschillende evenementen direct naast
 elkaar te leggen zijn.
 """
 
-from taal import vt, getal
+from taal import vt, getal, duizend
 
 NB = vt("n.b.", "n/a")   # not available
+
+
+def _g(x) -> str:
+    """Kortste notatie (:g) met de decimale komma van de taal."""
+    return f"{x:g}".replace(".", vt(",", "."))
+
+
+def criteria_betekenis() -> dict:
+    """[2026-11-26] Kerncijfer 'deelnemers in de problemen': het EHS- en het
+    EHE-criterium naast elkaar, met hun betekenis. Gedeeld met het
+    populatievenster (hestia_populatie_ui), zodat venster en rapport hetzelfde
+    zeggen. Alleen tekst; de criteria zelf staan in hestia_bridge /
+    individual_engine."""
+    return {
+        "ehs_naam": vt("EHS-criterium (ernstig)", "EHS criterion (severe)"),
+        "ehe_naam": vt("EHE-criterium (in de problemen)", "EHE criterion (in trouble)"),
+        "ehs_def": vt("kerntemperatuur ≥ 40,5 °C én hartreserve op (≤ 0,05 L/min) op hetzelfde moment, "
+                      "tijdens de loop of in de 30 minuten na de finish",
+                      "core temperature ≥ 40.5 °C and cardiac reserve used up (≤ 0.05 L/min) at the same moment, "
+                      "during the run or in the 30 minutes after the finish"),
+        "ehe_def": vt("kerntemperatuur > 39,5 °C én hartreserve op (≤ 0,05 L/min) op hetzelfde moment, "
+                      "tijdens de loop",
+                      "core temperature > 39.5 °C and cardiac reserve used up (≤ 0.05 L/min) at the same moment, "
+                      "during the run"),
+        "ehs_betekenis": vt(
+            "EHS staat voor exertional heat stroke, inspanningsgebonden hitteberoerte. Bij een mens is dat "
+            "een levensbedreigende noodsituatie: een kerntemperatuur boven ongeveer 40 °C met verstoring van de "
+            "hersenfuncties (verwardheid, vreemd gedrag, bewusteloosheid). Snel koelen ter plaatse is nodig. "
+            "Het model heeft geen hersenen; het telt iemand wanneer het lichaam zijn warmte niet meer kwijt kan, "
+            "omdat het hart geen bloed meer over heeft om die naar de huid te brengen.",
+            "EHS stands for exertional heat stroke. In a person it is a life-threatening emergency: a core "
+            "temperature above about 40 °C with disturbed brain function (confusion, odd behaviour, loss of "
+            "consciousness). Rapid cooling on site is needed. The model has no brain; it counts someone when the "
+            "body can no longer lose its heat because the heart has no blood left to carry it to the skin."),
+        "ehe_betekenis": vt(
+            "EHE staat voor exertional heat exhaustion, hitte-uitputting. Iemand kan door de hitte niet meer "
+            "verder: zwakte, duizeligheid, misselijkheid, soms flauwvallen, maar zonder de verstoring van de "
+            "hersenfuncties van een hitteberoerte. Met rust, koelen en drinken herstelt het meestal snel; zonder "
+            "behandeling kan het overgaan in een hitteberoerte. Het model telt iemand bij een lagere "
+            "temperatuurgrens dan bij EHS, dus dit getal is meestal hoger.",
+            "EHE stands for exertional heat exhaustion. The heat stops someone from going on: weakness, "
+            "dizziness, nausea, sometimes fainting, but without the disturbed brain function of heat stroke. "
+            "With rest, cooling and drinking it usually resolves quickly; without treatment it can progress to "
+            "heat stroke. The model counts someone at a lower temperature limit than for EHS, so this number is "
+            "usually higher."),
+        "interval": vt(
+            "Het 95%-interval (Clopper-Pearson) zegt hoe nauwkeurig het percentage is bij dit aantal "
+            "gesimuleerde deelnemers. Het zegt niets over hoe goed het model zelf is. Het zijn tellingen van het "
+            "model, niet van werkelijke patiënten, en ze zijn niet afgesteld op waargenomen aantallen. Bij weinig "
+            "of geen treffers is het interval breed; meer deelnemers simuleren maakt het smaller.",
+            "The 95% interval (Clopper-Pearson) shows how precise the percentage is for this number of "
+            "simulated participants. It says nothing about how good the model itself is. These are counts by the "
+            "model, not of real patients, and they are not tuned to observed numbers. With few or no hits the "
+            "interval is wide; simulating more participants makes it narrower."),
+    }
+
+
+def pct_interval(res: dict) -> str:
+    """'0,5% (95%-interval 0,1–1,8%)' in de taal van het venster/rapport."""
+    d = 2 if res["hi"] < 0.01 else 1
+    return vt(f"{getal(100 * res['point'], d)}% (95%-interval {getal(100 * res['lo'], d)}–{getal(100 * res['hi'], d)}%)",
+              f"{100 * res['point']:.{d}f}% (95% interval {100 * res['lo']:.{d}f}–{100 * res['hi']:.{d}f}%)")
 
 
 from datetime import datetime, timezone
@@ -89,7 +151,7 @@ def _fmt(x, decimals=2, suffix=""):
             return NB
     except TypeError:
         return NB
-    return f"{float(x):.{decimals}f}{suffix}"
+    return f"{getal(float(x), decimals)}{suffix}"
 
 
 def generate_report(event_name: str,
@@ -206,6 +268,36 @@ def generate_report(event_name: str,
       "and their provenance. No recommendations or advice have been "
       "added.**"))
     A("")
+
+    # [2026-11-26] Kerncijfer: deelnemers in de problemen (EHS en EHE naast elkaar)
+    A(vt("## Kerncijfer: deelnemers in de problemen", "## Key figure: participants in trouble"))
+    A("")
+    if bridge_summary and bridge_summary.get("n_simulations_used"):
+        from uncertainty import fraction_interval
+        _cb = criteria_betekenis()
+        _n = int(bridge_summary["n_simulations_used"])
+        A(vt("| Criterium | Wanneer telt het model iemand | Aantal | Percentage |",
+             "| Criterion | When the model counts someone | Number | Percentage |"))
+        A("|---|---|---|---|")
+        for _k in ("ehs", "ehe"):
+            _hits = int(bridge_summary.get(f"n_true_{_k}_hits", 0))
+            A(f"| {_cb[_k + '_naam']} | {_cb[_k + '_def']} | {_hits} / {duizend(_n)} | "
+              f"{pct_interval(fraction_interval(_hits, _n))} |")
+        A("")
+        A(_cb["ehs_betekenis"])
+        A("")
+        A(_cb["ehe_betekenis"])
+        A("")
+        A("*" + _cb["interval"] + "*")
+        A("")
+        A(vt("Het gekalibreerde collapse-risico (sectie 5) en de Falmouth- en dosis-respons-EHS (sectie 11) zijn andere "
+             "schattingen. Ze staan in dit rapport ter vergelijking, niet als kerncijfer.",
+             "The calibrated collapse risk (section 5) and the Falmouth and dose–response EHS (section 11) are other "
+             "estimates. They are in this report for comparison, not as the key figure."))
+    else:
+        A(vt("Niet beschikbaar voor deze run (geen `bridge_summary` doorgegeven aan `generate_report()`).",
+             "Not available for this run (no `bridge_summary` passed to `generate_report()`)."))
+    A("")
     A("---")
     A("")
 
@@ -215,26 +307,26 @@ def generate_report(event_name: str,
     A(f"| | |")
     A(f"|---|---|")
     A(vt(f"| Evenement | {event_name} |", f"| Event | {event_name} |"))
-    A(vt(f"| Plaats | {meta['city']} ({meta['latitude']:.4f}, {meta['longitude']:.4f}) |", f"| Location | {meta['city']} ({meta['latitude']:.4f}, {meta['longitude']:.4f}) |"))
+    A(vt(f"| Plaats | {meta['city']} ({getal(meta['latitude'], 4)}; {getal(meta['longitude'], 4)}) |", f"| Location | {meta['city']} ({getal(meta['latitude'], 4)}, {getal(meta['longitude'], 4)}) |"))
     A(vt(f"| Starttijd simulatie | {start_time} |", f"| Simulation start time | {start_time} |"))
     # [2026-10-14] Distance was missing from the report, and with
     # sample_pace=True the displayed duration was the user-entered value,
     # not the window actually simulated (run_hestia widens it to
     # PACE_MIN_PER_KM_CEILING * event_dist_km so the slowest runner fits).
     if event_dist_km:
-        A(vt(f"| Afstand | {event_dist_km:g} km |", f"| Distance | {event_dist_km:g} km |"))
+        A(vt(f"| Afstand | {_g(event_dist_km)} km |", f"| Distance | {_g(event_dist_km)} km |"))
     _eff_hours = duration_hours
     if sample_pace and event_dist_km:
         _eff_hours = max(duration_hours, hestia.race_window_hours(event_dist_km))
     if abs(_eff_hours - duration_hours) > 1e-6:
-        A(vt(f"| Duur simulatie | {_eff_hours:.2f} uur (opgegeven {duration_hours:.2f} uur; "
+        A(vt(f"| Duur simulatie | {getal(_eff_hours, 2)} uur (opgegeven {getal(duration_hours, 2)} uur; "
           f"verlengd zodat de langzaamste gesamplede deelnemer binnen het venster valt",
-             f"| Simulation duration | {_eff_hours:.2f} h (entered {duration_hours:.2f} h; "
+             f"| Simulation duration | {getal(_eff_hours, 2)} h (entered {getal(duration_hours, 2)} h; "
           f"extended so that the slowest sampled participant falls within the window")
-          + (vt(f", plus ruimte voor vertragen tot de bezemwagen (×{hestia.RACE_SWEEP_FACTOR:g})", f", plus room for slowing down until the sweeper bus (×{hestia.RACE_SWEEP_FACTOR:g})")
+          + (vt(f", plus ruimte voor vertragen tot de bezemwagen (×{_g(hestia.RACE_SWEEP_FACTOR)})", f", plus room for slowing down until the sweeper bus (×{_g(hestia.RACE_SWEEP_FACTOR)})")
              if hestia.RACE_DISTANCE_MODE else "") + ") |")
     else:
-        A(vt(f"| Duur simulatie | {duration_hours:.2f} uur |", f"| Simulation duration | {duration_hours:.2f} h |"))
+        A(vt(f"| Duur simulatie | {getal(duration_hours, 2)} uur |", f"| Simulation duration | {getal(duration_hours, 2)} h |"))
     A(vt(f"| Activiteit | {activity_description} |", f"| Activity | {activity_description} |"))
     # [2026-09] Previously absent from the report entirely: whether
     # sample_pace was used changes the collapse-risk/CVS-index/EHE
@@ -263,12 +355,12 @@ def generate_report(event_name: str,
     if results_df is not None and 'pct_vo2max' in getattr(results_df, 'columns', []):
         _pv = results_df['pct_vo2max'].astype(float)
         _met = results_df['implied_met_initial'].astype(float) if 'implied_met_initial' in results_df.columns else None
-        _txt = (vt(f"mediaan {_pv.median()*100:.0f}% (P05-P95: {_pv.quantile(.05)*100:.0f}-"
-                f"{_pv.quantile(.95)*100:.0f}%)",
-                   f"median {_pv.median()*100:.0f}% (P05-P95: {_pv.quantile(.05)*100:.0f}-"
-                f"{_pv.quantile(.95)*100:.0f}%)"))
+        _txt = (vt(f"mediaan {getal(_pv.median()*100, 0)}% (P05-P95: {getal(_pv.quantile(.05)*100, 0)}-"
+                f"{getal(_pv.quantile(.95)*100, 0)}%)",
+                   f"median {getal(_pv.median()*100, 0)}% (P05-P95: {getal(_pv.quantile(.05)*100, 0)}-"
+                f"{getal(_pv.quantile(.95)*100, 0)}%)"))
         if _met is not None:
-            _txt += vt(f"; MET mediaan {_met.median():.1f} (P05-P95: {_met.quantile(.05):.1f}-{_met.quantile(.95):.1f})", f"; MET median {_met.median():.1f} (P05-P95: {_met.quantile(.05):.1f}-{_met.quantile(.95):.1f})")
+            _txt += vt(f"; MET mediaan {getal(_met.median(), 1)} (P05-P95: {getal(_met.quantile(.05), 1)}-{getal(_met.quantile(.95), 1)})", f"; MET median {getal(_met.median(), 1)} (P05-P95: {getal(_met.quantile(.05), 1)}-{getal(_met.quantile(.95), 1)})")
         A(vt(f"| Gesimuleerde intensiteit (% VO2max; MET) | {_txt} |", f"| Simulated intensity (% VO2max; MET) | {_txt} |"))
         if 'finish_time_h' in results_df.columns and (results_df['finish_time_h'] > 0).any():
             _ft = results_df['finish_time_h'].astype(float)
@@ -277,8 +369,8 @@ def generate_report(event_name: str,
             _line = vt(f"mediaan {_hm(_ft.median())} (P05-P95: {_hm(_ft.quantile(.05))}-{_hm(_ft.quantile(.95))})", f"median {_hm(_ft.median())} (P05-P95: {_hm(_ft.quantile(.05))}-{_hm(_ft.quantile(.95))})")
             if 'gender' in results_df.columns:
                 _parts = []
-                for _g, _lab in (('male', vt('mannen', 'men')), ('female', vt('vrouwen', 'women'))):
-                    _sub = _ft[results_df['gender'] == _g]
+                for _gs, _lab in (('male', vt('mannen', 'men')), ('female', vt('vrouwen', 'women'))):
+                    _sub = _ft[results_df['gender'] == _gs]
                     if len(_sub):
                         _parts.append(f"{_lab} {_hm(_sub.median())}")
                 if _parts:
@@ -292,12 +384,12 @@ def generate_report(event_name: str,
           f"{_fmt(training_factor, 2)} / {_fmt(acclimatization_factor, 2)} |",
              f"| Training / acclimatisation (factor 0-1) | "
           f"{_fmt(training_factor, 2)} / {_fmt(acclimatization_factor, 2)} |"))
-    A(vt(f"| Aantal gesimuleerde deelnemers | {n_simulations:,} |", f"| Number of simulated participants | {n_simulations:,} |"))
+    A(vt(f"| Aantal gesimuleerde deelnemers | {duizend(n_simulations)} |", f"| Number of simulated participants | {duizend(n_simulations)} |"))
     A(vt(f"| Gebruikt collapse-risico-eindpunt | {ep_label} |", f"| Collapse-risk endpoint used | {ep_label} |"))
     A(vt(f"| Kalibratiestatus van dit eindpunt | {ep_status} |", f"| Calibration status of this endpoint | {ep_status} |"))
     A(vt(f"| Bron van het kalibratiedoel | {ep_source} |", f"| Source of the calibration target | {ep_source} |"))
     if ep_pobs is not None:
-        A(vt(f"| Kalibratiedoel (P_obs) | {ep_pobs*10000:.2f} per 10.000 |", f"| Calibration target (P_obs) | {ep_pobs*10000:.2f} per 10,000 |"))
+        A(vt(f"| Kalibratiedoel (P_obs) | {getal(ep_pobs*10000, 2)} per 10.000 |", f"| Calibration target (P_obs) | {getal(ep_pobs*10000, 2)} per 10,000 |"))
     A(vt(f"| Gekalibreerde intercept | {_fmt(intercept, 6)} |", f"| Calibrated intercept | {_fmt(intercept, 6)} |"))
     if documented_reference:
         A(vt(f"| Gedocumenteerd referentiecijfer voor dit evenement | {documented_reference} |", f"| Documented reference figure for this event | {documented_reference} |"))
@@ -351,30 +443,30 @@ def generate_report(event_name: str,
             if not vals:
                 A(f"| {label} | {NB} | {NB} | {NB} |")
                 return
-            A(f"| {label} | {min(vals):.{precision}f}{unit} | "
-              f"{(sum(vals)/len(vals)):.{precision}f}{unit} | {max(vals):.{precision}f}{unit} |")
+            A(f"| {label} | {getal(min(vals), precision)}{unit} | "
+              f"{getal(sum(vals)/len(vals), precision)}{unit} | {getal(max(vals), precision)}{unit} |")
         A(vt("| Grootheid | Minimum | Gemiddelde | Maximum |", "| Quantity | Minimum | Mean | Maximum |"))
         A("|---|---|---|---|")
-        _stat_row(vt("Luchttemperatuur, ruraal (T_air)", "Air temperature, rural (T_air)"), "temp_rural", " degC")
-        _stat_row(vt("Luchttemperatuur, stedelijk (T_air, incl. UHI)", "Air temperature, urban (T_air, incl. UHI)"), "temp", " degC")
+        _stat_row(vt("Luchttemperatuur, ruraal (T_air)", "Air temperature, rural (T_air)"), "temp_rural", " °C")
+        _stat_row(vt("Luchttemperatuur, stedelijk (T_air, incl. UHI)", "Air temperature, urban (T_air, incl. UHI)"), "temp", " °C")
         _stat_row(vt("Relatieve luchtvochtigheid", "Relative humidity"), "rh", "%", 0)
         _stat_row(vt("Windsnelheid", "Wind speed"), "wind", " m/s", 1)
-        _stat_row(vt("Globetemperatuur, ruraal", "Globe temperature, rural"), "globe_temp_rural", " degC")
-        _stat_row(vt("Globetemperatuur, stedelijk", "Globe temperature, urban"), "globe_temp", " degC")
-        _stat_row(vt("Stralingstemperatuur (MRT), ruraal", "Radiant temperature (MRT), rural"), "mrt_rural", " degC")
-        _stat_row(vt("Stralingstemperatuur (MRT), stedelijk", "Radiant temperature (MRT), urban"), "mrt", " degC")
-        _stat_row(vt("WBGT, ruraal", "WBGT, rural"), "wbgt_rural", " degC")
-        _stat_row(vt("WBGT, stedelijk", "WBGT, urban"), "wbgt_precomputed", " degC")
-        _stat_row(vt("UTCI, ruraal", "UTCI, rural"), "utci_rural", " degC")
-        _stat_row(vt("UTCI, stedelijk", "UTCI, urban"), "utci_precomputed", " degC")
+        _stat_row(vt("Globetemperatuur, ruraal", "Globe temperature, rural"), "globe_temp_rural", " °C")
+        _stat_row(vt("Globetemperatuur, stedelijk", "Globe temperature, urban"), "globe_temp", " °C")
+        _stat_row(vt("Stralingstemperatuur (MRT), ruraal", "Radiant temperature (MRT), rural"), "mrt_rural", " °C")
+        _stat_row(vt("Stralingstemperatuur (MRT), stedelijk", "Radiant temperature (MRT), urban"), "mrt", " °C")
+        _stat_row(vt("WBGT, ruraal", "WBGT, rural"), "wbgt_rural", " °C")
+        _stat_row(vt("WBGT, stedelijk", "WBGT, urban"), "wbgt_precomputed", " °C")
+        _stat_row(vt("UTCI, ruraal", "UTCI, rural"), "utci_rural", " °C")
+        _stat_row(vt("UTCI, stedelijk", "UTCI, urban"), "utci_precomputed", " °C")
         A("")
         A(vt(f"Gebaseerd op {len(interp_data)} geïnterpoleerde tijdstappen over de volledige "
-          f"gesimuleerde periode ({start_time}, {_eff_hours:.2f} uur). De simulatie zelf "
+          f"gesimuleerde periode ({start_time}, {getal(_eff_hours, 2)} uur). De simulatie zelf "
           f"gebruikt de stedelijke waarden als invoer. \"n.b.\" betekent dat de brondata dit "
           f"veld niet meegaf; HESTIA valt in dat geval voor de simulatie zelf intern terug op "
           f"een eigen berekening die hier niet apart gerapporteerd wordt.",
              f"Based on {len(interp_data)} interpolated time steps over the full "
-          f"simulated period ({start_time}, {_eff_hours:.2f} h). The simulation itself "
+          f"simulated period ({start_time}, {getal(_eff_hours, 2)} h). The simulation itself "
           f"uses the urban values as input. \"n/a\" means that the source data did not "
           f"provide this field; in that case HESTIA falls back internally on its own "
           f"calculation for the simulation, which is not reported separately here."))
@@ -395,24 +487,24 @@ def generate_report(event_name: str,
     _has_df = results_df is not None and 'max_t_rect' in getattr(results_df, 'columns', [])
     if _has_df:
         _pk = results_df['max_t_rect'].astype(float)
-        A(vt(f"| Piek T_rect tijdens de race, gemiddelde | {_pk.mean():.2f} °C |", f"| Peak T_rect during the race, mean | {_pk.mean():.2f} °C |"))
-        A(vt(f"| Piek T_rect, P05 – P95 | {_pk.quantile(.05):.2f} – {_pk.quantile(.95):.2f} °C |", f"| Peak T_rect, P05 – P95 | {_pk.quantile(.05):.2f} – {_pk.quantile(.95):.2f} °C |"))
-        A(vt(f"| Piek T_rect, P97,5 | {_pk.quantile(.975):.2f} °C |", f"| Peak T_rect, P97.5 | {_pk.quantile(.975):.2f} °C |"))
-        A(vt(f"| Piek T_rect, P99 | {_pk.quantile(.99):.2f} °C |", f"| Peak T_rect, P99 | {_pk.quantile(.99):.2f} °C |"))
+        A(vt(f"| Piek T_rect tijdens de race, gemiddelde | {getal(_pk.mean(), 2)} °C |", f"| Peak T_rect during the race, mean | {getal(_pk.mean(), 2)} °C |"))
+        A(vt(f"| Piek T_rect, P05 – P95 | {getal(_pk.quantile(.05), 2)} – {getal(_pk.quantile(.95), 2)} °C |", f"| Peak T_rect, P05 – P95 | {getal(_pk.quantile(.05), 2)} – {getal(_pk.quantile(.95), 2)} °C |"))
+        A(vt(f"| Piek T_rect, P97,5 | {getal(_pk.quantile(.975), 2)} °C |", f"| Peak T_rect, P97.5 | {getal(_pk.quantile(.975), 2)} °C |"))
+        A(vt(f"| Piek T_rect, P99 | {getal(_pk.quantile(.99), 2)} °C |", f"| Peak T_rect, P99 | {getal(_pk.quantile(.99), 2)} °C |"))
         if 'max_t_rect_incl_postfinish' in results_df.columns:
             _pk2 = results_df['max_t_rect_incl_postfinish'].astype(float)
-            A(vt(f"| Piek T_rect incl. 10 min na de finish, gemiddelde / P99 | "
-              f"{_pk2.mean():.2f} / {_pk2.quantile(.99):.2f} °C |",
-                 f"| Peak T_rect incl. 10 min after the finish, mean / P99 | "
-              f"{_pk2.mean():.2f} / {_pk2.quantile(.99):.2f} °C |"))
+            A(vt(f"| Piek T_rect incl. 30 min na de finish, gemiddelde / P99 | "
+              f"{getal(_pk2.mean(), 2)} / {getal(_pk2.quantile(.99), 2)} °C |",
+                 f"| Peak T_rect incl. 30 min after the finish, mean / P99 | "
+              f"{getal(_pk2.mean(), 2)} / {getal(_pk2.quantile(.99), 2)} °C |"))
         if 'max_rpe' in results_df.columns:
-            A(vt(f"| Piek ervaren inspanning (RPE, Borg 6-20), gemiddelde | {results_df['max_rpe'].astype(float).mean():.1f} |", f"| Peak perceived exertion (RPE, Borg 6-20), mean | {results_df['max_rpe'].astype(float).mean():.1f} |"))
+            A(vt(f"| Piek ervaren inspanning (RPE, Borg 6-20), gemiddelde | {getal(results_df['max_rpe'].astype(float).mean(), 1)} |", f"| Peak perceived exertion (RPE, Borg 6-20), mean | {getal(results_df['max_rpe'].astype(float).mean(), 1)} |"))
         if 'pacing_reductie_pct' in results_df.columns:
             _pr = results_df['pacing_reductie_pct'].astype(float)
             A(vt(f"| Tempo-aanpassing door de pacing-regelkring (max. MET-reductie), mediaan / P95 | "
-              f"{_pr.median():.1f}% / {_pr.quantile(.95):.1f}% |",
+              f"{getal(_pr.median(), 1)}% / {getal(_pr.quantile(.95), 1)}% |",
                  f"| Pace adjustment by the pacing control loop (max. MET reduction), median / P95 | "
-              f"{_pr.median():.1f}% / {_pr.quantile(.95):.1f}% |"))
+              f"{getal(_pr.median(), 1)}% / {getal(_pr.quantile(.95), 1)}% |"))
     else:
         A(vt(f"| Gemiddelde kern-temperatuur (T_rect), laatste tijdstap | {_fmt(stats.get('mean_t_rect'), 2, ' °C')} |", f"| Mean core temperature (T_rect), last time step | {_fmt(stats.get('mean_t_rect'), 2, ' °C')} |"))
     _stopped = stats.get('percent_stopped')
@@ -432,6 +524,13 @@ def generate_report(event_name: str,
       f"{_fmt(_fa_max, 1, '%')} |",
          f"| Screening flag (T_rect≥40.5°C or fluid loss≥2% or RPE≥17), highest share of participants still active | "
       f"{_fmt(_fa_max, 1, '%')} |"))
+    # [2026-11-26] Same flag at the end of each participant's run (what the
+    # population window shows), so window and report show the same pair.
+    if bridge_summary and bridge_summary.get("pct_first_aid") is not None:
+        A(vt(f"| Screeningsvlag aan het eind van de loop (laatste tijdstap per deelnemer) | "
+             f"{_fmt(bridge_summary.get('pct_first_aid'), 1, '%')} |",
+             f"| Screening flag at the end of the run (last time step per participant) | "
+             f"{_fmt(bridge_summary.get('pct_first_aid'), 1, '%')} |"))
     A(vt(f"| % deelnemers in fysiologisch niet-vol te houden toestand | {_fmt(stats.get('percent_unliveable'), 1, '%')} |", f"| % participants in a physiologically unsustainable state | {_fmt(stats.get('percent_unliveable'), 1, '%')} |"))
     A("")
     A(vt("De screeningsvlag is een bewust ruime signaleringsgrens, geen voorspelling "
@@ -456,7 +555,7 @@ def generate_report(event_name: str,
     A("")
 
     # ------------------------------------------------------------------ #
-    A(vt("## 5. Collapse-risico", "## 5. Collapse risk"))
+    A(vt("## 5. Collapse-risico (gekalibreerd model, ter vergelijking)", "## 5. Collapse risk (calibrated model, for comparison)"))
     A("")
     # [2026-10-17] Make explicit that this is a model quantity, not a
     # diagnosis (external review 2026-10-17, point 4.1).
@@ -495,7 +594,7 @@ def generate_report(event_name: str,
     A("")
     A(vt("| Grootheid | Waarde |", "| Quantity | Value |"))
     A("|---|---|")
-    A(vt(f"| % deelnemers dat de conjunctieve grens (T_rect>40,5°C ÉN CO_reserve≤0) bereikt na de finish | {_fmt(stats.get('pct_ehs_postfinish'), 2, '%')} |", f"| % participants reaching the conjunctive limit (T_rect>40.5°C AND CO_reserve≤0) after the finish | {_fmt(stats.get('pct_ehs_postfinish'), 2, '%')} |"))
+    A(vt(f"| % deelnemers dat de conjunctieve grens (T_rect>40,5°C ÉN hartreserve op, ≤ 0,05 L/min) bereikt in de 30 minuten na de finish | {_fmt(stats.get('pct_ehs_postfinish'), 2, '%')} |", f"| % participants reaching the conjunctive limit (T_rect>40.5°C AND cardiac reserve used up, ≤ 0.05 L/min) in the 30 minutes after the finish | {_fmt(stats.get('pct_ehs_postfinish'), 2, '%')} |"))
     # [2026-10-20 late] EAC-staan; above WBGT 28 degC no number, only "zeer hoog".
     if stats.get('eac_buiten_bereik'):
         _eac = (vt(f"zeer hoog (WBGT {_fmt(stats.get('wbgt_race_max_p50'), 1)} °C; boven 28 °C "
@@ -506,7 +605,12 @@ def generate_report(event_name: str,
         _eac = _sig(stats.get('eac_per_1000'))
         if _eac != NB:
             _eac += vt(" (voorlopig: gekalibreerd op één referentiepunt, Dam tot Dam / Naidoo 2022; niet gevalideerd)", " (provisional: calibrated on one reference point, Dam tot Dam / Naidoo 2022; not validated)")
-    A(vt(f"| Collaps bij staan na de finish (EAC), verwacht per 1.000 deelnemers | {_eac} |", f"| Collapse when standing after the finish (EAC), expected per 1,000 participants | {_eac} |"))
+    A(vt(f"| EAC-kans (model): collaps bij staan na de finish, verwacht per 1.000 deelnemers | {_eac} |", f"| EAC probability (model): collapse when standing after the finish, expected per 1,000 participants | {_eac} |"))
+    if bridge_summary and bridge_summary.get("n_true_eac_hits") is not None:
+        A(vt(f"| EAC-criterium (telling): hartreserve onder nul in de nafase, deelnemers | "
+             f"{bridge_summary['n_true_eac_hits']} / {duizend(n_simulations)} |",
+             f"| EAC criterion (count): cardiac reserve below zero after the finish, participants | "
+             f"{bridge_summary['n_true_eac_hits']} / {duizend(n_simulations)} |"))
     A("")
 
     # ------------------------------------------------------------------ #
@@ -523,14 +627,14 @@ def generate_report(event_name: str,
       f"{_fmt(stats.get('pct_thermal_only_critical'), 2, '%')} |"))
     A("")
     A(vt("De laatste regel hierboven staat los van het conjunctieve klinische "
-      "criterium in sectie 11 (dat CO_reserve≤0 vereist naast T_rect>40,5°C). "
+      "EHS-criterium (kerncijfer en sectie 11; dat vereist een opgebruikte hartreserve naast T_rect ≥ 40,5°C). "
       "Bij piek-kerntemperatuur boven ~42°C kan directe thermische celschade "
       "aan hersenweefsel optreden ongeacht cardiovasculaire status (Hubbard: "
       "humane kritieke-temperatuurgrens 41,6-42,0°C; Gähwiler et al. 1972: "
       "onomkeerbare neuronale schade vanaf 42-43°C) -- een tweede, van "
       "CO_reserve onafhankelijk pad naar CZS-uitval.",
          "The last row above is separate from the conjunctive clinical "
-      "criterion in section 11 (which requires CO_reserve≤0 as well as T_rect>40.5°C). "
+      "EHS criterion (key figure and section 11; it requires a used-up cardiac reserve as well as T_rect ≥ 40.5°C). "
       "At a peak core temperature above ~42°C, direct thermal cell damage "
       "to brain tissue can occur regardless of cardiovascular status (Hubbard: "
       "human critical temperature limit 41.6-42.0°C; Gähwiler et al. 1972: "
@@ -583,14 +687,14 @@ def generate_report(event_name: str,
     A("")
     A(vt(f"Deelnemers die op minstens één van de twee onderliggende, continue "
       f"assen (piek-T_rect of cvs_index_max) op of boven het "
-      f"{EENZIJDIG_EXTREEM_PERCENTIEL:g}e percentiel van déze run zitten, "
+      f"{_g(EENZIJDIG_EXTREEM_PERCENTIEL)}e percentiel van déze run zitten, "
       f"maar niet al worden gesignaleerd door het EHE- of klinisch "
       f"criterium (die vereisen dat T_rect ÉN CO_reserve allebei over hun "
       f"grens gaan). Dit is een diagnostische aanvulling, geen apart "
       f"risicocijfer -- zie sectie 11 voor de bestaande (conjunctieve) "
       f"criteria.",
          f"Participants who are at or above the "
-      f"{EENZIJDIG_EXTREEM_PERCENTIEL:g}th percentile of this run on at least one of the two "
+      f"{_g(EENZIJDIG_EXTREEM_PERCENTIEL)}th percentile of this run on at least one of the two "
       f"underlying continuous axes (peak T_rect or cvs_index_max), "
       f"but are not already flagged by the EHE or clinical "
       f"criterion (which require T_rect AND CO_reserve both to cross their "
@@ -602,7 +706,7 @@ def generate_report(event_name: str,
         n_gemist = int(results_df['gemist_door_bestaande_criteria'].sum())
         A(vt(f"| Grootheid | Waarde |", f"| Quantity | Value |"))
         A(f"|---|---|")
-        A(vt(f"| Drempel voor 'eenzijdig extreem' | {EENZIJDIG_EXTREEM_PERCENTIEL:g}e percentiel |", f"| Threshold for 'one-sided extreme' | {EENZIJDIG_EXTREEM_PERCENTIEL:g}th percentile |"))
+        A(vt(f"| Drempel voor 'eenzijdig extreem' | {_g(EENZIJDIG_EXTREEM_PERCENTIEL)}e percentiel |", f"| Threshold for 'one-sided extreme' | {_g(EENZIJDIG_EXTREEM_PERCENTIEL)}th percentile |"))
         A(vt(f"| Aantal eenzijdig extreem, totaal | {int(results_df['eenzijdig_extreem'].sum())} |", f"| Number one-sided extreme, total | {int(results_df['eenzijdig_extreem'].sum())} |"))
         A(vt(f"| Waarvan niet al gevangen door EHE/klinisch | {n_gemist} |", f"| Of which not already caught by EHE/clinical | {n_gemist} |"))
         A("")
@@ -615,9 +719,9 @@ def generate_report(event_name: str,
               "Thermal percentile | Cardiovascular percentile |"))
             A("|---|---|---|---|---|")
             for _, r in gemist_df.head(30).iterrows():
-                A(f"| {int(r['participant_id'])} | {r['max_t_rect']:.2f} | "
-                  f"{r['cvr_co_reserve_min']:.2f} | {r['thermisch_percentiel']:.1f} | "
-                  f"{r['cardiovasculair_percentiel']:.1f} |")
+                A(f"| {int(r['participant_id'])} | {getal(r['max_t_rect'], 2)} | "
+                  f"{getal(r['cvr_co_reserve_min'], 2)} | {getal(r['thermisch_percentiel'], 1)} | "
+                  f"{getal(r['cardiovasculair_percentiel'], 1)} |")
             if n_gemist > 30:
                 A(f"")
                 A(vt(f"*(eerste 30 van {n_gemist} getoond, gesorteerd op thermisch percentiel; "
@@ -663,11 +767,11 @@ def generate_report(event_name: str,
       "a participant experiences (own speed of movement "
       "combined with ambient wind) is simulated per participant with a "
       "random angle."))
-    A(vt(f"- Deze run gebruikte {n_simulations:,} gesimuleerde deelnemers.", f"- This run used {n_simulations:,} simulated participants."))
+    A(vt(f"- Deze run gebruikte {duizend(n_simulations)} gesimuleerde deelnemers.", f"- This run used {duizend(n_simulations)} simulated participants."))
     A("")
 
     # ------------------------------------------------------------------ #
-    A(vt("## 11. Falmouth-EHS / EHE / klinisch criterium", "## 11. Falmouth EHS / EHE / clinical criterion"))
+    A(vt("## 11. Details van het EHS- en EHE-criterium; Falmouth- en dosis-respons-EHS ter vergelijking", "## 11. Details of the EHS and EHE criteria; Falmouth and dose–response EHS for comparison"))
     A("")
     if bridge_summary is None:
         A(vt("Deze laag was niet beschikbaar voor deze run (geen `bridge_summary` "
@@ -686,30 +790,42 @@ def generate_report(event_name: str,
           f"{_sig(bridge_summary.get('falmouth_ehs_per_1000'))} |",
              f"| Falmouth EHS (epidemiological, temperature only; DeMartini et al. 2014), per 1,000 | "
           f"{_sig(bridge_summary.get('falmouth_ehs_per_1000'))} |"))
+        # [2026-11-26] dose-response EHS, as the population window shows it
+        try:
+            from uncertainty import ehs_interval
+            _ei = ehs_interval(bridge_summary.get("cumulative_doses_all") or [],
+                               bridge_summary.get("mean_t_air_used_for_falmouth"))
+        except Exception:
+            _ei = {"error": "n/a"}
+        if "error" not in _ei:
+            A(vt(f"| Dosis-respons-EHS, per 1.000 (bereik: ondergrens van de onzekerheid, geen 95%-betrouwbaarheidsinterval) | "
+                 f"{getal(_ei['point_per_1000'], 2)} ({getal(_ei['lo_per_1000'], 2)}–{getal(_ei['hi_per_1000'], 2)}) |",
+                 f"| Dose–response EHS, per 1,000 (range: lower bound on the uncertainty, not a 95% confidence interval) | "
+                 f"{getal(_ei['point_per_1000'], 2)} ({getal(_ei['lo_per_1000'], 2)}–{getal(_ei['hi_per_1000'], 2)}) |"))
         n_ehe = bridge_summary.get('n_true_ehe_hits')
         n_ehs = bridge_summary.get('n_true_ehs_hits')
-        A(vt(f"| EHE-criterium (T_rect>39,5°C ÉN CO_reserve<0), % deelnemers | "
+        A(vt(f"| EHE-criterium (T_rect>39,5°C ÉN hartreserve ≤ 0,05 L/min, tijdens de loop), % deelnemers | "
           f"{_fmt(bridge_summary.get('pct_true_ehe_criterion'), 2, '%')} "
-          f"({n_ehe if n_ehe is not None else '?'}/{n_simulations:,}) |",
-             f"| EHE criterion (T_rect>39.5°C AND CO_reserve<0), % participants | "
+          f"({n_ehe if n_ehe is not None else '?'}/{duizend(n_simulations)}) |",
+             f"| EHE criterion (T_rect>39.5°C AND cardiac reserve ≤ 0.05 L/min, during the run), % participants | "
           f"{_fmt(bridge_summary.get('pct_true_ehe_criterion'), 2, '%')} "
-          f"({n_ehe if n_ehe is not None else '?'}/{n_simulations:,}) |"))
-        A(vt(f"| Klinisch criterium (T_rect≥40,5°C ÉN CO_reserve≤0), % deelnemers | "
+          f"({n_ehe if n_ehe is not None else '?'}/{duizend(n_simulations)}) |"))
+        A(vt(f"| EHS-criterium (T_rect≥40,5°C ÉN hartreserve ≤ 0,05 L/min, loop + 30 min na de finish), % deelnemers | "
           f"{_fmt(bridge_summary.get('pct_true_ehs_criterion'), 2, '%')} "
-          f"({n_ehs if n_ehs is not None else '?'}/{n_simulations:,}) |",
-             f"| Clinical criterion (T_rect≥40.5°C AND CO_reserve≤0), % participants | "
+          f"({n_ehs if n_ehs is not None else '?'}/{duizend(n_simulations)}) |",
+             f"| EHS criterion (T_rect≥40.5°C AND cardiac reserve ≤ 0.05 L/min, run + 30 min after the finish), % participants | "
           f"{_fmt(bridge_summary.get('pct_true_ehs_criterion'), 2, '%')} "
-          f"({n_ehs if n_ehs is not None else '?'}/{n_simulations:,}) |"))
+          f"({n_ehs if n_ehs is not None else '?'}/{duizend(n_simulations)}) |"))
         A("")
         # [2026-10-14] Definitions made explicit: both criteria require the
         # two conditions at the SAME moment; EHE counts the race only, the
         # clinical criterion the race plus the 10-min post-finish window.
         A(vt("Beide criteria vereisen dat de twee voorwaarden op hetzelfde moment "
-          "gelden. Het EHE-criterium telt alleen de race; het klinisch "
-          "criterium telt de race én de 10 minuten na de finish.",
+          "gelden. Het EHE-criterium telt alleen de race; het EHS-"
+          "criterium telt de race én de 30 minuten na de finish.",
              "Both criteria require the two conditions to hold at the same "
-          "moment. The EHE criterion counts only the race; the clinical "
-          "criterion counts the race and the 10 minutes after the finish."))
+          "moment. The EHE criterion counts only the race; the EHS "
+          "criterion counts the race and the 30 minutes after the finish."))
         A("")
         if not n_ehe or not n_ehs:
             A(vt("Een uitkomst van 0% op een van beide criteria hierboven betekent niet "
@@ -821,13 +937,13 @@ def generate_report(event_name: str,
          "for men and women -- shows whether the risk is concentrated "
          "in specific age groups, or spread evenly over "
          "the whole age range.")),
-        ("plot7_", vt("Het volledige tijdsverloop (start tot 10 minuten na de "
+        ("plot7_", vt("Het volledige tijdsverloop (start tot 30 minuten na de "
          "finish) van kerntemperatuur en hartminuutvolume-reserve voor de "
          "tien deelnemers met de hoogste piektemperatuur, plus de tien met "
          "de laagste reserve -- laat zien wannéér in de race deze twee "
          "groepen risico begonnen te lopen, en of dat vóór of ná de finish "
          "gebeurde.",
-                      "The full time course (start to 10 minutes after the "
+                      "The full time course (start to 30 minutes after the "
          "finish) of core temperature and cardiac-output reserve for the "
          "ten participants with the highest peak temperature, plus the ten with "
          "the lowest reserve -- shows when in the race these two "

@@ -250,29 +250,32 @@ def format_margin_lines(label: str, stats) -> list:
     used identically by generate_event_report.py and (as its own copy) by
     Klimatos.ClimateShift.py, so the two report the same numbers the same
     way. [2026-11-25] Dutch or English via taal.vt (display only)."""
-    from taal import vt
+    from taal import vt, getal
+
+    def _sgn(x, d):
+        return ("+" if x >= 0 else "") + getal(x, d)
     if stats is None:
         return [vt(f"{label}: geen steekproefdata beschikbaar.", f"{label}: no sample data available.")]
     tt, ct = stats["t_threshold"], stats["c_threshold"]
     tp50, tp95, cp50, cp05 = stats["t_p50"], stats["t_p95"], stats["c_p50"], stats["c_p05"]
     lines = [
         vt(f"{label} (n={stats['n']} steekproefmomenten):", f"{label} (n={stats['n']} sample moments):"),
-        vt(f"  T_rect     mediaan {tp50:.2f} degC ({tt - tp50:+.2f} tov de {tt:.1f} degC-drempel), "
-           f"95e pct {tp95:.2f} degC ({tt - tp95:+.2f} tov drempel)",
-           f"  T_rect     median {tp50:.2f} degC ({tt - tp50:+.2f} from the {tt:.1f} degC threshold), "
-           f"95th pct {tp95:.2f} degC ({tt - tp95:+.2f} from threshold)"),
-        vt(f"  CO-reserve mediaan {cp50:.2f} L/min ({cp50 - ct:+.2f} tov de {ct:.1f} L/min-drempel), "
-           f"5e pct {cp05:.2f} L/min ({cp05 - ct:+.2f} tov drempel)",
-           f"  CO reserve median {cp50:.2f} L/min ({cp50 - ct:+.2f} from the {ct:.1f} L/min threshold), "
-           f"5th pct {cp05:.2f} L/min ({cp05 - ct:+.2f} from threshold)"),
+        vt(f"  T_rect     mediaan {getal(tp50, 2)} °C ({_sgn(tt - tp50, 2)} tov de {getal(tt, 1)} °C-drempel), "
+           f"95e pct {getal(tp95, 2)} °C ({_sgn(tt - tp95, 2)} tov drempel)",
+           f"  T_rect     median {getal(tp50, 2)} °C ({_sgn(tt - tp50, 2)} from the {getal(tt, 1)} °C threshold), "
+           f"95th pct {getal(tp95, 2)} °C ({_sgn(tt - tp95, 2)} from threshold)"),
+        vt(f"  CO-reserve mediaan {getal(cp50, 2)} L/min ({_sgn(cp50 - ct, 2)} tov de {getal(ct, 1)} L/min-drempel), "
+           f"5e pct {getal(cp05, 2)} L/min ({_sgn(cp05 - ct, 2)} tov drempel)",
+           f"  CO reserve median {getal(cp50, 2)} L/min ({_sgn(cp50 - ct, 2)} from the {getal(ct, 1)} L/min threshold), "
+           f"5th pct {getal(cp05, 2)} L/min ({_sgn(cp05 - ct, 2)} from threshold)"),
     ]
     bn = stats["closest_bottleneck"]
-    combi = f"T_rect={stats['closest_t']:.2f} degC, CO_reserve={stats['closest_c']:.2f} L/min"
+    combi = f"T_rect={getal(stats['closest_t'], 2)} °C, CO_reserve={getal(stats['closest_c'], 2)} L/min"
     if bn > 0:
         lines.append(vt(f"  dichtstbijzijnde waargenomen combinatie: {combi} "
-                        f"-> {bn:.2f} verwijderd van de moeilijkst te sluiten drempel",
+                        f"-> {getal(bn, 2)} verwijderd van de moeilijkst te sluiten drempel",
                         f"  closest observed combination: {combi} "
-                        f"-> {bn:.2f} away from the hardest threshold to close"))
+                        f"-> {getal(bn, 2)} away from the hardest threshold to close"))
     else:
         lines.append(vt(f"  dichtstbijzijnde waargenomen combinatie: {combi} "
                         f"-> beide drempels op dit moment overschreden "

@@ -8,6 +8,62 @@ Entries up to 2026-10-24 were written during development; names of people
 in personal communications have been replaced by their institution, and
 results of individual field-test participants by group-level statements.
 
+## [2026-11-26] Key figure: participants in trouble (EHS and EHE side by side)
+
+- **Why:** a check of one run in the population window against its event
+  report showed numbers that look alike but differ in definition (three
+  "per 1000" figures, two "EHS" names, a screening share and an EAC figure
+  measured differently). No calculation was wrong; the naming was.
+- **Author's decision:** the key figure is the share of simulated
+  participants in trouble by two criteria side by side, each with its 95%
+  Clopper-Pearson interval and a short explanation of what EHS (exertional
+  heat stroke) and EHE (exertional heat exhaustion) mean:
+    - EHS criterion (severe): core ≥ 40.5 °C and cardiac reserve used up
+      (≤ 0.05 L/min) at the same moment, during the run or in the 10 minutes
+      after the finish;
+    - EHE criterion (in trouble): core > 39.5 °C and cardiac reserve used up
+      at the same moment, during the run.
+  The interval covers sampling only, not model quality; the counts are the
+  model's and are not tuned to observed numbers.
+- **Event report:** new section "Key figure: participants in trouble" at the
+  top; section 5 (calibrated collapse risk) and section 11 (Falmouth EHS)
+  marked "for comparison"; "clinical criterion" renamed "EHS criterion".
+- **Population window:** header line and first two tiles show the EHS and EHE
+  criteria with intervals; the risk bar is titled "for comparison"; the
+  dose-response EHS range is no longer labelled "95%" (it is a lower bound
+  on the uncertainty, per `uncertainty.py`).
+- **Follow-up the same day (author's request):**
+    - **Post-finish window corrected to 30 minutes in all texts.** The suite
+      simulates the finish zone for 30 minutes with JOS-3
+      (`PF_JOS3_DUUR_MIN`), and the EHS criterion and the post-finish peak
+      use that window; several texts (event report, personal report,
+      criterion definitions) still said 10 minutes. Remaining "10 min"
+      mentions are in the old `simulate_post_finish()` path
+      (`PF_JOS3 = False`) and the retired Streamlit pages.
+    - **Decimal comma** throughout the Dutch event report and in the margin
+      lines (`hestia_bridge.format_margin_lines`, now °C instead of degC).
+    - **Screening flag** shown as the same pair in window and report: at the
+      end of the run (last time step) and the highest share during the run.
+    - **EAC** shown in both as "EAC criterion (count)" and "EAC probability
+      (model, per 1000)".
+    - **Comparison estimates** the same in both: calibrated collapse risk,
+      Falmouth EHS and dose–response EHS (the latter now also in the report,
+      section 11, labelled as a lower bound on the uncertainty).
+    - **Cardiac-reserve limit** written the same everywhere ("used up,
+      ≤ 0.05 L/min").
+- **Same checks on the other reports (author's request):**
+    - **Decimal comma** in the Dutch PYROX and Klimatos reports (`_fmt`,
+      daily heat loads, slopes, margin lines, tables); °C instead of degC in
+      the Klimatos report. PYROX group names stay as they are (author's
+      decision).
+    - **Runner window and report:** the conjunctive count is named
+      "EHS criterion during the run" and EHE is written as "cardiac reserve
+      used up (≤ 0.05 L/min)", as in the population window; the running time
+      is shown as h:mm in window and report alike.
+- Texts shared between window and report via
+  `generate_event_report.criteria_betekenis()` and `pct_interval()`.
+  Display only; nothing recomputed.
+
 ## [2026-11-25] Word reports from the HESTIA interfaces; personal report corrected and bilingual
 
 - **Author's decision:** a Word report button in the HESTIA runner and

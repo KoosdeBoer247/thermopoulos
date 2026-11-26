@@ -317,6 +317,7 @@ def eindresultaat(t: PopTaak) -> dict:
     samen["pct_dose_response_ehs"] = hb._dose_response_pct_patched(samen["cumulative_doses_all"],
                                                                     mean_t_air)
     samen["ehs_interval"] = ehs_interval(samen["cumulative_doses_all"], mean_t_air)
+    samen["falmouth_ehs_per_1000"] = hb.falmouth_ehs_per_1000(mean_t_air)   # [2026-11-26] as in the event report
     n = samen["n_simulations_used"]
     samen["fi"] = {k: fraction_interval(samen[f"n_true_{k}_hits"], n) for k in ("ehs", "ehe", "eac")}
     # Thermisch kritiek: dezelfde regel als pct_thermal_only_critical in
@@ -356,7 +357,7 @@ def maak_evenementrapport(t: PopTaak, r: dict, docx_pad) -> str:
     op het interp-venster van deze berekening. Rekent niets opnieuw."""
     _, _, hm, _, _ = _suite()
     from pathlib import Path
-    from generate_event_report import generate_report
+    from generate_event_report import generate_report, _g
     from hestia_bridge import build_bridge_summary
     from hestia_plots import generate_population_plots
     from report_to_docx import export_report_docx
@@ -368,10 +369,10 @@ def maak_evenementrapport(t: PopTaak, r: dict, docx_pad) -> str:
     figuren = docx_pad.with_name(docx_pad.stem + vt("_figuren", "_figures"))
     plots = generate_population_plots(r["all_results"], r["results_df"], r["stats"],
                                       _WeerMeta(t.weer).city, start_time, duur, str(figuren))
-    activiteit = (vt(f"Per deelnemer eigen pace/MET, clo {inv.clo}; opgegeven nominale MET {t.met} "
+    activiteit = (vt(f"Per deelnemer eigen pace/MET, clo {_g(inv.clo)}; opgegeven nominale MET {_g(t.met)} "
                      f"wordt in deze modus niet gebruikt",
-                     f"Own pace/MET per participant, clo {inv.clo}; the nominal MET {t.met} entered "
-                     f"is not used in this mode") if inv.eigen_tempo else f"MET {t.met}, clo {inv.clo}")
+                     f"Own pace/MET per participant, clo {_g(inv.clo)}; the nominal MET {_g(t.met)} entered "
+                     f"is not used in this mode") if inv.eigen_tempo else f"MET {_g(t.met)}, clo {_g(inv.clo)}")
     naam = f"{inv.evenement} {inv.datum}"
     with _vervang(hm, "ACTIVE_ENDPOINT", inv.eindpunt):
         tekst = generate_report(
@@ -1122,7 +1123,7 @@ def _start_ui(na_start=None):
             a.set_xticks([])
             a.minorticks_off()
             if r is None:
-                titel = vt("Risicobalk: verwachte collapsen per 1000 — berekenen …", "Risk bar: expected collapses per 1000 — calculating …")
+                titel = vt("Ter vergelijking: gekalibreerd collapsrisico per 1000 — berekenen …", "For comparison: calibrated collapse risk per 1000 — calculating …")
             else:
                 st = r["stats"]
                 v = float(st.get("expected_collapses_per_1000", np.nan))
@@ -1136,7 +1137,7 @@ def _start_ui(na_start=None):
                            markeredgecolor="black", markeredgewidth=2, zorder=5)
                 kort = {"ehs": vt("EHS (Boston, Breslow 2021)", "EHS (Boston, Breslow 2021)"), "hospitalisation": vt("ziekenhuisopname (DtD 2024)", "hospital admission (DtD 2024)"),
                         "first_aid": vt("EHBO-contact (DtD 2024)", "first-aid contact (DtD 2024)")}.get(self.taak.inv.eindpunt, self.taak.inv.eindpunt)
-                titel = (vt(f"Verwachte collapsen per 1000: {nl(v, 1)}  ·  klasse {klasse(v)[2]}  ·  eindpunt {kort}", f"Expected collapses per 1000: {nl(v, 1)}  ·  class {klasse(v)[2]}  ·  endpoint {kort}")
+                titel = (vt(f"Ter vergelijking: gekalibreerd collapsrisico {nl(v, 1)} per 1000  ·  {klasse(v)[2]}  ·  {kort}", f"For comparison: calibrated collapse risk {nl(v, 1)} per 1000  ·  {klasse(v)[2]}  ·  {kort}")
                          + f"  ·  n = {self.taak.n}"
                          + (vt("  ·  voorlopig", "  ·  provisional") if not self.taak.volledig else ""))
             self.rb_fig.suptitle(titel, fontsize=11, y=0.99)
@@ -1148,14 +1149,14 @@ def _start_ui(na_start=None):
                 self.lbl_kop.config(text="  —  ", bg="#dddddd", fg="black")
                 return
             s = r["samen"]
-            fi = s["fi"]["ehs"]
+            n = s["n_simulations_used"]
+
+            def kort_pct(res):
+                d = 2 if res["hi"] < 0.01 else 1
+                return f"{nl(100 * res['point'], d)}% ({nl(100 * res['lo'], d)}–{nl(100 * res['hi'], d)}%)"
             self.lbl_kop.config(
-                text=vt(f"  EHS-criterium: {s['n_true_ehs_hits']} van {s['n_simulations_used']} "
-                     f"({fi['point']:.0%}; 95%: {fi['lo']:.0%}–{fi['hi']:.0%})  ·  "
-                     f"> {nl(hm.T_THERMAL_ONLY_CRITICAL, 0)} °C: {s['n_thermisch_kritiek']}  ",
-                        f"  EHS criterion: {s['n_true_ehs_hits']} of {s['n_simulations_used']} "
-                     f"({fi['point']:.0%}; 95%: {fi['lo']:.0%}–{fi['hi']:.0%})  ·  "
-                     f"> {nl(hm.T_THERMAL_ONLY_CRITICAL, 0)} °C: {s['n_thermisch_kritiek']}  "),
+                text=(f"  EHS {s['n_true_ehs_hits']}/{n}: {kort_pct(s['fi']['ehs'])}  ·  "
+                      f"EHE {s['n_true_ehe_hits']}/{n}: {kort_pct(s['fi']['ehe'])}  "),
                 bg="#34495e", fg="white")
 
         def _toon_tegels(self):
@@ -1171,16 +1172,13 @@ def _start_ui(na_start=None):
             fi = s["fi"]["ehs"]
             n = s["n_simulations_used"]
             pk = s["peak_t_rect_p95"]
+            from generate_event_report import criteria_betekenis, pct_interval
+            cb = criteria_betekenis()
             items = [
-                dict(titel=vt("Collapsrisico per 1000", "Collapse risk per 1000"), waarde=nl(v, 1) if np.isfinite(v) else "—",
-                     sub=(vt(f"klasse {kl[2]}; ", f"class {kl[2]}; ") if kl else "") + vt(f"kalibratie-intercept ±0,5: {nl(vlo, 1)}–{nl(vhi, 1)}"
-                         f"; eindpunt {t.inv.eindpunt} ({ep['status']})",
-                                                                  f"calibration intercept ±0.5: {nl(vlo, 1)}–{nl(vhi, 1)}"
-                         f"; endpoint {t.inv.eindpunt} ({ep['status']})"),
-                     kleur=KLASSE_KLEUR[kl[1]] if kl else "#7f8c8d"),
-                dict(titel=vt("EHS-criterium (telling)", "EHS criterion (count)"), waarde=vt(f"{s['n_true_ehs_hits']} van {n}", f"{s['n_true_ehs_hits']} of {n}"),
-                     sub=vt(f"{fi['point']:.1%}; 95%-marge door steekproef {fi['lo']:.1%}–{fi['hi']:.1%}", f"{fi['point']:.1%}; 95% sampling margin {fi['lo']:.1%}–{fi['hi']:.1%}")
-                         .replace(".", vt(",", ".")), kleur="#34495e"),
+                dict(titel=cb["ehs_naam"], waarde=vt(f"{s['n_true_ehs_hits']} van {n}", f"{s['n_true_ehs_hits']} of {n}"),
+                     sub=pct_interval(fi), kleur=KL["rood"] if s["n_true_ehs_hits"] else "#34495e"),
+                dict(titel=cb["ehe_naam"], waarde=vt(f"{s['n_true_ehe_hits']} van {n}", f"{s['n_true_ehe_hits']} of {n}"),
+                     sub=pct_interval(s["fi"]["ehe"]), kleur=KL["oranje"] if s["n_true_ehe_hits"] else "#34495e"),
                 dict(titel=vt(f"Kerntemperatuur > {nl(hm.T_THERMAL_ONLY_CRITICAL, 0)} °C", f"Core temperature > {nl(hm.T_THERMAL_ONLY_CRITICAL, 0)} °C"),
                      waarde=vt(f"{s['n_thermisch_kritiek']} van {n}", f"{s['n_thermisch_kritiek']} of {n}"),
                      sub=vt("deelnemers waar het model buiten zijn getoetste gebied rekent", "participants for whom the model calculates outside its tested range"),
@@ -1193,13 +1191,14 @@ def _start_ui(na_start=None):
                      sub=vt("de 5% deelnemers met de minste hartreserve", "the 5% of participants with the lowest cardiac reserve"), kleur="#5d6d7e"),
             ]
             uitleg = (vt(f"Gebaseerd op {n} gesimuleerde deelnemers (seed {t.seed}, "
-                      f"{'volledige run' if t.volledig else 'snelle schatting'}). In de risicobalk is de zwarte "
-                      "streep de gevoeligheid voor het kalibratie-intercept, niet de steekproefmarge; die staat bij "
-                      "de EHS-telling. Een risicoklasse is een modelschatting, geen vaststaande uitkomst.",
+                         f"{'volledige run' if t.volledig else 'snelle schatting'}). ",
                          f"Based on {n} simulated participants (seed {t.seed}, "
-                      f"{'full run' if t.volledig else 'quick estimate'}). In the risk bar the black "
-                      "line is the sensitivity to the calibration intercept, not the sampling margin; that is shown with "
-                      "the EHS count. A risk class is a model estimate, not a fixed outcome."))
+                         f"{'full run' if t.volledig else 'quick estimate'}). ")
+                      + "EHS: " + cb["ehs_def"] + ". EHE: " + cb["ehe_def"] + ". " + cb["interval"]
+                      + vt(" De risicobalk bovenaan is een andere schatting, ter vergelijking; "
+                           "de zwarte streep daarin is de gevoeligheid voor het kalibratie-intercept.",
+                           " The risk bar at the top is another estimate, for comparison; "
+                           "its black line is the sensitivity to the calibration intercept."))
             self.tegels.zet(items, uitleg)
             nu = pd.Timestamp.now(tz=t.start_aware.tz)
             hist = t.start_aware < nu
@@ -1253,10 +1252,16 @@ def _start_ui(na_start=None):
                     pct = int(round((1 - res["alpha"]) * 100))
                     return (f"{res['point']:.0%} ({res['k']} of {res['n']}; "
                             f"{pct}% interval {res['lo']:.0%}\u2013{res['hi']:.0%})")
+                from generate_event_report import criteria_betekenis
+                cb = criteria_betekenis()
                 ins("end", vt("Criteria (aantal deelnemers): ", "Criteria (number of participants): "), "vet")
-                ins("end", f"EHS {format_fraction_interval(s['fi']['ehs'])}; "
-                           f"EHE {format_fraction_interval(s['fi']['ehe'])}; "
-                           f"EAC {format_fraction_interval(s['fi']['eac'])}.\n")
+                from generate_event_report import pct_interval
+                ins("end", f"{cb['ehs_naam']} {s['n_true_ehs_hits']} " + vt("van", "of") + f" {s['n_simulations_used']}, "
+                           f"{pct_interval(s['fi']['ehs'])}; {cb['ehe_naam']} {s['n_true_ehe_hits']} " + vt("van", "of")
+                           + f" {s['n_simulations_used']}, {pct_interval(s['fi']['ehe'])}; "
+                           + vt("EAC-criterium (telling, hartreserve onder nul in de nafase) ", "EAC criterion (count, cardiac reserve below zero after the finish) ") + f"{format_fraction_interval(s['fi']['eac'])}.\n")
+                ins("end", vt("Betekenis: ", "Meaning: "), "vet")
+                ins("end", cb["ehs_betekenis"] + " " + cb["ehe_betekenis"] + " " + cb["interval"] + "\n")
                 ins("end", vt(f"Thermisch kritiek (piek-T_rect tijdens de loop > {nl(hm.T_THERMAL_ONLY_CRITICAL)} °C, "
                            "pct_thermal_only_critical): ",
                               f"Thermally critical (peak T_rect during the run > {nl(hm.T_THERMAL_ONLY_CRITICAL)} °C, "
@@ -1278,28 +1283,40 @@ def _start_ui(na_start=None):
                                "earlier', not as a realistic course. They do not always count in the EHS criterion, "
                                "because that also requires CO_reserve ≤ 0.05.\n"), "waarsch")
                 ei = s["ehs_interval"]
-                ins("end", vt("Dosis-respons-EHS: ", "Dose–response EHS: "), "vet")
+                ins("end", vt("Ter vergelijking (andere schattingen) — dosis-respons-EHS: ", "For comparison (other estimates) — dose–response EHS: "), "vet")
                 if "error" not in ei:
                     ins("end", vt(f"{nl(ei['point_per_1000'], 2)} per 1000 "
-                               f"(95%: {nl(ei['lo_per_1000'], 2)}–{nl(ei['hi_per_1000'], 2)}).  ",
+                               f"(bereik {nl(ei['lo_per_1000'], 2)}–{nl(ei['hi_per_1000'], 2)}; een ondergrens van de "
+                               f"onzekerheid, geen 95%-betrouwbaarheidsinterval).  ",
                                   f"{nl(ei['point_per_1000'], 2)} per 1000 "
-                               f"(95%: {nl(ei['lo_per_1000'], 2)}–{nl(ei['hi_per_1000'], 2)}).  "))
+                               f"(range {nl(ei['lo_per_1000'], 2)}–{nl(ei['hi_per_1000'], 2)}; a lower bound on the "
+                               f"uncertainty, not a 95% confidence interval).  "))
                 ep = EP[t.inv.eindpunt]
                 ins("end", vt("Collapsrisico (", "Collapse risk (") + ep["label"] + ", " + ep["status"] + "): ", "vet")
-                ins("end", vt(f"{nl(st.get('expected_collapses_per_1000', float('nan')), 2)} per 1000 verwacht.\n", f"{nl(st.get('expected_collapses_per_1000', float('nan')), 2)} per 1000 expected.\n"))
+                ins("end", vt(f"{nl(st.get('expected_collapses_per_1000', float('nan')), 2)} per 1000 verwacht. ", f"{nl(st.get('expected_collapses_per_1000', float('nan')), 2)} per 1000 expected. "))
+                ins("end", vt("Falmouth-EHS: ", "Falmouth EHS: "), "vet")
+                ins("end", f"{nl(s.get('falmouth_ehs_per_1000', float('nan')), 1)} per 1000. ")
+                ins("end", vt("EAC-kans (model): ", "EAC probability (model): "), "vet")
+                eac_txt = (vt("zeer hoog (WBGT boven 28 °C)", "very high (WBGT above 28 °C)") if st.get("eac_buiten_bereik")
+                           else nl(float(st.get("eac_per_1000", float("nan"))), 1))
+                ins("end", eac_txt + " per 1000.\n")
+                _fa = np.asarray(st.get("percent_first_aid", [np.nan]), dtype=float)
+                fa_max = float(np.nanmax(_fa)) if _fa.size and not np.all(np.isnan(_fa)) else float("nan")
                 ins("end", vt("Verder: ", "Further: "), "vet")
                 ins("end", vt(f"piek-T_rect gemiddeld {nl(s['peak_t_rect_mean'], 2)} °C, p95 "
                            f"{nl(s['peak_t_rect_p95'], 2)} °C; laagste CO_reserve p5 "
                            f"{nl(st.get('co_reserve_min_p05', float('nan')), 2)} L/min; uitdroging p95 "
-                           f"{nl(st.get('dehy_pct_p95', float('nan')))}%; EHBO-aanleiding "
-                           f"{nl(s['pct_first_aid'])}% (brede screening, geen incidentkans); gestopt op RPE "
+                           f"{nl(st.get('dehy_pct_p95', float('nan')))}%; screeningsvlag aan het eind van de loop "
+                           f"{nl(s['pct_first_aid'])}%, hoogste aandeel onderweg {nl(fa_max)}% (brede screening, geen "
+                           f"voorspelling van EHBO-contacten); gestopt op RPE "
                            f"{nl(r['pct_gestopt'])}%; Roberts-kritiek "
                            f"{nl(st.get('pct_roberts_kritiek', float('nan')))}%.\n",
                               f"peak T_rect mean {nl(s['peak_t_rect_mean'], 2)} °C, p95 "
                            f"{nl(s['peak_t_rect_p95'], 2)} °C; lowest CO_reserve p5 "
                            f"{nl(st.get('co_reserve_min_p05', float('nan')), 2)} L/min; dehydration p95 "
-                           f"{nl(st.get('dehy_pct_p95', float('nan')))}%; first-aid trigger "
-                           f"{nl(s['pct_first_aid'])}% (broad screening, not an incident probability); stopped on RPE "
+                           f"{nl(st.get('dehy_pct_p95', float('nan')))}%; screening flag at the end of the run "
+                           f"{nl(s['pct_first_aid'])}%, highest share during the run {nl(fa_max)}% (broad screening, not a "
+                           f"prediction of first-aid contacts); stopped on RPE "
                            f"{nl(r['pct_gestopt'])}%; Roberts critical "
                            f"{nl(st.get('pct_roberts_kritiek', float('nan')))}%.\n"))
             grens = 20.0 * (1.0 - 0.15 * tf)

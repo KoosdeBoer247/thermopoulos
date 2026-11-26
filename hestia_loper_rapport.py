@@ -348,21 +348,21 @@ def maak_rapport(r: LoperResultaat, plots: dict, pad: str | Path) -> Path:
             f"warmteproductie en het weer. JOS-3 is ontwikkeld en getoetst voor rust en lichte "
             f"activiteit. Voor hardlopen is het in deze suite alleen vergeleken met metingen van "
             f"tien lopers op één koele dag, en deels daarop aangepast; bij warm weer nog niet. "
-            f"Bij koel weer kan de berekende kerntemperatuur enkele tienden te hoog uitvallen. Na de finish rekent het model nog 10 minuten door: "
+            f"Bij koel weer kan de berekende kerntemperatuur enkele tienden te hoog uitvallen. Na de finish rekent het model nog 30 minuten door (uitlopen, staan, zitten): "
             f"de temperatuur stijgt dan eerst nog, omdat je lichaam nawarmte afgeeft terwijl "
             f"de rijwind wegvalt.",
                f"The body model JOS-3 calculates your rectal temperature every 10 minutes from your "
             f"heat production and the weather. JOS-3 was developed and tested for rest and light "
             f"activity. For running, this suite has only compared it with measurements of "
             f"ten runners on one cool day, and partly adjusted it to them; not yet in warm weather. "
-            f"In cool weather the calculated core temperature may be a few tenths too high. After the finish the model calculates 10 more minutes: "
+            f"In cool weather the calculated core temperature may be a few tenths too high. After the finish the model calculates 30 more minutes (walking out, standing, sitting): "
             f"the temperature first keeps rising, because your body releases stored heat while "
             f"the air flow from running stops."))
     _p(doc, vt(f"Piek tijdens de loop: {nl(tm['med'])} °C (95% van de runs tussen {nl(tm['lo'])} en "
-            f"{nl(tm['hi'])} °C). Piek inclusief de eerste 10 minuten na de finish: "
+            f"{nl(tm['hi'])} °C). Piek inclusief de 30 minuten na de finish: "
             f"{nl(s['t_rect_max_pf']['med'])} °C (tot {nl(s['t_rect_max_pf']['hi'])} °C).",
                f"Peak during the run: {nl(tm['med'])} °C (95% of runs between {nl(tm['lo'])} and "
-            f"{nl(tm['hi'])} °C). Peak including the first 10 minutes after the finish: "
+            f"{nl(tm['hi'])} °C). Peak including the 30 minutes after the finish: "
             f"{nl(s['t_rect_max_pf']['med'])} °C (up to {nl(s['t_rect_max_pf']['hi'])} °C)."))
     _figuur(doc, plots.get("kerntemperatuur"),
             vt("Figuur 2. Rectale temperatuur. De band toont 95% van je runs; de stippellijn markeert de finish.", "Figure 2. Rectal temperature. The band shows 95% of your runs; the dotted line marks the finish."))
@@ -440,7 +440,7 @@ def maak_rapport(r: LoperResultaat, plots: dict, pad: str | Path) -> Path:
                  f"median {nl(s['roberts']['med'])}, unfavourable {nl(s['roberts']['hi'])} °C·min; "
               f"above {AUC_ROBERTS_GRENS:.0f}: {_frac_tekst(s['f_roberts'])}"),
               vt("Klinische grens 60 °C·min (Roberts 2007/2010)", "Clinical limit 60 °C·min (Roberts 2007/2010)")],
-             [vt("Gelijktijdig ≥ 40,5 °C en reserve op", "At the same time ≥ 40.5 °C and reserve used up"),
+             [vt("EHS-criterium tijdens de loop: > 40,5 °C én hartreserve op (≤ 0,05 L/min) op hetzelfde moment", "EHS criterion during the run: > 40.5 °C and cardiac reserve used up (≤ 0.05 L/min) at the same moment"),
               _frac_tekst(s["f_conjunctie"]),
               vt(f"Waarvan in het model hersteld: {s['f_hersteld']}", f"Of which recovered in the model: {s['f_hersteld']}")],
              [vt("TCF-dosis (hitte × tekort × tijd)", "TCF dose (heat × deficit × time)"),
@@ -449,7 +449,7 @@ def maak_rapport(r: LoperResultaat, plots: dict, pad: str | Path) -> Path:
                  f"unfavourable {nl(s['tcf']['hi'])} °C·L; ≥ {TCF_CFG.relevant_dose:g}: "
               f"{_frac_tekst(s['f_tcf_relevant'])}"),
               vt("Klassen 5/20/60 zijn niet gevalideerd", "Classes 5/20/60 are not validated")],
-             [vt("Hitte-uitputting (EHE: > 39,5 °C en reserve < 0)", "Heat exhaustion (EHE: > 39.5 °C and reserve < 0)"),
+             [vt("EHE-criterium (hitte-uitputting): > 39,5 °C én hartreserve op (≤ 0,05 L/min), tijdens de loop", "EHE criterion (heat exhaustion): > 39.5 °C and cardiac reserve used up (≤ 0.05 L/min), during the run"),
               _frac_tekst(s["f_ehe"]), vt("Signaal, niet gekalibreerd", "Signal, not calibrated")],
              [vt("Collaps na de finish (EAC)", "Collapse after the finish (EAC)"), _frac_tekst(s["f_eac"]), vt("Voorlopig: gekalibreerd op één punt (1,5 per 1000), niet gevalideerd", "Provisional: calibrated on one point (1.5 per 1000), not validated")],
              [vt("Collapsekans (model)", "Collapse probability (model)"),
@@ -551,9 +551,9 @@ def maak_rapport(r: LoperResultaat, plots: dict, pad: str | Path) -> Path:
         "door vertraging later finisht, is de extra tijd in de warmte niet meegerekend.",
            "The model calculates on time, not distance: it simulates the planned running time. If you "
         "finish later because you slowed down, the extra time in the heat is not included."),
-        vt("Na de finish rekent het model 10 minuten door met een vaste nawarmte. Hoe groot die "
+        vt("Na de finish rekent het model 30 minuten door met een vaste nawarmte. Hoe groot die "
         "nawarmte werkelijk is, is een open vraag in de suite.",
-           "After the finish the model calculates 10 more minutes with a fixed after-heat. How large that "
+           "After the finish the model calculates 30 more minutes with a fixed after-heat. How large that "
         "after-heat really is, is an open question in the suite."),
         vt("Het model gaat uit van een gezond lichaam, normaal uitgerust en goed gehydrateerd aan de start.", "The model assumes a healthy body, normally rested and well hydrated at the start."),
     ])

@@ -46,7 +46,7 @@ def _fmt(x, decimals=2, suffix=""):
     except (TypeError, ValueError):
         pass
     try:
-        return f"{float(x):.{decimals}f}{suffix}"
+        return f"{getal(float(x), decimals)}{suffix}"
     except (TypeError, ValueError):
         return str(x)
 
@@ -175,7 +175,7 @@ def generate_pyrox_report(event_name: str,
     A(vt(f"| Databron (sheet) | {sheet} |", f"| Data source (sheet) | {sheet} |"))
     A(vt(f"| Aantal dagen | {len(heat_loads)} |", f"| Number of days | {len(heat_loads)} |"))
     A(vt(f"| Aantal populatiegroepen | {n_groups_total} |", f"| Number of population groups | {n_groups_total} |"))
-    A(vt(f"| Hitteblootstelling per dag | {', '.join(f'{x:.2f}' for x in heat_loads)} |", f"| Heat exposure per day | {', '.join(f'{x:.2f}' for x in heat_loads)} |"))
+    A(vt(f"| Hitteblootstelling per dag | {'; '.join(getal(x, 2) for x in heat_loads)} |", f"| Heat exposure per day | {', '.join(f'{x:.2f}' for x in heat_loads)} |"))
     _nr = pyrox_report.get("nocturnal_recovery", False)
     A(vt(f"| Nachtelijk herstel | "
       f"{'telt mee: herstel volgens het minimum van de nacht na elke dag (zie sectie 2b)' if _nr else 'NIET meegeteld (volledig herstel elke nacht; alleen voor vergelijking met de paper)'} |",
