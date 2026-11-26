@@ -19,7 +19,7 @@ Every file in the release and what it does. History of individual files:
 | `CHECKSUMS.txt` | SHA-256 of every released file (`sha256sum -c CHECKSUMS.txt`) |
 | `requirements.txt` | exact, tested dependency versions (lock file) |
 | `pyproject.toml` | project metadata, compatible dependency ranges, pytest settings |
-| `package.json`, `package-lock.json` | Node.js dependency (`docx`) for the Word export; install with `npm install` |
+| `package.json`, `package-lock.json` | Node.js dependency (`docx`) for the optional Node renderer of the Word export (`THERMOPOULOS_DOCX_ENGINE=node`, after `npm install`); not needed by default |
 | `.gitignore` | keeps outputs, caches and field data out of version control |
 | `.github/workflows/tests.yml` | GitHub Actions: fast tests + golden check, then the slow tests |
 | `branding/` | logos of the suite and its components (author's own) |
@@ -118,7 +118,7 @@ Every file in the release and what it does. History of individual files:
 | `generate_klimatos_report.py` | Klimatos event report |
 | `generate_recommendation_report.py` | timing-advice report (proof of concept) |
 | `generate_pyrox_report.py` | PYROX population report |
-| `report_to_docx.py`, `build_report_docx.js` | Word export of the reports (Node.js, `npm install`) |
+| `report_to_docx.py`, `build_report_docx.js` | Word export of the reports: python-docx by default; `build_report_docx.js` is the optional Node renderer |
 
 ## Visual interfaces (Tkinter)
 
@@ -131,7 +131,7 @@ on the start screen; see `taal.py`).
 | `thermopoulos_ui.py` | start screen: choose one of the five interfaces below (keys 1–5); each opens in its own process. Dutch by default; the British flag switches the start screen and the interfaces opened from it to English (the Dutch flag switches back) |
 | `taal.py` | language of the interfaces and of the charts and Word reports made from them: `vt(nl, en)` for texts, `getal()` for decimal comma (NL) or point (EN), dates; set by `--lang en` or the environment variable `THERMOPOULOS_TAAL`, which spawned workers inherit. Display only: the values passed to the suite are the same in both languages |
 | `hestia_loper_ui.py` | one runner (or a person at rest): core temperature, CO reserve, WBGT, air temperature, humidity and wind during the run; online weather or a Data Engine file; live recalculation when the start time changes; HEAT-Lim rest mode; Word report of the personal analysis (`hestia_loper_rapport`) |
-| `hestia_populatie_ui.py` | event population: progressive Monte Carlo through `run_monte_carlo_adult`, EHS per 1000 with interval, risk bar, when/where/who, ten hottest participants, start-time comparison, Excel export, event report (`generate_event_report` + `report_to_docx`, Dutch or English; Word copy needs `npm install` once) |
+| `hestia_populatie_ui.py` | event population: progressive Monte Carlo through `run_monte_carlo_adult`, EHS per 1000 with interval, risk bar, when/where/who, ten hottest participants, start-time comparison, Excel export, event report (`generate_event_report` + `report_to_docx`, Dutch or English) |
 | `hestia_werk_ui.py` | outdoor workers over a working day (`hestia_werk.py`): work–rest schedule and breaks, core temperature, fluid loss and heart rate of the group against occupational limits, WBGT per hour against ISO 7243, PHS (ISO 7933) check, ten hottest workers, Word report (`hestia_werk_rapport.py`) |
 | `pyrox_ui.py` | PYROX: strain per group via `run_pyrox.assess_population`, heatmap, feedback loop, forecast uncertainty, regimes with stability of the equilibrium and the tipping zone, briefing (calendar, margin, after-effect), buckets, tipping-point landscape, Excel, Word report and an A4 briefing (`python-docx`) |
 | `ui_gemeen.py` | shared presentation parts for the interfaces (display only, no calculations): input sections labelled required / optional / model setting, result tiles with a one-line interpretation, a provenance line (data source, suite version, status, what the result is not) and a short explanation per tab |

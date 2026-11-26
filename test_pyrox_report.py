@@ -33,12 +33,26 @@ for p in sorted(pngs):
     print(" ", p)
 
 docx_path = os.path.join(OUT, "pyrox_report.docx")
-# [2026-10-25] The Word export needs 'npm install' (node_modules is not part of
-# the public release). Without it this step is reported as SKIPPED, not failed;
-# CI runs npm install first, so there it is always exercised.
+# [2026-11-26] The Word export is built in Python (python-docx) by default; no
+# Node.js needed. Check that it opens and holds the report's tables and images.
+export_report_docx(text, docx_path, report_kind="facts", event_name="TestCity heatwave")
+print("Word-document geschreven:", docx_path)
+import docx as _docx
+_d = _docx.Document(docx_path)
+_n_tab, _n_img = len(_d.tables), len(_d.inline_shapes)
+print(f"Word: {_n_tab} tabellen, {_n_img} afbeeldingen, {len(_d.paragraphs)} alinea's")
+assert _n_tab > 0, "geen tabellen in het Word-rapport"
+assert _n_img == len([l for l in text.splitlines() if l.strip().startswith("![")]), "aantal afbeeldingen klopt niet"
+# The Node route stays available (THERMOPOULOS_DOCX_ENGINE=node); test it when
+# 'npm install' was done here (CI does so).
 _here = os.path.dirname(os.path.abspath(__file__))
-if not os.path.isfile(os.path.join(_here, "node_modules", "docx", "package.json")) and not os.environ.get("HESTIA_REQUIRE_DOCX"):
-    print("SKIPPED: Word export (run 'npm install' in this folder to test it)")
-else:
-    export_report_docx(text, docx_path, report_kind="facts", event_name="TestCity heatwave")
-    print("Word-document geschreven:", docx_path)
+if os.path.isfile(os.path.join(_here, "node_modules", "docx", "package.json")):
+    os.environ["THERMOPOULOS_DOCX_ENGINE"] = "node"
+    try:
+        export_report_docx(text, docx_path.replace(".docx", "_node.docx"), report_kind="facts",
+                           event_name="TestCity heatwave")
+        print("Word-document (Node-route) geschreven")
+    finally:
+        os.environ.pop("THERMOPOULOS_DOCX_ENGINE", None)
+elif os.environ.get("HESTIA_REQUIRE_DOCX"):
+    raise SystemExit("HESTIA_REQUIRE_DOCX set but node_modules/docx missing")

@@ -8,6 +8,40 @@ Entries up to 2026-10-24 were written during development; names of people
 in personal communications have been replaced by their institution, and
 results of individual field-test participants by group-level statements.
 
+## [2026-11-26] Word reports without Node.js; key-figure section restored in the Word file
+
+- **Why:** on a fresh Windows copy the "Event report (Word)" button failed:
+  the Word file was built by a Node.js script (`build_report_docx.js`) that
+  needs a one-time `npm install`, which is not part of the release. The same
+  applied to the PYROX Word report and the report package.
+- **Author's decision:** build the Word file in Python with python-docx (already
+  a requirement and used by the personal runner report), so the buttons work
+  without Node.js, also for others using the suite.
+- **What changed:**
+    - `report_to_docx.export_report_docx()` renders with python-docx by
+      default (same block list and theme as before: badge, title, shaded
+      disclaimer, accent headings, tables with header row, bullets,
+      captions, images at full width, header and page number; A4, body
+      text 11 pt). The Node renderer stays available with
+      `THERMOPOULOS_DOCX_ENGINE=node`.
+    - **Error found and fixed:** the parser read everything before the first
+      `---` rule as the title block. Since the key-figure section was placed
+      there (earlier today), the Word copy of the event report lacked the
+      key-figure table and texts, in both renderers; only the interval note
+      survived, shown as the subtitle. The title block now also ends at the
+      first `## ` heading, and only the first italic line is the subtitle.
+      The Markdown report was always complete.
+    - Population window: when the Word export fails, the message says where
+      the Markdown report was saved.
+    - Event report, figure 5 caption: the lines are the EHS criterion's
+      limits (≤ 0.05 L/min, not ≤ 0), the corner of interest is upper left
+      (it said bottom right), and peak temperature and lowest reserve need
+      not occur at the same moment.
+    - `test_pyrox_report.py` always tests the Word export (tables and
+      number of images); the Node route is tested too where `npm install`
+      was done (CI).
+- Display and export only; nothing recomputed.
+
 ## [2026-11-26] Key figure: participants in trouble (EHS and EHE side by side)
 
 - **Why:** a check of one run in the population window against its event

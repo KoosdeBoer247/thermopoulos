@@ -142,8 +142,11 @@ Python 3.11 or newer (tested on 3.13), Windows or Linux.
 ```bash
 pip install -r requirements.txt     # exact, tested versions (lock file)
 # pyproject.toml lists looser compatible ranges; pythermalcomfort stays ==4.6.2
-npm install                          # optional: only for Word (.docx) export of reports (needs Node.js)
 ```
+
+Word (.docx) reports are built in Python (python-docx); Node.js is not needed.
+The older Node renderer stays available with `THERMOPOULOS_DOCX_ENGINE=node`
+after a one-time `npm install`.
 
 **pythermalcomfort must be exactly 4.6.2.** `jos3_leeftijd.py` replaces three
 JOS-3 functions in memory (the gradual, fitness-scaled age effect) and is

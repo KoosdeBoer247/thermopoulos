@@ -114,7 +114,7 @@ Klimatos needs that one file next to it.
 | Field validation | `fit_lezer.py`, `clinic_invoer.py`, `inspanning_uit_fit.py`, `hestia_reconstructie.py`, `dynamiek.py`, `clinic_validatie.py`, `clinic_rapport.py`, `criteria.json`, `fit_loop.py` (one run, no pre-registration), `groep_lopers.py` (known runners through a chosen run), `aanmelding.py` (sign-up list + FIT files to codes) |
 | PYROX | `pyrox_model.py`, `pyrox_groups.py`, `run_pyrox.py`, `pyrox_plots.py`, `paris2003.py`, `verify.py` |
 | Klimatos | `Klimatos_ClimateShift.py`, `klimatos_ehs_worker.py`, `HEATLim.py` |
-| Reports | `generate_event_report.py`, `generate_klimatos_report.py`, `generate_recommendation_report.py`, `generate_pyrox_report.py`, `hestia_loper_rapport.py`, `report_to_docx.py` + `build_report_docx.js` (Word, needs `npm install`) |
+| Reports | `generate_event_report.py`, `generate_klimatos_report.py`, `generate_recommendation_report.py`, `generate_pyrox_report.py`, `hestia_loper_rapport.py`, `report_to_docx.py` (Word via python-docx; optional Node renderer `build_report_docx.js`) |
 | Menu and tests | `start_thermopoulos.py` (main menu), `rapportpakket.py` (report later), `run_all_tests.py`, `tests/` (pytest), `test_*.py`, `suite_smoke_test.py` |
 
 

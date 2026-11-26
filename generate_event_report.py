@@ -917,18 +917,22 @@ def generate_report(event_name: str,
          "risk everywhere.")),
         ("plot5_", vt("Elke stip is één deelnemer: piek-kerntemperatuur tegen de "
          "laagste hartminuutvolume-reserve, gekleurd naar individuele "
-         "collapse-kans. De rode lijnen markeren het klinische criterium "
-         "(T_rect>40,5°C ÉN CO_reserve≤0) -- de rechtsonder-hoek toont in "
-         "één oogopslag wie zowel warm ÁLS cardiovasculair belast tegelijk "
-         "was, in plaats van de twee losse verdelingen uit de vorige twee "
-         "grafieken.",
+         "collapse-kans. De rode lijnen markeren de grenzen van het "
+         "EHS-criterium (T_rect > 40,5 °C en CO_reserve ≤ 0,05 L/min); de "
+         "hoek linksboven toont wie zowel warm als cardiovasculair zwaar "
+         "belast was, in plaats van de twee losse verdelingen uit de vorige "
+         "twee grafieken. Let op: piektemperatuur en laagste reserve vallen "
+         "niet altijd op hetzelfde moment. Een stip in die hoek telt dus niet "
+         "vanzelf als EHS-geval; het criterium vraagt beide tegelijk.",
                       "Each dot is one participant: peak core temperature against the "
          "lowest cardiac-output reserve, coloured by individual "
-         "collapse probability. The red lines mark the clinical criterion "
-         "(T_rect>40.5°C AND CO_reserve≤0) -- the bottom-right corner shows "
-         "at a glance who was both hot AND cardiovascularly strained at the same time, "
-         "instead of the two separate distributions from the previous two "
-         "charts.")),
+         "collapse probability. The red lines mark the limits of the EHS "
+         "criterion (T_rect > 40.5 °C and CO_reserve ≤ 0.05 L/min); the "
+         "upper-left corner shows who was both hot and cardiovascularly "
+         "strained, instead of the two separate distributions from the "
+         "previous two charts. Note: peak temperature and lowest reserve do "
+         "not always occur at the same moment, so a dot in that corner is not "
+         "automatically an EHS case; the criterion requires both at once.")),
         ("plot6_", vt("Individuele collapse-kans uitgezet tegen leeftijd, apart "
          "voor mannen en vrouwen -- laat zien of het risico geconcentreerd "
          "is in specifieke leeftijdsgroepen, of gelijkmatig verdeeld is over "

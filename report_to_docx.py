@@ -20,6 +20,12 @@ Usage
     export_report_docx(md_text, output_path="report.docx",
                        report_kind="facts", event_name="Utrecht Marathon")
 
+Engine [2026-11-26]: the Word file is built in Python with python-docx (already
+a suite requirement, also used by the personal runner report), so no Node.js
+or 'npm install' is needed. The original Node/docx-js renderer
+(build_report_docx.js) is kept and can be chosen with the environment
+variable THERMOPOULOS_DOCX_ENGINE=node.
+
 report_kind is "facts" (steady blue-teal palette, "FEITENRAPPORT" badge) or
 "advisory" (distinct amber palette, "ADVIESRAPPORT" badge) -- matching, in
 visual form, the same facts-vs-recommendation distinction the Markdown
@@ -62,9 +68,14 @@ def parse_markdown_report(md_text: str) -> dict:
 
     # Auto-generated note + bold-led disclaimer, up to the first '---' rule
     disclaimer_runs = None
-    while i < len(lines) and lines[i].strip() != "---":
+    # [2026-11-26] The preamble also ends at the first '## ' heading: the event
+    # report puts its key-figure section before the first '---' rule, and it
+    # was swallowed here (only its last italic line survived, as the note).
+    # Only the FIRST italic line is the auto-generated note.
+    while i < len(lines) and lines[i].strip() != "---" and not lines[i].startswith("## "):
         stripped = lines[i].strip()
-        if stripped.startswith("*") and stripped.endswith("*") and not stripped.startswith("**"):
+        if (stripped.startswith("*") and stripped.endswith("*") and not stripped.startswith("**")
+                and subtitle_note is None):
             subtitle_note = stripped.strip("*")
         elif stripped.startswith("**"):
             # The disclaimer paragraph starts bold ("**Dit is een ...**") but
@@ -75,7 +86,8 @@ def parse_markdown_report(md_text: str) -> dict:
             # for parse_inline() to split into proper bold/plain runs later.
             disclaimer_runs = stripped
         i += 1
-    i += 1  # skip the '---' line itself
+    if i < len(lines) and lines[i].strip() == "---":
+        i += 1  # skip the '---' line itself
 
     def parse_inline(text):
         """Split a line into (text, bold) runs on '**bold**' markers."""
@@ -98,7 +110,11 @@ def parse_markdown_report(md_text: str) -> dict:
             i += 1
             continue
 
-        if stripped == "*Einde rapport.*":
+        if stripped == "---":
+            i += 1
+            continue
+
+        if stripped in ("*Einde rapport.*", "*End of report.*"):
             i += 1
             continue
 
@@ -233,6 +249,10 @@ def export_report_docx(md_text: str, output_path: str, report_kind: str = "facts
         "image_base_dir": os.path.abspath(image_base_dir),
     }
 
+    engine = os.environ.get("THERMOPOULOS_DOCX_ENGINE", "python").strip().lower()
+    if engine != "node":
+        return _render_python_docx(payload, output_path)
+
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
     # [2026-08-31] Early, plain-language check before shelling out to node at
@@ -246,12 +266,15 @@ def export_report_docx(md_text: str, output_path: str, report_kind: str = "facts
     # third-party code); the one-time 'npm install' below installs the docx
     # package from package.json.
     if not os.path.isfile(os.path.join(script_dir, "node_modules", "docx", "package.json")):
-        raise RuntimeError(
-            "Word export needs a one-time setup step in THIS folder: open a "
-            "terminal here and run 'npm install' (requires Node.js -- "
-            "https://nodejs.org, the LTS version). The Markdown report is "
-            "written regardless; only the Word copy needs this step."
-        )
+        raise RuntimeError(vt(
+            "De Node-route voor Word (THERMOPOULOS_DOCX_ENGINE=node) heeft een "
+            "eenmalige stap in DEZE map nodig: open hier een opdrachtvenster en "
+            "typ 'npm install' (vereist Node.js, https://nodejs.org, LTS-versie). "
+            "Zonder die variabele maakt de suite het Word-bestand zelf.",
+            "The Node route for Word (THERMOPOULOS_DOCX_ENGINE=node) needs a "
+            "one-time setup step in THIS folder: open a terminal here and run "
+            "'npm install' (requires Node.js, https://nodejs.org, the LTS "
+            "version). Without that variable the suite builds the Word file itself."))
     json_path = output_path + ".content.json"
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False)
@@ -312,3 +335,192 @@ def _resolve_node_executable() -> str:
         "close and restart the application calling this (e.g. Spyder) so it "
         "picks up the updated PATH, then try again."
     )
+
+
+# =============================================================================
+# Python renderer (python-docx) -- default since 2026-11-26
+# =============================================================================
+# Same block list and theme as build_report_docx.js, so the look stays close:
+# accent rule and badge, large title, italic note, shaded disclaimer with an
+# accent bar, accent-coloured section headings, tables with an accent header
+# row, bullets, italic captions, images at full content width, event name in
+# the header and badge + page number in the footer. Page size A4. Body text
+# 11 pt (slightly larger than the Node version's 10.5 pt).
+
+def _shade(el, fill_hex):
+    """Background shading for a paragraph (pPr) or table cell (tcPr)."""
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    shd = OxmlElement("w:shd")
+    shd.set(qn("w:val"), "clear")
+    shd.set(qn("w:color"), "auto")
+    shd.set(qn("w:fill"), fill_hex)
+    el.append(shd)
+
+
+def _border(paragraph, side, color_hex, size_eighths, space=4):
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    pPr = paragraph._p.get_or_add_pPr()
+    bdr = pPr.find(qn("w:pBdr"))
+    if bdr is None:
+        bdr = OxmlElement("w:pBdr")
+        pPr.append(bdr)
+    b = OxmlElement(f"w:{side}")
+    b.set(qn("w:val"), "single")
+    b.set(qn("w:sz"), str(int(size_eighths)))
+    b.set(qn("w:space"), str(int(space)))
+    b.set(qn("w:color"), color_hex)
+    bdr.append(b)
+
+
+def _runs(paragraph, inline_runs, size=11.0, color="1A1A1A", bold=None,
+          italic=False, font="Calibri"):
+    from docx.shared import Pt, RGBColor
+    for r in inline_runs:
+        run = paragraph.add_run(r["text"])
+        run.font.name = font
+        run.font.size = Pt(size)
+        run.font.color.rgb = RGBColor.from_string(color)
+        run.bold = bool(r.get("bold")) if bold is None else bold
+        run.italic = italic
+    return paragraph
+
+
+def _page_field(paragraph, size, color):
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    from docx.shared import Pt, RGBColor
+    run = paragraph.add_run()
+    run.font.size = Pt(size)
+    run.font.color.rgb = RGBColor.from_string(color)
+    for tag, attr in (("w:fldChar", "begin"), ("w:instrText", None), ("w:fldChar", "end")):
+        el = OxmlElement(tag)
+        if attr:
+            el.set(qn("w:fldCharType"), attr)
+        else:
+            el.set(qn("xml:space"), "preserve")
+            el.text = "PAGE"
+        run._r.append(el)
+
+
+def _repeat_header(row):
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    trPr = row._tr.get_or_add_trPr()
+    el = OxmlElement("w:tblHeader")
+    el.set(qn("w:val"), "true")
+    trPr.append(el)
+
+
+def _render_python_docx(payload: dict, output_path: str) -> str:
+    from docx import Document
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.table import WD_TABLE_ALIGNMENT
+    from docx.shared import Pt, Cm, RGBColor
+
+    theme = payload["theme"]
+    acc, acc_l = theme["accent"], theme["accent_light"]
+    doc = Document()
+    sec = doc.sections[0]
+    sec.page_width, sec.page_height = Cm(21.0), Cm(29.7)
+    sec.left_margin = sec.right_margin = Cm(2.2)
+    sec.top_margin = sec.bottom_margin = Cm(2.2)
+    breedte = sec.page_width - sec.left_margin - sec.right_margin
+
+    st = doc.styles["Normal"]
+    st.font.name = "Calibri"
+    st.font.size = Pt(11)
+
+    # Header and footer
+    hp = sec.header.paragraphs[0]
+    _runs(hp, [{"text": payload.get("event_name") or payload["title"]}], size=8.5, color="888888")
+    _border(hp, "bottom", acc, 4)
+    fp = sec.footer.paragraphs[0]
+    fp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    _runs(fp, [{"text": theme["badge"] + " — "}], size=8.5, color="999999")
+    _page_field(fp, 8.5, "999999")
+
+    # Title block
+    p = doc.add_paragraph()
+    _border(p, "bottom", acc, 24, space=8)
+    p.paragraph_format.space_after = Pt(10)
+    p = doc.add_paragraph()
+    run = p.add_run(" " + theme["badge"] + " ")
+    run.bold = True
+    run.font.size = Pt(10)
+    run.font.color.rgb = RGBColor.from_string(theme["badge_text"])
+    _shade(run._r.get_or_add_rPr(), acc)
+    p = doc.add_paragraph()
+    _runs(p, [{"text": payload["title"]}], size=26, bold=True)
+    p.paragraph_format.space_after = Pt(6)
+    if payload.get("subtitle_note"):
+        p = doc.add_paragraph()
+        _runs(p, [{"text": payload["subtitle_note"]}], size=11, color="555555", italic=True)
+    if payload.get("disclaimer_runs"):
+        p = doc.add_paragraph()
+        _shade(p._p.get_or_add_pPr(), acc_l)
+        _border(p, "left", acc, 18, space=8)
+        p.paragraph_format.space_before = Pt(8)
+        p.paragraph_format.space_after = Pt(12)
+        _runs(p, payload["disclaimer_runs"], size=10.5)
+
+    base = payload.get("image_base_dir") or "."
+    for b in payload["blocks"]:
+        t = b["type"]
+        if t == "heading":
+            lvl = b["level"]
+            p = doc.add_heading(level=1 if lvl == 2 else 2)
+            _runs(p, b["runs"], size=15 if lvl == 2 else 12.5, bold=True,
+                  color=acc if lvl == 2 else "1A1A1A")
+            p.paragraph_format.space_before = Pt(16 if lvl == 2 else 10)
+            p.paragraph_format.space_after = Pt(6)
+            p.paragraph_format.keep_with_next = True
+            if lvl == 2:
+                _border(p, "bottom", acc, 8)
+        elif t == "paragraph":
+            p = doc.add_paragraph()
+            _runs(p, b["runs"])
+            p.paragraph_format.space_after = Pt(6)
+        elif t == "bullets":
+            for item in b["items"]:
+                p = doc.add_paragraph(style="List Bullet")
+                _runs(p, item)
+        elif t == "caption":
+            p = doc.add_paragraph()
+            _runs(p, b["runs"], size=9.5, color="666666", italic=True)
+            p.paragraph_format.space_after = Pt(12)
+        elif t == "table":
+            header, rows = b["header"], b["rows"]
+            ncol = max([len(header)] + [len(r) for r in rows])
+            tab = doc.add_table(rows=1 + len(rows), cols=ncol)
+            tab.style = "Table Grid"
+            tab.alignment = WD_TABLE_ALIGNMENT.CENTER
+            for j in range(ncol):
+                c = tab.rows[0].cells[j]
+                c.text = ""
+                _shade(c._tc.get_or_add_tcPr(), acc)
+                if j < len(header):
+                    _runs(c.paragraphs[0], header[j], size=10, color="FFFFFF", bold=True)
+            _repeat_header(tab.rows[0])
+            for i, r in enumerate(rows, start=1):
+                for j in range(ncol):
+                    c = tab.rows[i].cells[j]
+                    c.text = ""
+                    if j < len(r):
+                        _runs(c.paragraphs[0], r[j], size=10)
+            doc.add_paragraph().paragraph_format.space_after = Pt(4)
+        elif t == "image":
+            pad = os.path.join(base, b["path"])
+            if os.path.isfile(pad):
+                p = doc.add_paragraph()
+                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                p.paragraph_format.space_before = Pt(6)
+                p.add_run().add_picture(pad, width=breedte)
+            else:
+                p = doc.add_paragraph()
+                _runs(p, [{"text": vt(f"[afbeelding niet gevonden: {b['path']}]",
+                                      f"[image not found: {b['path']}]")}],
+                      size=9.5, color="AA0000", italic=True)
+    doc.save(output_path)
+    return output_path

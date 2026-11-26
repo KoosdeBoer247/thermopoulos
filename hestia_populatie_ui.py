@@ -1855,7 +1855,13 @@ def _start_ui(na_start=None):
                 messagebox.showinfo(vt("Evenementrapport", "Event report"),
                                     vt(f"Opgeslagen:\n{pad}", f"Saved:\n{pad}"))
             except Exception as ex:
-                messagebox.showerror(vt("Evenementrapport", "Event report"), vt(f"Mislukt: {ex}", f"Failed: {ex}"))
+                # [2026-11-26] Zeg ook waar het Markdown-rapport staat, als dat er al is.
+                from pathlib import Path as _P
+                _md = _P(p).with_suffix(".md")
+                _extra = (vt(f"\n\nHet Markdown-rapport is wel opgeslagen:\n{_md}",
+                             f"\n\nThe Markdown report was saved:\n{_md}") if _md.is_file() else "")
+                messagebox.showerror(vt("Evenementrapport", "Event report"),
+                                     vt(f"Mislukt: {ex}", f"Failed: {ex}") + _extra)
             finally:
                 self.root.config(cursor="")
 
