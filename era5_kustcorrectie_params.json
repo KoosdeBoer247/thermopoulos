@@ -328,6 +328,7 @@
   "island_min_ghi_Wm2": 50.0,
   "island_max_land_fraction": 0.5,
   "day_ghi_Wm2": 10.0,
+  "ramp_start_C": 20.0,
   "hot_day_T_land_max_C": 24.0,
   "tlev_clip_C": 10.0,
   "inland_land_fraction": 0.9,
@@ -343,5 +344,8 @@
    9
   ],
   "amplitude_min_hours": 20
- }
+ },
+ "changes": [
+  "2026-11-27: setting ramp_start_C added (gradual transition 20-24 C instead of a hard switch at 24 C); fitted parameters unchanged"
+ ]
 }

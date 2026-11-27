@@ -8,6 +8,22 @@ Entries up to 2026-10-24 were written during development; names of people
 in personal communications have been replaced by their institution, and
 results of individual field-test participants by group-level statements.
 
+## [2026-11-27] ERA5 land-sea correction: gradual transition instead of a hard switch
+
+- The correction switched on abruptly when the daily maximum of the land
+  reference (T_land) reached 24 degC, which gave a sudden jump between nearly
+  equal days (found by the author). Now a day weight rises linearly from 0 at
+  20 degC to 1 at 24 degC and multiplies the whole correction. On those days
+  the heat term of f_land is taken as 0, as at 24 degC, so the hourly
+  regression (fitted on hot days only) is not extrapolated. New setting
+  `ramp_start_C` = 20 in `era5_kustcorrectie_params.json`; fitted parameters
+  unchanged. On hot days (>= 24 degC) nothing changes, so the strict-test
+  results stand; days between 20 and 24 degC now get part of the correction,
+  which is outside the range the model was fitted and tested on.
+- New checks in `test_era5_kustcorrectie.py`: day weight 0 / 0.5 / 1 at
+  20 / 22 / 24 degC, no jump at 24 degC, no correction at 20 degC. The
+  reference set (identical to `buurcel_toets.py`) still matches.
+
 ## [2026-11-26] Word reports without Node.js; key-figure section restored in the Word file
 
 - **Why:** on a fresh Windows copy the "Event report (Word)" button failed:

@@ -201,7 +201,12 @@ T = T_cel + w(F) · (T_land + f_land − T_cel) + c · G
 | f_land | per UTC hour: a0 + clearness + ln(1 + wind10) + heat + heat² + clearness·heat + e_land (heat = daily maximum of T_land − 24, clipped ±10; e_land = T_land − its UTC-day mean); by day (GHI > 10 W/m²) everywhere, at night only inland (≥ 90 % land in the cell) | 24 × 10 coefficients, fitted on inland stations |
 | G | narrow island only (site on land, < 50 % land in the cell, island narrower than the cell N–S or E–W): GHI/100 · (1 − land fraction), for GHI > 50 W/m² | c = 0.68 °C per 100 W/m² |
 
-Only hot days are corrected (the fit range). Hours filled from the forecast
+Hot days are corrected in full (the fit range). [2026-11-27] Below 24 °C the
+correction fades out: a day weight rising linearly from 0 at a daily maximum
+of T_land of 20 °C to 1 at 24 °C multiplies the whole correction, so there is
+no sudden jump at 24 °C; on those days the heat term of f_land is taken as 0
+(as at 24 °C), so the hourly regression is not extrapolated. Results on hot
+days, and so the test results above, are unchanged. Hours filled from the forecast
 API, hours with a missing input, and sites without a land cell within 30 km
 (other than narrow islands) are left as ERA5 delivered them; the column
 `coastal_correction_reason` says why per hour, `T_air_era5` keeps the

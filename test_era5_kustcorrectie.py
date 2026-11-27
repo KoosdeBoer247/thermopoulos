@@ -7,8 +7,9 @@ Checked:
      eerst gecorrigeerd') on a reference set of 5 stations x 3 hot days
      (testdata/era5_kustcorrectie_referentie.csv; inputs from the estimate
      cache, so this checks the formula, not the quality of the correction);
-  3. no correction on days that are not hot, and none without a land cell
-     (except on a narrow island);
+  3. no correction on days with a T_land maximum of 20 C or less, a gradual
+     transition from 20 to 24 C without a jump at 24 C (2026-11-27), and no
+     correction without a land cell (except on a narrow island);
   4. night rule: at the coast f_land is 0 at night, inland it is not;
   5. corrigeer_dataframe with a fake archive: land cells cached, hot-day hours
      corrected, forecast-API hours left alone, times in UTC;
@@ -82,7 +83,7 @@ r_kust = K.correctie(T_cel, T_land, pd.Series(zon, index=idx), 20 * een, 3 * een
                      tab, True, geen_eiland)
 dag1, dag2 = idx.day == 19, idx.day == 20
 check("day 1 hot (max T_land 26 C) is corrected", (r_land.reden[dag1] == "applied").all())
-check("day 2 not hot (max 20 C): no correction",
+check("day 2 max 20 C: no correction",
       (r_land.correctie[dag2] == 0).all() and (r_land.reden[dag2] == "not a hot day").all())
 nacht = dag1 & (zon <= 10)
 check("night rule: coast f_land = 0 at night", (r_kust.f_land[nacht] == 0).all())
@@ -91,6 +92,25 @@ check("by day coast and inland equal",
       np.allclose(r_kust.correctie[dag1 & (zon > 10)], r_land.correctie[dag1 & (zon > 10)]))
 check("w(40 km) = wmax(1-exp(-40/L))",
       abs(r_land.w.iloc[12] - P["w"]["wmax"] * (1 - np.exp(-40 / P["w"]["L_km"]))) < 1e-12)
+# [2026-11-27] gradual transition 20-24 C instead of a hard switch at 24 C
+check("day weight 0 / 0.5 / 1 at 20 / 22 / 24 C",
+      np.allclose(K.ramp_gewicht(pd.Series([19.0, 20.0, 22.0, 24.0, 30.0])).to_numpy(), [0, 0, 0.5, 1, 1]))
+def _dag(tmax):
+    i = pd.date_range("2022-07-19", periods=24, freq="h")
+    u = i.hour.to_numpy()
+    tl = pd.Series(tmax - 6 + 6 * np.sin((u - 8) / 24 * 2 * np.pi), index=i)
+    tl = tl - tl.max() + tmax
+    z = pd.Series(np.clip(800 * np.sin((u - 4) / 16 * np.pi), 0, None), index=i)
+    e = pd.Series(1.0, index=i)
+    return K.correctie(tl - 2.0, tl, z, 20 * e, 3 * e, 90 * e, tab, False, geen_eiland)
+c_net_onder = _dag(23.999).correctie.to_numpy()
+c_op = _dag(24.0).correctie.to_numpy()
+check("no jump at 24 C (23.999 vs 24.0)", np.max(np.abs(c_net_onder - c_op)) < 0.01,
+      f"max {np.max(np.abs(c_net_onder - c_op)):.4f} C")
+c22 = _dag(22.0)
+check("22 C: day weight 0.5 and correction applied",
+      np.allclose(c22.dag_gewicht, 0.5) and (c22.reden == "applied").all())
+check("20 C: no correction", (_dag(20.0).correctie == 0).all())
 r_geen = K.correctie(T_cel, None, pd.Series(zon, index=idx), 20 * een, 3 * een, 90 * een,
                      tab, True, geen_eiland)
 check("no land cell, no island: no correction", (r_geen.correctie == 0).all())

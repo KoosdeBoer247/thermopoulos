@@ -41,9 +41,13 @@ The model (frozen on 2026-11-19, see era5_kustcorrectie_params.json):
           GHI > 50 W/m2. Without a land cell T_land = T_cel and only f_land
           and the island term remain.
 
-The correction is applied only on hot days: UTC days on which the daily
-maximum of T_land is at least 24 C, the range the model was fitted on. On
-other days, on hours filled from the forecast API, and wherever a required
+The correction is applied in full on hot days: UTC days on which the daily
+maximum of T_land is at least 24 C, the range the model was fitted on.
+[2026-11-27] Below that it fades out linearly: a day weight from 0 at 20 C
+to 1 at 24 C multiplies the whole correction, so that there is no sudden
+jump at 24 C; on those days the heat of the day in f_land is taken as 0 (as
+at 24 C), so the hourly regression is not extrapolated. On days of 20 C or
+less, on hours filled from the forecast API, and wherever a required
 input is missing the hour is left as ERA5 delivered it, and the column
 coastal_correction_applied says so.
 
@@ -354,6 +358,14 @@ def f_land(uur: np.ndarray, helder, lw, tlev, e_land) -> np.ndarray:
     return f
 
 
+def ramp_gewicht(dagmax):
+    """Day weight of the correction from the day maximum of T_land (C):
+    0 at or below ramp_start_C (20 C), 1 at or above hot_day_T_land_max_C
+    (24 C), linear in between. [2026-11-27]"""
+    t0, t1 = S["ramp_start_C"], S["hot_day_T_land_max_C"]
+    return ((dagmax - t0) / (t1 - t0)).clip(0.0, 1.0)
+
+
 def correctie(T_cel: pd.Series, T_land: Optional[pd.Series], ghi: pd.Series,
               bewolking: pd.Series, wind10: pd.Series, windrichting: pd.Series,
               tabel_F: np.ndarray, kust: bool, eiland: dict) -> pd.DataFrame:
@@ -375,12 +387,20 @@ def correctie(T_cel: pd.Series, T_land: Optional[pd.Series], ghi: pd.Series,
     T_land = T_land.reindex(idx)
     datum = idx.date
     dagmax = T_land.groupby(datum).transform("max")
-    heet = (dagmax >= S["hot_day_T_land_max_C"]).to_numpy()
+    # [2026-11-27] Gradual transition instead of a hard switch at 24 C: the
+    # correction is multiplied by a day weight that rises linearly from 0 at a
+    # day maximum of T_land of 20 C to 1 at 24 C. From 24 C up (the range the
+    # model was fitted and tested on) nothing changes.
+    g_dag = ramp_gewicht(dagmax).to_numpy()
+    heet = g_dag > 0
     e_land = (T_land - T_land.groupby(datum).transform("mean")).to_numpy()
     helder = (1 - bewolking.reindex(idx) / 100)
     helder = helder.fillna(helder.mean()).to_numpy()
     lw = np.log1p(wind10.reindex(idx).fillna(wind10.mean())).to_numpy()
-    tlev = (dagmax - S["hot_day_T_land_max_C"]).clip(-S["tlev_clip_C"], S["tlev_clip_C"]).to_numpy()
+    # In the transition (20-24 C) the heat of the day is taken as 0, as on a day
+    # of exactly 24 C: the hourly regression was fitted on hot days only and is
+    # not extrapolated to cooler days.
+    tlev = (dagmax - S["hot_day_T_land_max_C"]).clip(0.0, S["tlev_clip_C"]).to_numpy()
     zon = ghi.reindex(idx).fillna(0.0).clip(lower=0).to_numpy()
     uur = idx.hour.to_numpy()
 
@@ -397,11 +417,13 @@ def correctie(T_cel: pd.Series, T_land: Optional[pd.Series], ghi: pd.Series,
         G = np.zeros(len(idx))
     corr = (w_van_F(F) * (T_land.to_numpy() + f - T_cel.to_numpy())
             + PARAMS["c_island_per_100Wm2"] * G)
+    corr = g_dag * corr
     ok = heet & np.isfinite(corr)
     uit["correctie"] = np.where(ok, corr, 0.0)
     uit["reden"] = np.where(ok, "applied", np.where(heet, "input missing", "not a hot day"))
     uit["F_km"], uit["w"], uit["f_land"], uit["G"] = F, w_van_F(F), f, G
     uit["T_land"] = T_land.to_numpy()
+    uit["dag_gewicht"] = g_dag
     return uit
 
 
@@ -456,7 +478,7 @@ def corrigeer_dataframe(df: pd.DataFrame, lat: float, lon: float,
         info.update(toegepast=n > 0, uren=n, kust=bool(kust), landdeel_cel=kust_ld,
                     eiland=eil["eiland"], n_landcellen=len(land),
                     reden=pd.Series(reden, index=df.index),
-                    melding=(f"ERA5 land-sea correction: {n} hot-day hours corrected "
+                    melding=(f"ERA5 land-sea correction: {n} hours corrected "
                              f"({len(land)} land cells within 30 km, "
                              f"{'coast' if kust else 'inland'}"
                              f"{', narrow island' if eil['eiland'] else ''})."))

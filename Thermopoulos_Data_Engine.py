@@ -10,7 +10,8 @@ NEW in v3.2 (2026-11-19):
 - ERA5 land-sea correction (era5_kustcorrectie.py) on all ERA5 archive data
   (hindcast and custom historical period), replacing the provisional 3 C
   coastal correction and the question whether the site is coastal. Fitted on
-  26 KNMI stations; corrects hot days only; not yet tested outside the
+  26 KNMI stations; corrects hot days (fading out between 24 and 20 C since
+  2026-11-27); not yet tested outside the
   Netherlands. New columns T_air_era5 (uncorrected) and
   coastal_correction_reason. Needs the package global-land-mask; without it
   nothing is corrected and a warning is printed.
@@ -109,7 +110,8 @@ logger = logging.getLogger(__name__)
 # stations (May-September 2018-2022). It is applied to every ERA5 archive
 # dataset and decides per site and per hour itself: land cells within 30 km,
 # km of land against the wind, a night rule for the coast and an island term.
-# Only hot days (daily maximum of the land reference >= 24 C) are corrected.
+# Hot days (daily maximum of the land reference >= 24 C) are corrected in
+# full; since 2026-11-27 the correction fades out linearly to 0 at 20 C.
 # Not yet tested outside the Netherlands; see era5_kustcorrectie.py and
 # Known issue 14 in the README.
 import era5_kustcorrectie
